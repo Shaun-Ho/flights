@@ -1,0 +1,47 @@
+---
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v4.5.0
+      hooks:
+          - id: check-added-large-files
+          - id: check-json
+          - id: check-merge-conflict
+          - id: check-toml
+          - id: check-xml
+          - id: check-yaml
+            args: [--unsafe]
+          - id: debug-statements
+          - id: end-of-file-fixer
+          - id: mixed-line-ending
+            args: [--fix=lf]
+          - id: pretty-format-json
+          - id: trailing-whitespace
+    - repo: https://github.com/ComPWA/taplo-pre-commit
+      rev: v0.9.3
+      hooks:
+          - id: taplo-format
+    - repo: https://github.com/adrienverge/yamllint.git
+      rev: v1.29.0
+      hooks:
+          - id: yamllint
+            args: [--format, parsable, --strict]
+    - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
+      rev: 0.2.1
+      hooks:
+          - id: yamlfmt
+    - repo: local
+      hooks:
+          - id: rust-linting
+            name: Rust linting
+            entry: cargo fmt --all --
+            pass_filenames: true
+            types: [file, rust]
+            language: system
+          - id: rust-clippy
+            name: Rust clippy
+            entry: >-
+                cargo clippy --all-targets --all-features
+                -- -Dclippy::all -Dclippy::pedantic
+            pass_filenames: false
+            types: [file, rust]
+            language: system
