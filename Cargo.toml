@@ -8,3 +8,8 @@ crossbeam-channel = "0.5"
 env_logger = "0.11"
 chrono = "0.4.42"
 log = "0.4.29"
+
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
