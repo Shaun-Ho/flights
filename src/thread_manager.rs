@@ -19,6 +19,12 @@ impl ThreadManager {
             tasks: std::collections::HashMap::new(),
         }
     }
+
+    #[must_use]
+    pub fn current_task_id(&self) -> TaskID {
+        self.current_task_id
+    }
+
     /// Adds a task to the thread manager.
     ///
     /// # Arguments
