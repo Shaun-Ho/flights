@@ -2,7 +2,7 @@ use log::info;
 pub type ThreadID = i32;
 pub type TaskID = i32;
 
-pub trait Runnable: Send + 'static {
+pub trait SteppableTask: Send + 'static {
     fn step(&mut self) -> bool;
 }
 
@@ -38,7 +38,7 @@ impl ThreadManager {
     #[must_use]
     pub fn add_task<T>(&mut self, mut task: T, period: std::time::Duration) -> TaskID
     where
-        T: Runnable,
+        T: SteppableTask,
     {
         let id = self.current_task_id;
         let running_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
@@ -96,7 +96,7 @@ struct ManagedTask {
 }
 #[cfg(test)]
 mod tests {
-    use super::{Runnable, ThreadManager};
+    use super::{SteppableTask, ThreadManager};
 
     // A simple runnable task for counting and self-stopping
     #[derive(Debug)]
@@ -116,7 +116,7 @@ mod tests {
         }
     }
 
-    impl Runnable for CountingTask {
+    impl SteppableTask for CountingTask {
         fn step(&mut self) -> bool {
             let mut count = self.count.lock().unwrap();
             *count += 1;
@@ -141,7 +141,7 @@ mod tests {
         }
     }
 
-    impl Runnable for LoopingTask {
+    impl SteppableTask for LoopingTask {
         fn step(&mut self) -> bool {
             let mut executions = self.executions.lock().unwrap();
             *executions += 1;
