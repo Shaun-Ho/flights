@@ -65,6 +65,7 @@ impl ThreadManager {
                 running: running_flag,
             },
         );
+        self.current_task_id += 1;
         id
     }
 
@@ -215,14 +216,14 @@ mod tests {
 
         assert_eq!(manager.tasks.len(), 2);
 
-        manager.stop_all_tasks(); // Signal them to stop
-        manager.wait_on_task_finish(task_id1); // Wait for task 1
+        manager.stop_all_tasks();
+        manager.wait_on_task_finish(task_id1);
 
-        assert_eq!(manager.tasks.len(), 1); // Only task 2 should remain
+        assert_eq!(manager.tasks.len(), 1);
         assert!(manager.tasks.contains_key(&task_id2));
         assert!(!manager.tasks.contains_key(&task_id1));
 
-        manager.wait_on_task_finish(task_id2); // Wait for task 2
+        manager.wait_on_task_finish(task_id2);
         assert!(manager.tasks.is_empty()); // No tasks left
     }
 }
