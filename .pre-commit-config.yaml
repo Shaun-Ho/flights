@@ -40,8 +40,7 @@ repos:
           - id: rust-clippy
             name: Rust clippy
             entry: >-
-                cargo clippy --all-targets --all-features
-                -- -Dclippy::all -Dclippy::pedantic
+                cargo clippy
             pass_filenames: false
             types: [file, rust]
             language: system

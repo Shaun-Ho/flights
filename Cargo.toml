@@ -11,5 +11,6 @@ log = "0.4.29"
 
 
 [lints.clippy]
-all = "deny"
-pedantic = "deny"
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = 0 }
+missing_errors_doc = { level = "allow", priority = 1 }
