@@ -1,79 +1,35 @@
+use clap::Parser;
+use flights::cli::Cli;
+use flights::config::ApplicationConfig;
 use flights::ingestor::Ingestor;
 use flights::logging::setup_logging;
-use log::{error, info, warn};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
-use std::time::Duration; // Ensure chrono is in Cargo.toml
+use flights::thread_manager::ThreadManager;
+use log::info;
 
 fn main() {
-    setup_logging();
+    setup_logging(log::LevelFilter::Debug);
+    let cli = Cli::parse();
+    let application_config = ApplicationConfig::construct_from_path(&cli.config_file)
+        .unwrap_or_else(|e| {
+            log::error!("{e}");
+            panic!("Config error. Exiting.")
+        });
     info!("Main: Application started.");
 
-    let ingestor = Ingestor::new(String::from("aprs.glidernet.org"), 14580);
-
-    let (tx_data, rx_data): (
+    let (messages_sender, _messages_receiver): (
         crossbeam_channel::Sender<String>,
         crossbeam_channel::Receiver<String>,
     ) = crossbeam_channel::unbounded();
 
-    let running = Arc::new(AtomicBool::new(true));
+    let ingestor = Ingestor::new(&application_config.glidernet, messages_sender)
+        .map_err(|e| log::error!("Error constructing ingestor: {e}"))
+        .unwrap();
 
-    let listen_handle = {
-        let ingestor_clone = ingestor;
-        let tx_data_clone = tx_data.clone();
-        let running_clone = running.clone();
-        std::thread::spawn(move || {
-            loop {
-                ingestor_clone.listen(tx_data_clone.clone(), "r/0/0/25000");
+    let mut thread_manager = ThreadManager::new();
+    let ingestor_task_id = thread_manager.add_task(ingestor, std::time::Duration::from_micros(50));
 
-                if running_clone.load(Ordering::SeqCst) {
-                    warn!("Ingestor: Listen cycle ended, reconnecting in 5s...");
-                    std::thread::sleep(Duration::from_secs(5));
-                } else {
-                    info!("Ingestor: Shutting down gracefully.");
-                    break;
-                }
-            }
-        })
-    };
-
-    let process_handle = {
-        let running_clone = running.clone();
-        std::thread::spawn(move || {
-            loop {
-                match rx_data.recv_timeout(Duration::from_millis(100)) {
-                    Ok(data) => {
-                        info!("Received APRS Data: {data}");
-                    }
-                    Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                        if !running_clone.load(Ordering::SeqCst) {
-                            info!("Parser: No more data, shutting down.");
-                            break;
-                        }
-                    }
-                    Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
-                        error!("Parser: Ingestor channel disconnected.");
-                        break;
-                    }
-                }
-            }
-            info!("Parser: Shutting down gracefully.");
-        })
-    };
-
-    // --- Main thread waits for a period before signalling shutdown ---
-    info!("Main: Running for 15 seconds before initiating shutdown...");
-    std::thread::sleep(Duration::from_secs(15)); // Wait for 15 seconds
-
-    // Signal all spawned threads to stop
-    info!("Main: Signaling threads to shut down.");
-    running.store(false, Ordering::SeqCst);
-
-    // Wait for the spawned threads to finish
-    listen_handle.join().expect("Ingestor listener panicked");
-    process_handle.join().expect("Data processor panicked");
-
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    thread_manager.stop_all_tasks();
+    thread_manager.wait_on_task_finish(ingestor_task_id);
     info!("Main: Program finished.");
 }

@@ -1,9 +1,9 @@
 use env_logger;
 use std::io::Write;
 
-pub fn setup_logging() {
+pub fn setup_logging(level: log::LevelFilter) {
     env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(level)
         .format(|buf, record| {
             writeln!(
                 buf,
