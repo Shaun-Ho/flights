@@ -1,7 +1,9 @@
 use crate::thread_manager::SteppableTask;
 use crossbeam_channel;
+use serde;
 use std::io::{BufRead, Write};
 
+#[derive(serde::Deserialize)]
 pub struct GliderNetConfig {
     pub host: String,
     pub port: u64,

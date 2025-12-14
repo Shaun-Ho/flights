@@ -1,24 +1,27 @@
-use flights::ingestor::{GliderNetConfig, Ingestor};
+use clap::Parser;
+use flights::cli::Cli;
+use flights::config::ApplicationConfig;
+use flights::ingestor::Ingestor;
 use flights::logging::setup_logging;
 use flights::thread_manager::ThreadManager;
 use log::info;
 
 fn main() {
     setup_logging(log::LevelFilter::Debug);
+    let cli = Cli::parse();
+    let application_config = ApplicationConfig::construct_from_path(&cli.config_file)
+        .unwrap_or_else(|e| {
+            log::error!("{e}");
+            panic!("Config error. Exiting.")
+        });
     info!("Main: Application started.");
-
-    let config = GliderNetConfig {
-        host: "aprs.glidernet.org".to_owned(),
-        port: 14580,
-        filter: "r/0/0/25000".to_owned(),
-    };
 
     let (messages_sender, _messages_receiver): (
         crossbeam_channel::Sender<String>,
         crossbeam_channel::Receiver<String>,
     ) = crossbeam_channel::unbounded();
 
-    let ingestor = Ingestor::new(&config, messages_sender)
+    let ingestor = Ingestor::new(&application_config.glidernet, messages_sender)
         .map_err(|e| log::error!("Error constructing ingestor: {e}"))
         .unwrap();
 
