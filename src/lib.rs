@@ -2,4 +2,5 @@ pub mod cli;
 pub mod config;
 pub mod ingestor;
 pub mod logging;
+pub mod parser;
 pub mod thread_manager;
