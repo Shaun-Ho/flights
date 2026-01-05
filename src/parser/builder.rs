@@ -19,7 +19,7 @@ pub enum AircraftBuildError {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AircraftInfo {
+pub enum AircraftData {
     GPSData {
         time: chrono::DateTime<chrono::Utc>,
         latitude: f64,
@@ -31,7 +31,7 @@ pub enum AircraftInfo {
     FlightLevel(f64),
 }
 #[allow(dead_code)]
-fn extract_data_from_string(string: &str) -> Result<AircraftInfo, AircraftBuildError> {
+fn extract_data_from_string(string: &str) -> Result<AircraftData, AircraftBuildError> {
     if let Some(captures) = GPS_DATA_REGEX.captures(string) {
         let time: String = parse_captures(&captures, "time")?;
         let latitude_degrees: f64 = parse_captures(&captures, "latitude_degrees")?;
@@ -42,7 +42,7 @@ fn extract_data_from_string(string: &str) -> Result<AircraftInfo, AircraftBuildE
         let ground_speed: f64 = parse_captures(&captures, "ground_speed")?;
         let gps_altitude: f64 = parse_captures(&captures, "gps_altitude")?;
 
-        Ok(AircraftInfo::GPSData {
+        Ok(AircraftData::GPSData {
             time: convert_to_current_datetime(&time)?,
             latitude: convert_latlon_minutes_to_decimals(latitude_degrees, latitude_minutes),
             longitude: convert_latlon_minutes_to_decimals(longitude_degrees, longitude_minutes),
@@ -52,7 +52,7 @@ fn extract_data_from_string(string: &str) -> Result<AircraftInfo, AircraftBuildE
         })
     } else if let Some(captures) = FLIGHT_LEVEL_REGEX.captures(string) {
         let flight_level: f64 = parse_captures(&captures, "flight_level")?;
-        Ok(AircraftInfo::FlightLevel(flight_level))
+        Ok(AircraftData::FlightLevel(flight_level))
     } else {
         Err(AircraftBuildError::UnkownField(String::from("a")))
     }
@@ -89,16 +89,16 @@ fn convert_to_current_datetime(
 
 #[cfg(test)]
 mod test {
-    use super::{AircraftInfo, extract_data_from_string};
+    use super::{AircraftData, extract_data_from_string};
 
     #[test]
     fn when_unpacking_valid_string_for_gps_data_then_correct_data_is_extracted() {
         let string = String::from("102100h4938.77N/00848.62E^129/435/A=035443");
-        let aircraft_info = extract_data_from_string(&string).expect("Test should pass");
+        let aircraft_data = extract_data_from_string(&string).expect("Test should pass");
         let expected_time = chrono::NaiveTime::from_hms_opt(10, 21, 00).unwrap();
         let expected_date = chrono::Local::now().date_naive();
         let expected_datetime = expected_date.and_time(expected_time).and_utc();
-        let expected_aircraft_info = AircraftInfo::GPSData {
+        let expected_aircraft_data = AircraftData::GPSData {
             time: expected_datetime,
             latitude: 49.646166666666666,
             longitude: 8.810333333333332,
@@ -106,16 +106,16 @@ mod test {
             ground_speed: 435.0,
             gps_altitude: 35443.0,
         };
-        assert_eq!(aircraft_info, expected_aircraft_info);
+        assert_eq!(aircraft_data, expected_aircraft_data);
     }
 
     #[test]
     fn when_unpacking_valid_string_for_flight_level_then_correct_data_is_extracted() {
         let string = String::from("FL349");
-        let aircraft_info = extract_data_from_string(&string).expect("Test should pass");
+        let aircraft_data = extract_data_from_string(&string).expect("Test should pass");
         let expected_flight_level = 349.0;
 
-        let expected_aircraft_info = AircraftInfo::FlightLevel(expected_flight_level);
-        assert_eq!(aircraft_info, expected_aircraft_info);
+        let expected_aircraft_info = AircraftData::FlightLevel(expected_flight_level);
+        assert_eq!(aircraft_data, expected_aircraft_info);
     }
 }
