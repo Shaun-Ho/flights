@@ -19,7 +19,7 @@ pub enum AircraftBuildError {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AircraftData {
+enum AircraftData {
     GPSData {
         time: chrono::DateTime<chrono::Utc>,
         latitude: f64,
