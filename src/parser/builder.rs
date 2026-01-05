@@ -129,7 +129,7 @@ mod test {
     }
 
     #[test]
-    fn when_unpacking_valid_string_for_icao_address_then_correct_data_is_extracted() {
+    fn when_unpacking_valid_string_for_ogn_beacon_id_data_then_correct_data_is_extracted() {
         let string = String::from("id00A80F3B");
         let aircraft_data = extract_data_from_string(&string).expect("Test should pass");
         let expected_icao_address = ICAOAddress::new(11013947).unwrap();
