@@ -30,8 +30,8 @@ pub enum AircraftInfo {
     },
     FlightLevel(f64),
 }
-
-pub fn extract_data_from_string(string: &str) -> Result<AircraftInfo, AircraftBuildError> {
+#[allow(dead_code)]
+fn extract_data_from_string(string: &str) -> Result<AircraftInfo, AircraftBuildError> {
     if let Some(captures) = GPS_DATA_REGEX.captures(string) {
         let time: String = parse_captures(&captures, "time")?;
         let latitude_degrees: f64 = parse_captures(&captures, "latitude_degrees")?;
