@@ -1,12 +1,14 @@
-use super::constants::{FLIGHT_LEVEL_REGEX, GPS_DATA_REGEX, ICAO_ADDRESS};
+use crate::parser::types::OGNBeaconID;
+
+use super::constants::{FLIGHT_LEVEL_REGEX, GPS_DATA_REGEX, OGN_BEACON_ID_REGEX};
 
 #[derive(Debug)]
 pub enum AircraftBuildError {
     InvalidFormat(String),
     InvalidTimeFormat(String),
     MissingHeaderOrBodyError(String),
-    UnkownField(String),
     MissingCapture(String),
+    BuildError(String),
     MissingCallsign,
     MissingICAOAddress,
     MissingTime,
@@ -14,6 +16,7 @@ pub enum AircraftBuildError {
     MissingLongitude,
     MissingGroundTrack,
     MissingGPSAltitude,
+    MissingFlightLevel,
     MissingStandardPressureAltitude,
     MissingClimbRate,
 }
@@ -29,7 +32,7 @@ enum AircraftData {
         gps_altitude: f64,
     },
     FlightLevel(f64),
-    ICAOAddress(u32),
+    OGNBeaconIDData(OGNBeaconID),
 }
 #[allow(dead_code)]
 fn extract_data_from_string(string: &str) -> Result<AircraftData, AircraftBuildError> {
@@ -54,11 +57,11 @@ fn extract_data_from_string(string: &str) -> Result<AircraftData, AircraftBuildE
     } else if let Some(captures) = FLIGHT_LEVEL_REGEX.captures(string) {
         let flight_level: f64 = parse_captures(&captures, "flight_level")?;
         Ok(AircraftData::FlightLevel(flight_level))
-    } else if let Some(captures) = ICAO_ADDRESS.captures(string) {
-        let icao_address: u32 = parse_captures(&captures, "icao_address")?;
-        Ok(AircraftData::ICAOAddress(icao_address))
+    } else if let Some(captures) = OGN_BEACON_ID_REGEX.captures(string) {
+        let ogn_beacon_id: OGNBeaconID = parse_captures(&captures, "ogn_beacon_id")?;
+        Ok(AircraftData::OGNBeaconIDData(ogn_beacon_id))
     } else {
-        Err(AircraftBuildError::UnkownField(String::from("a")))
+        Err(AircraftBuildError::BuildError(String::from("a")))
     }
 }
 pub fn parse_captures<T>(
@@ -93,6 +96,8 @@ fn convert_to_current_datetime(
 
 #[cfg(test)]
 mod test {
+    use crate::parser::types::{ICAOAddress, OGNBeaconID, OGNIDPrefix};
+
     use super::{AircraftData, extract_data_from_string};
 
     #[test]
@@ -125,11 +130,13 @@ mod test {
 
     #[test]
     fn when_unpacking_valid_string_for_icao_address_then_correct_data_is_extracted() {
-        let string = String::from("id12345678");
+        let string = String::from("id00A80F3B");
         let aircraft_data = extract_data_from_string(&string).expect("Test should pass");
-        let expected_icao_address = 12345678;
+        let expected_icao_address = ICAOAddress::new(11013947).unwrap();
+        let expected_prefix = OGNIDPrefix::new(0).unwrap();
+        let expected_beacon_id_data = OGNBeaconID::new(expected_prefix, expected_icao_address);
 
-        let expected_aircraft_info = AircraftData::ICAOAddress(expected_icao_address);
-        assert_eq!(aircraft_data, expected_aircraft_info);
+        let expected_aircraft_data = AircraftData::OGNBeaconIDData(expected_beacon_id_data);
+        assert_eq!(aircraft_data, expected_aircraft_data);
     }
 }
