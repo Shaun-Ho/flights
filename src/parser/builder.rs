@@ -1,4 +1,4 @@
-use super::constants::{FLIGHT_LEVEL_REGEX, GPS_DATA_REGEX};
+use super::constants::{FLIGHT_LEVEL_REGEX, GPS_DATA_REGEX, ICAO_ADDRESS};
 
 #[derive(Debug)]
 pub enum AircraftBuildError {
@@ -29,6 +29,7 @@ pub enum AircraftData {
         gps_altitude: f64,
     },
     FlightLevel(f64),
+    ICAOAddress(u32),
 }
 #[allow(dead_code)]
 fn extract_data_from_string(string: &str) -> Result<AircraftData, AircraftBuildError> {
@@ -53,6 +54,9 @@ fn extract_data_from_string(string: &str) -> Result<AircraftData, AircraftBuildE
     } else if let Some(captures) = FLIGHT_LEVEL_REGEX.captures(string) {
         let flight_level: f64 = parse_captures(&captures, "flight_level")?;
         Ok(AircraftData::FlightLevel(flight_level))
+    } else if let Some(captures) = ICAO_ADDRESS.captures(string) {
+        let icao_address: u32 = parse_captures(&captures, "icao_address")?;
+        Ok(AircraftData::ICAOAddress(icao_address))
     } else {
         Err(AircraftBuildError::UnkownField(String::from("a")))
     }
@@ -116,6 +120,16 @@ mod test {
         let expected_flight_level = 349.0;
 
         let expected_aircraft_info = AircraftData::FlightLevel(expected_flight_level);
+        assert_eq!(aircraft_data, expected_aircraft_info);
+    }
+
+    #[test]
+    fn when_unpacking_valid_string_for_icao_address_then_correct_data_is_extracted() {
+        let string = String::from("id12345678");
+        let aircraft_data = extract_data_from_string(&string).expect("Test should pass");
+        let expected_icao_address = 12345678;
+
+        let expected_aircraft_info = AircraftData::ICAOAddress(expected_icao_address);
         assert_eq!(aircraft_data, expected_aircraft_info);
     }
 }
