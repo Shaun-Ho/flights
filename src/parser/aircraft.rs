@@ -7,5 +7,6 @@ pub struct Aircraft {
     pub latitude: f64,
     pub longitude: f64,
     pub ground_track: f64,
+    pub ground_speed: f64,
     pub gps_altitude: f64,
 }

@@ -46,6 +46,9 @@ impl AircraftBuilder {
         let ground_track = self
             .ground_track
             .ok_or(AircraftBuildError::MissingGroundTrack)?;
+        let ground_speed = self
+            .ground_speed
+            .ok_or(AircraftBuildError::MissingGroundSpeed)?;
         let gps_altitude = self
             .gps_altitude
             .ok_or(AircraftBuildError::MissingGPSAltitude)?;
@@ -57,6 +60,7 @@ impl AircraftBuilder {
             latitude,
             longitude,
             ground_track,
+            ground_speed,
             gps_altitude,
         })
     }
@@ -140,6 +144,7 @@ pub enum AircraftBuildError {
     MissingLatitude,
     MissingLongitude,
     MissingGroundTrack,
+    MissingGroundSpeed,
     MissingGPSAltitude,
 }
 
@@ -267,6 +272,7 @@ mod test {
             latitude: 49.646166666666666,
             longitude: 8.810333333333332,
             ground_track: 129.0,
+            ground_speed: 435.0,
             gps_altitude: 35443.0,
         };
         assert_eq!(aircraft, expected_aircraft);
