@@ -2,6 +2,10 @@ use crate::parser::types::OGNBeaconID;
 
 use super::aircraft::Aircraft;
 use super::constants::{CALLSIGN_DELIMETER, HEADER_BODY_DELIMITER};
+use super::constants::{
+    GPS_ALTITUDE, GROUND_SPEED, GROUND_TRACK, LATITUDE_DEGREES, LATITUDE_MINUTES,
+    LONGITUDE_DEGREES, LONGITUDE_MINUTES, OGN_BEACON_ID,
+};
 use super::constants::{GPS_DATA_REGEX, OGN_BEACON_ID_REGEX};
 use super::types::ICAOAddress;
 
@@ -69,13 +73,13 @@ impl AircraftBuilder {
         string
             .find(CALLSIGN_DELIMETER)
             .ok_or(AircraftBuildError::InvalidMessage(
-                MessageError::InvalidFormat(String::from("No valid callsign")),
+                InvalidMessageError::InvalidFormat(String::from("No valid callsign")),
             ))?;
 
         string
             .find(HEADER_BODY_DELIMITER)
             .ok_or(AircraftBuildError::InvalidMessage(
-                MessageError::InvalidFormat(String::from("Cannot establish header")),
+                InvalidMessageError::InvalidFormat(String::from("Cannot establish header")),
             ))?;
 
         let callsign_pos = string
@@ -86,7 +90,9 @@ impl AircraftBuilder {
             string
                 .split_once(HEADER_BODY_DELIMITER)
                 .ok_or(AircraftBuildError::InvalidMessage(
-                    MessageError::MissingHeaderOrBodyError(String::from("Cannot establish header")),
+                    InvalidMessageError::MissingHeaderOrBodyError(String::from(
+                        "Cannot establish header",
+                    )),
                 ))?;
 
         let callsign = &header[..callsign_pos];
@@ -99,7 +105,7 @@ impl AircraftBuilder {
         for chunk in split {
             if let Ok(info) = extract_data_from_string(chunk) {
                 match info {
-                    AircraftData::GPSData {
+                    AircraftBuilderData::GPSData {
                         time,
                         latitude,
                         longitude,
@@ -115,7 +121,7 @@ impl AircraftBuilder {
                         builder.gps_altitude = Some(gps_altitude);
                     }
 
-                    AircraftData::OGNBeaconIDData(ogn_beacon_id) => {
+                    AircraftBuilderData::OGNBeaconIDData(ogn_beacon_id) => {
                         builder.icao_address = Some(ogn_beacon_id.icao_address);
                     }
                 }
@@ -134,12 +140,11 @@ impl Default for AircraftBuilder {
     }
 }
 #[derive(Debug)]
-pub enum MessageError {
+pub enum InvalidMessageError {
     InvalidFormat(String),
     InvalidTimeFormat(String),
     MissingHeaderOrBodyError(String),
     MissingCapture(String),
-    BuildError(String),
 }
 #[derive(Debug)]
 pub enum AircraftBuildError {
@@ -151,11 +156,11 @@ pub enum AircraftBuildError {
     MissingGroundTrack,
     MissingGroundSpeed,
     MissingGPSAltitude,
-    InvalidMessage(MessageError),
+    InvalidMessage(InvalidMessageError),
 }
 
 #[derive(Debug, PartialEq)]
-enum AircraftData {
+enum AircraftBuilderData {
     GPSData {
         time: chrono::DateTime<chrono::Utc>,
         latitude: f64,
@@ -166,27 +171,27 @@ enum AircraftData {
     },
     OGNBeaconIDData(OGNBeaconID),
 }
-#[allow(dead_code)]
-fn extract_data_from_string(string: &str) -> Result<AircraftData, AircraftBuildError> {
+
+fn extract_data_from_string(string: &str) -> Result<AircraftBuilderData, AircraftBuildError> {
     if let Some(captures) = GPS_DATA_REGEX.captures(string) {
         let time: String =
             parse_captures(&captures, "time").map_err(AircraftBuildError::InvalidMessage)?;
-        let latitude_degrees: f64 = parse_captures(&captures, "latitude_degrees")
+        let latitude_degrees: f64 = parse_captures(&captures, LATITUDE_DEGREES)
             .map_err(AircraftBuildError::InvalidMessage)?;
-        let latitude_minutes: f64 = parse_captures(&captures, "latitude_minutes")
+        let latitude_minutes: f64 = parse_captures(&captures, LATITUDE_MINUTES)
             .map_err(AircraftBuildError::InvalidMessage)?;
-        let longitude_degrees: f64 = parse_captures(&captures, "longitude_degrees")
+        let longitude_degrees: f64 = parse_captures(&captures, LONGITUDE_DEGREES)
             .map_err(AircraftBuildError::InvalidMessage)?;
-        let longitude_minutes: f64 = parse_captures(&captures, "longitude_minutes")
+        let longitude_minutes: f64 = parse_captures(&captures, LONGITUDE_MINUTES)
             .map_err(AircraftBuildError::InvalidMessage)?;
-        let ground_track: f64 = parse_captures(&captures, "ground_track")
-            .map_err(AircraftBuildError::InvalidMessage)?;
-        let ground_speed: f64 = parse_captures(&captures, "ground_speed")
-            .map_err(AircraftBuildError::InvalidMessage)?;
-        let gps_altitude: f64 = parse_captures(&captures, "gps_altitude")
-            .map_err(AircraftBuildError::InvalidMessage)?;
+        let ground_track: f64 =
+            parse_captures(&captures, GROUND_TRACK).map_err(AircraftBuildError::InvalidMessage)?;
+        let ground_speed: f64 =
+            parse_captures(&captures, GROUND_SPEED).map_err(AircraftBuildError::InvalidMessage)?;
+        let gps_altitude: f64 =
+            parse_captures(&captures, GPS_ALTITUDE).map_err(AircraftBuildError::InvalidMessage)?;
 
-        Ok(AircraftData::GPSData {
+        Ok(AircraftBuilderData::GPSData {
             time: convert_to_current_datetime(&time).map_err(AircraftBuildError::InvalidMessage)?,
             latitude: convert_latlon_minutes_to_decimals(latitude_degrees, latitude_minutes),
             longitude: convert_latlon_minutes_to_decimals(longitude_degrees, longitude_minutes),
@@ -195,27 +200,30 @@ fn extract_data_from_string(string: &str) -> Result<AircraftData, AircraftBuildE
             gps_altitude,
         })
     } else if let Some(captures) = OGN_BEACON_ID_REGEX.captures(string) {
-        let ogn_beacon_id: OGNBeaconID = parse_captures(&captures, "ogn_beacon_id")
-            .map_err(AircraftBuildError::InvalidMessage)?;
-        Ok(AircraftData::OGNBeaconIDData(ogn_beacon_id))
+        let ogn_beacon_id: OGNBeaconID =
+            parse_captures(&captures, OGN_BEACON_ID).map_err(AircraftBuildError::InvalidMessage)?;
+        Ok(AircraftBuilderData::OGNBeaconIDData(ogn_beacon_id))
     } else {
         Err(AircraftBuildError::InvalidMessage(
-            MessageError::MissingCapture(string.to_string()),
+            InvalidMessageError::MissingCapture(string.to_string()),
         ))
     }
 }
-pub fn parse_captures<T>(captures: &regex::Captures, string_name: &str) -> Result<T, MessageError>
+fn parse_captures<T>(
+    captures: &regex::Captures,
+    string_name: &str,
+) -> Result<T, InvalidMessageError>
 where
     T: std::str::FromStr,
     <T as std::str::FromStr>::Err: std::fmt::Display,
 {
     captures
         .name(string_name)
-        .ok_or_else(|| MessageError::MissingCapture(string_name.to_string()))?
+        .ok_or_else(|| InvalidMessageError::MissingCapture(string_name.to_string()))?
         .as_str()
         .parse::<T>()
         .map_err(|e| {
-            MessageError::InvalidFormat(format!("{string_name} component has error: {e}.",))
+            InvalidMessageError::InvalidFormat(format!("{string_name} component has error: {e}.",))
         })
 }
 
@@ -224,10 +232,10 @@ fn convert_latlon_minutes_to_decimals(degrees: f64, minutes: f64) -> f64 {
 }
 fn convert_to_current_datetime(
     string: &str,
-) -> Result<chrono::DateTime<chrono::Utc>, MessageError> {
+) -> Result<chrono::DateTime<chrono::Utc>, InvalidMessageError> {
     let today_utc = chrono::Utc::now().date_naive();
     let naive_time = chrono::NaiveTime::parse_from_str(string, "%H%M%S")
-        .map_err(|e| MessageError::InvalidTimeFormat(e.to_string()))?;
+        .map_err(|e| InvalidMessageError::InvalidTimeFormat(e.to_string()))?;
     Ok(today_utc.and_time(naive_time).and_utc())
 }
 
@@ -238,7 +246,7 @@ mod test {
         types::{ICAOAddress, OGNBeaconID, OGNIDPrefix},
     };
 
-    use super::{AircraftBuilder, AircraftData, extract_data_from_string};
+    use super::{AircraftBuilder, AircraftBuilderData, extract_data_from_string};
 
     #[test]
     fn when_unpacking_valid_string_for_gps_data_then_correct_data_is_extracted() {
@@ -247,7 +255,7 @@ mod test {
         let expected_time = chrono::NaiveTime::from_hms_opt(10, 21, 00).unwrap();
         let expected_date = chrono::Local::now().date_naive();
         let expected_datetime = expected_date.and_time(expected_time).and_utc();
-        let expected_aircraft_data = AircraftData::GPSData {
+        let expected_aircraft_data = AircraftBuilderData::GPSData {
             time: expected_datetime,
             latitude: 49.646166666666666,
             longitude: 8.810333333333332,
@@ -266,7 +274,7 @@ mod test {
         let expected_prefix = OGNIDPrefix::new(0).unwrap();
         let expected_beacon_id_data = OGNBeaconID::new(expected_prefix, expected_icao_address);
 
-        let expected_aircraft_data = AircraftData::OGNBeaconIDData(expected_beacon_id_data);
+        let expected_aircraft_data = AircraftBuilderData::OGNBeaconIDData(expected_beacon_id_data);
         assert_eq!(aircraft_data, expected_aircraft_data);
     }
     #[test]
