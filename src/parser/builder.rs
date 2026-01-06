@@ -1,7 +1,7 @@
 use crate::parser::types::OGNBeaconID;
 
 use super::aircraft::Aircraft;
-use super::constants::{CALLSIGN_DELIMETER, HEADER_BODY_DELIMITER};
+use super::constants::{CALLSIGN_DELITMETER, HEADER_BODY_DELIMITER};
 use super::constants::{
     GPS_ALTITUDE, GROUND_SPEED, GROUND_TRACK, LATITUDE_DEGREES, LATITUDE_MINUTES,
     LONGITUDE_DEGREES, LONGITUDE_MINUTES, OGN_BEACON_ID,
@@ -71,7 +71,7 @@ impl AircraftBuilder {
 
     pub fn build_aircraft_from_string(string: &str) -> Result<Aircraft, AircraftBuildError> {
         string
-            .find(CALLSIGN_DELIMETER)
+            .find(CALLSIGN_DELITMETER)
             .ok_or(AircraftBuildError::InvalidMessage(
                 InvalidMessageError::InvalidFormat(String::from("No valid callsign")),
             ))?;
@@ -83,7 +83,7 @@ impl AircraftBuilder {
             ))?;
 
         let callsign_pos = string
-            .find(CALLSIGN_DELIMETER)
+            .find(CALLSIGN_DELITMETER)
             .ok_or(AircraftBuildError::MissingCallsign)?;
 
         let (header, body) =

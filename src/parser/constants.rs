@@ -1,4 +1,4 @@
-pub const CALLSIGN_DELIMETER: &str = ">";
+pub const CALLSIGN_DELITMETER: &str = ">";
 pub const HEADER_BODY_DELIMITER: &str = ":/";
 
 pub const TIME: &str = "time";
