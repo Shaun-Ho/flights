@@ -30,14 +30,10 @@ impl SteppableTask for AircraftParser {
                 log::error!("{e}");
             })
             .map(|string| {
-                let maybe_aircraft = build_aircraft_from_string(&string);
-                match maybe_aircraft {
-                    Ok(aircraft) => {
-                        let _ = self.sender.send(aircraft).map_err(|err| {
-                            log::error!("Unable to send aircraft to channel: {err}");
-                        });
-                    }
-                    Err(err) => log::error!("Unable to convert aircraft: {err:?}. Skipping."),
+                if let Ok(aircraft) = build_aircraft_from_string(&string) {
+                    let _ = self.sender.send(aircraft).map_err(|err| {
+                        log::error!("Unable to send aircraft to channel: {err}");
+                    });
                 }
             })
             .is_ok()
