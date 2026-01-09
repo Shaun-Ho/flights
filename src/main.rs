@@ -9,13 +9,14 @@ use flights::thread_manager::ThreadManager;
 use log::info;
 
 fn main() {
-    setup_logging(log::LevelFilter::Info);
     let cli = Cli::parse();
     let application_config = ApplicationConfig::construct_from_path(&cli.config_file)
         .unwrap_or_else(|e| {
             log::error!("{e}");
             panic!("Config error. Exiting.")
         });
+
+    setup_logging(cli.logging_level);
     info!("Main: Application started.");
 
     let (messages_sender, messages_receiver): (
@@ -35,7 +36,7 @@ fn main() {
     let parser = AircraftParser::new(messages_receiver, aircraft_data_sender);
 
     let mut thread_manager = ThreadManager::new();
-    let _ingestor_task_id = thread_manager.add_task(ingestor, std::time::Duration::from_micros(50));
+    thread_manager.add_task(ingestor, std::time::Duration::from_micros(50));
     let aircraft_parser_task_id =
         thread_manager.add_task(parser, std::time::Duration::from_micros(50));
 
