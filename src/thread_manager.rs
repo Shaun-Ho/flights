@@ -41,7 +41,6 @@ impl ThreadManager {
     /// # Panics
     ///
     /// Will panic if thread does not spawn successfully.
-    #[must_use]
     pub fn add_task<T>(&mut self, mut task: T, period: std::time::Duration) -> TaskID
     where
         T: SteppableTask,

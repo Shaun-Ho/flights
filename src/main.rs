@@ -36,7 +36,7 @@ fn main() {
     let parser = AircraftParser::new(messages_receiver, aircraft_data_sender);
 
     let mut thread_manager = ThreadManager::new();
-    let _ingestor_task_id = thread_manager.add_task(ingestor, std::time::Duration::from_micros(50));
+    thread_manager.add_task(ingestor, std::time::Duration::from_micros(50));
     let aircraft_parser_task_id =
         thread_manager.add_task(parser, std::time::Duration::from_micros(50));
 
