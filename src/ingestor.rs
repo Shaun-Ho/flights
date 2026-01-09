@@ -34,7 +34,6 @@ impl Ingestor {
 
 impl SteppableTask for Ingestor {
     fn step(&mut self) -> bool {
-        log::debug!("Pulling line from ");
         let mut reader = std::io::BufReader::new(&self.stream);
         let mut line_buffer = String::new();
 
