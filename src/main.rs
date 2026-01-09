@@ -9,13 +9,14 @@ use flights::thread_manager::ThreadManager;
 use log::info;
 
 fn main() {
-    setup_logging(log::LevelFilter::Info);
     let cli = Cli::parse();
     let application_config = ApplicationConfig::construct_from_path(&cli.config_file)
         .unwrap_or_else(|e| {
             log::error!("{e}");
             panic!("Config error. Exiting.")
         });
+
+    setup_logging(cli.logging_level);
     info!("Main: Application started.");
 
     let (messages_sender, messages_receiver): (
