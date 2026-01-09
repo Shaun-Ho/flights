@@ -1,16 +1,100 @@
 use crate::parser::types::OGNBeaconID;
 
-use super::aircraft::Aircraft;
 use super::constants::{CALLSIGN_DELITMETER, HEADER_BODY_DELIMITER};
 use super::constants::{
     GPS_ALTITUDE, GROUND_SPEED, GROUND_TRACK, LATITUDE_DEGREES, LATITUDE_MINUTES,
     LONGITUDE_DEGREES, LONGITUDE_MINUTES, OGN_BEACON_ID,
 };
 use super::constants::{GPS_DATA_REGEX, OGN_BEACON_ID_REGEX};
+use super::types::Aircraft;
 use super::types::ICAOAddress;
 
+pub fn build_aircraft_from_string(string: &str) -> Result<Aircraft, AircraftBuildError> {
+    string
+        .find(CALLSIGN_DELITMETER)
+        .ok_or(AircraftBuildError::InvalidMessage(
+            InvalidMessageError::InvalidFormat(String::from("No valid callsign")),
+        ))?;
+
+    string
+        .find(HEADER_BODY_DELIMITER)
+        .ok_or(AircraftBuildError::InvalidMessage(
+            InvalidMessageError::InvalidFormat(String::from("Cannot establish header")),
+        ))?;
+
+    let callsign_pos = string
+        .find(CALLSIGN_DELITMETER)
+        .ok_or(AircraftBuildError::MissingCallsign)?;
+
+    let (header, body) =
+        string
+            .split_once(HEADER_BODY_DELIMITER)
+            .ok_or(AircraftBuildError::InvalidMessage(
+                InvalidMessageError::MissingHeaderOrBodyError(String::from(
+                    "Cannot establish header",
+                )),
+            ))?;
+
+    let callsign = &header[..callsign_pos];
+
+    let split = body.split_whitespace();
+
+    let mut builder = AircraftBuilder::new();
+    builder.callsign = Some(callsign.to_string());
+
+    for chunk in split {
+        if let Ok(info) = extract_data_from_string(chunk) {
+            match info {
+                AircraftBuilderData::GPSData {
+                    time,
+                    latitude,
+                    longitude,
+                    ground_track,
+                    ground_speed,
+                    gps_altitude,
+                } => {
+                    builder.time = Some(time);
+                    builder.latitude = Some(latitude);
+                    builder.longitude = Some(longitude);
+                    builder.ground_track = Some(ground_track);
+                    builder.ground_speed = Some(ground_speed);
+                    builder.gps_altitude = Some(gps_altitude);
+                }
+
+                AircraftBuilderData::OGNBeaconIDData(ogn_beacon_id) => {
+                    builder.icao_address = Some(ogn_beacon_id.icao_address);
+                }
+            }
+        } else if let Err(err) = extract_data_from_string(chunk) {
+            log::error!("{err:?}");
+        }
+    }
+
+    builder.build()
+}
+
 #[derive(Debug)]
-pub struct AircraftBuilder {
+pub enum InvalidMessageError {
+    InvalidFormat(String),
+    InvalidTimeFormat(String),
+    MissingHeaderOrBodyError(String),
+    MissingCapture(String),
+}
+#[derive(Debug)]
+pub enum AircraftBuildError {
+    MissingCallsign,
+    MissingICAOAddress,
+    MissingTime,
+    MissingLatitude,
+    MissingLongitude,
+    MissingGroundTrack,
+    MissingGroundSpeed,
+    MissingGPSAltitude,
+    InvalidMessage(InvalidMessageError),
+}
+
+#[derive(Debug)]
+struct AircraftBuilder {
     pub callsign: Option<String>,
     pub icao_address: Option<ICAOAddress>,
     pub time: Option<chrono::DateTime<chrono::Utc>>,
@@ -68,95 +152,12 @@ impl AircraftBuilder {
             gps_altitude,
         })
     }
-
-    pub fn build_aircraft_from_string(string: &str) -> Result<Aircraft, AircraftBuildError> {
-        string
-            .find(CALLSIGN_DELITMETER)
-            .ok_or(AircraftBuildError::InvalidMessage(
-                InvalidMessageError::InvalidFormat(String::from("No valid callsign")),
-            ))?;
-
-        string
-            .find(HEADER_BODY_DELIMITER)
-            .ok_or(AircraftBuildError::InvalidMessage(
-                InvalidMessageError::InvalidFormat(String::from("Cannot establish header")),
-            ))?;
-
-        let callsign_pos = string
-            .find(CALLSIGN_DELITMETER)
-            .ok_or(AircraftBuildError::MissingCallsign)?;
-
-        let (header, body) =
-            string
-                .split_once(HEADER_BODY_DELIMITER)
-                .ok_or(AircraftBuildError::InvalidMessage(
-                    InvalidMessageError::MissingHeaderOrBodyError(String::from(
-                        "Cannot establish header",
-                    )),
-                ))?;
-
-        let callsign = &header[..callsign_pos];
-
-        let split = body.split_whitespace();
-
-        let mut builder = AircraftBuilder::new();
-        builder.callsign = Some(callsign.to_string());
-
-        for chunk in split {
-            if let Ok(info) = extract_data_from_string(chunk) {
-                match info {
-                    AircraftBuilderData::GPSData {
-                        time,
-                        latitude,
-                        longitude,
-                        ground_track,
-                        ground_speed,
-                        gps_altitude,
-                    } => {
-                        builder.time = Some(time);
-                        builder.latitude = Some(latitude);
-                        builder.longitude = Some(longitude);
-                        builder.ground_track = Some(ground_track);
-                        builder.ground_speed = Some(ground_speed);
-                        builder.gps_altitude = Some(gps_altitude);
-                    }
-
-                    AircraftBuilderData::OGNBeaconIDData(ogn_beacon_id) => {
-                        builder.icao_address = Some(ogn_beacon_id.icao_address);
-                    }
-                }
-            } else if let Err(err) = extract_data_from_string(chunk) {
-                log::error!("{err:?}");
-            }
-        }
-
-        builder.build()
-    }
 }
 
 impl Default for AircraftBuilder {
     fn default() -> Self {
         Self::new()
     }
-}
-#[derive(Debug)]
-pub enum InvalidMessageError {
-    InvalidFormat(String),
-    InvalidTimeFormat(String),
-    MissingHeaderOrBodyError(String),
-    MissingCapture(String),
-}
-#[derive(Debug)]
-pub enum AircraftBuildError {
-    MissingCallsign,
-    MissingICAOAddress,
-    MissingTime,
-    MissingLatitude,
-    MissingLongitude,
-    MissingGroundTrack,
-    MissingGroundSpeed,
-    MissingGPSAltitude,
-    InvalidMessage(InvalidMessageError),
 }
 
 #[derive(Debug, PartialEq)]
@@ -242,11 +243,11 @@ fn convert_to_current_datetime(
 #[cfg(test)]
 mod test {
     use crate::parser::{
-        aircraft::Aircraft,
+        types::Aircraft,
         types::{ICAOAddress, OGNBeaconID, OGNIDPrefix},
     };
 
-    use super::{AircraftBuilder, AircraftBuilderData, extract_data_from_string};
+    use super::{AircraftBuilderData, build_aircraft_from_string, extract_data_from_string};
 
     #[test]
     fn when_unpacking_valid_string_for_gps_data_then_correct_data_is_extracted() {
@@ -286,7 +287,7 @@ mod test {
         let expected_date = chrono::Local::now().date_naive();
         let expected_datetime = expected_date.and_time(expected_time).and_utc();
 
-        let aircraft = AircraftBuilder::build_aircraft_from_string(&string).unwrap();
+        let aircraft = build_aircraft_from_string(&string).unwrap();
         let expected_aircraft = Aircraft {
             callsign: String::from("ICA407F7A"),
             icao_address: ICAOAddress::new(0x407F7A).unwrap(),
