@@ -4,8 +4,9 @@ use flights::cli::Cli;
 use flights::config::ApplicationConfig;
 use flights::ingestor::Ingestor;
 use flights::logging::setup_logging;
-use flights::parser::{AircraftParser, types::Aircraft};
+use flights::parser::AircraftParser;
 use flights::thread_manager::ThreadManager;
+use flights::types::Aircraft;
 use log::info;
 
 fn main() {
