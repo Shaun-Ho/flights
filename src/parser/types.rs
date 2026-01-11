@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Aircraft {
     pub callsign: String,
     pub icao_address: ICAOAddress,
@@ -153,7 +153,7 @@ impl std::fmt::Display for OGNIDPrefixError {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 pub struct ICAOAddress(u32);
 
 impl ICAOAddress {
