@@ -141,7 +141,7 @@ impl AircraftBuilder {
         Ok(Aircraft {
             callsign,
             icao_address,
-            time,
+            datetime: time,
             latitude,
             longitude,
             ground_track,
@@ -290,7 +290,7 @@ mod test {
         let expected_aircraft = Aircraft {
             callsign: String::from("ICA407F7A"),
             icao_address: ICAOAddress::new(0x407F7A).unwrap(),
-            time: expected_datetime,
+            datetime: expected_datetime,
             latitude: 49.646166666666666,
             longitude: 8.810333333333332,
             ground_track: 129.0,
