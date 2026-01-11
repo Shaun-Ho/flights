@@ -3,8 +3,8 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    #[arg(long, default_value_t = -1)]
-    pub duration: i32,
+    #[arg(long)]
+    pub duration: Option<u64>,
 
     #[arg(short, long, default_value_t = log::LevelFilter::Info)]
     pub logging_level: log::LevelFilter,

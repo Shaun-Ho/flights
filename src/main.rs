@@ -46,8 +46,11 @@ fn main() {
     let airspace_task_id =
         thread_manager.add_task(airspace_store, std::time::Duration::from_millis(500));
 
-    std::thread::sleep(std::time::Duration::from_secs(5));
-    thread_manager.stop_all_tasks();
+    if let Some(duration) = cli.duration {
+        std::thread::sleep(std::time::Duration::from_secs(duration));
+        thread_manager.stop_all_tasks();
+    }
+
     thread_manager.wait_on_task_finish(airspace_task_id);
 
     info!("Main: Program finished.");
