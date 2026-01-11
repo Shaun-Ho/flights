@@ -1,13 +1,11 @@
-use crate::parser::types::OGNBeaconID;
-
-use super::constants::{CALLSIGN_DELITMETER, HEADER_BODY_DELIMITER};
-use super::constants::{
+use crate::parser::constants::{CALLSIGN_DELITMETER, HEADER_BODY_DELIMITER};
+use crate::parser::constants::{
     GPS_ALTITUDE, GROUND_SPEED, GROUND_TRACK, LATITUDE_DEGREES, LATITUDE_MINUTES,
     LONGITUDE_DEGREES, LONGITUDE_MINUTES, OGN_BEACON_ID,
 };
-use super::constants::{GPS_DATA_REGEX, OGN_BEACON_ID_REGEX};
-use super::types::Aircraft;
-use super::types::ICAOAddress;
+use crate::parser::constants::{GPS_DATA_REGEX, OGN_BEACON_ID_REGEX};
+use crate::parser::types::OGNBeaconID;
+use crate::types::{Aircraft, ICAOAddress};
 
 pub fn build_aircraft_from_string(string: &str) -> Result<Aircraft, AircraftBuildError> {
     string
@@ -143,7 +141,7 @@ impl AircraftBuilder {
         Ok(Aircraft {
             callsign,
             icao_address,
-            time,
+            datetime: time,
             latitude,
             longitude,
             ground_track,
@@ -241,10 +239,8 @@ fn convert_to_current_datetime(
 
 #[cfg(test)]
 mod test {
-    use crate::parser::{
-        types::Aircraft,
-        types::{ICAOAddress, OGNBeaconID, OGNIDPrefix},
-    };
+    use crate::parser::types::{OGNBeaconID, OGNIDPrefix};
+    use crate::types::{Aircraft, ICAOAddress};
 
     use super::{AircraftBuilderData, build_aircraft_from_string, extract_data_from_string};
 
@@ -294,7 +290,7 @@ mod test {
         let expected_aircraft = Aircraft {
             callsign: String::from("ICA407F7A"),
             icao_address: ICAOAddress::new(0x407F7A).unwrap(),
-            time: expected_datetime,
+            datetime: expected_datetime,
             latitude: 49.646166666666666,
             longitude: 8.810333333333332,
             ground_track: 129.0,

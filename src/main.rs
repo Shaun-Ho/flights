@@ -4,8 +4,9 @@ use flights::cli::Cli;
 use flights::config::ApplicationConfig;
 use flights::ingestor::Ingestor;
 use flights::logging::setup_logging;
-use flights::parser::{AircraftParser, types::Aircraft};
+use flights::parser::AircraftParser;
 use flights::thread_manager::ThreadManager;
+use flights::types::Aircraft;
 use log::info;
 
 fn main() {
@@ -46,8 +47,11 @@ fn main() {
     let airspace_task_id =
         thread_manager.add_task(airspace_store, std::time::Duration::from_millis(500));
 
-    std::thread::sleep(std::time::Duration::from_secs(5));
-    thread_manager.stop_all_tasks();
+    if let Some(duration) = cli.duration {
+        std::thread::sleep(std::time::Duration::from_secs(duration));
+        thread_manager.stop_all_tasks();
+    }
+
     thread_manager.wait_on_task_finish(airspace_task_id);
 
     info!("Main: Program finished.");

@@ -1,5 +1,5 @@
-use crate::parser::types::{Aircraft, ICAOAddress};
 use crate::thread_manager::SteppableTask;
+use crate::types::{Aircraft, ICAOAddress};
 #[derive(Debug)]
 pub struct Airspace {
     buffer_duration: chrono::Duration,
@@ -24,7 +24,7 @@ impl Airspace {
         while let Some(aircraft) = aircrafts.pop() {
             // check that aircraft is within buffer window
             let cutoff_time = self.datetime - self.buffer_duration;
-            if aircraft.time < cutoff_time {
+            if aircraft.datetime < cutoff_time {
                 continue;
             }
 
@@ -33,7 +33,7 @@ impl Airspace {
             // We expect that the new data is normally most recent data, so we check that we can push
             // back into the end of the VecDeque
             if let Some(last) = history.back() {
-                if aircraft.time >= last.time {
+                if aircraft.datetime >= last.datetime {
                     history.push_back(aircraft);
                     continue;
                 }
@@ -41,14 +41,14 @@ impl Airspace {
 
             // If it is not new data, try to see the data is old enough to be front of VecDeque
             if let Some(first) = history.front() {
-                if aircraft.time <= first.time {
+                if aircraft.datetime <= first.datetime {
                     history.push_front(aircraft);
                     continue;
                 }
             }
 
             // It is somewhere in between
-            let idx = history.partition_point(|x| x.time < aircraft.time);
+            let idx = history.partition_point(|x| x.datetime < aircraft.datetime);
             history.insert(idx, aircraft);
         }
     }
@@ -71,7 +71,7 @@ impl Airspace {
         let cutoff_time = self.datetime - self.buffer_duration;
         for aircraft_history in self.icao_to_aircraft_map.values_mut() {
             while let Some(aircraft) = aircraft_history.front() {
-                if aircraft.time < cutoff_time {
+                if aircraft.datetime < cutoff_time {
                     aircraft_history.pop_front();
                 } else {
                     break;
@@ -121,7 +121,7 @@ mod tests {
 
     use crate::{
         airspace::Airspace,
-        parser::types::{Aircraft, ICAOAddress},
+        types::{Aircraft, ICAOAddress},
     };
 
     fn create_dummy_aircraft_at_time(
@@ -131,7 +131,7 @@ mod tests {
         Aircraft {
             callsign: String::from("dummy"),
             icao_address: icao_address,
-            time: datetime,
+            datetime,
             latitude: 0.0,
             longitude: 0.0,
             ground_track: 0.0,
@@ -177,7 +177,7 @@ mod tests {
             .get(&expected_aircraft_1_icao_address)
             .expect("expected a VecDeque for aircraft 1");
         assert_eq!(aircraft_1_history.len(), 1);
-        assert_eq!(aircraft_1_history[0].time, expected_aircraft_1_datetime);
+        assert_eq!(aircraft_1_history[0].datetime, expected_aircraft_1_datetime);
 
         // check aircraft 2 inserted
         let aircraft_2_history = airspace
@@ -185,7 +185,7 @@ mod tests {
             .get(&expected_aircraft_2_icao_address)
             .expect("expected a VecDeque for aircraft 1");
         assert_eq!(aircraft_2_history.len(), 1);
-        assert_eq!(aircraft_2_history[0].time, expected_aircraft_2_datetime);
+        assert_eq!(aircraft_2_history[0].datetime, expected_aircraft_2_datetime);
     }
 
     #[cfg(test)]
@@ -225,7 +225,7 @@ mod tests {
                 .expect("expected to have history");
 
             assert_eq!(history.len(), 3);
-            assert_eq!(history[2].time, time_c);
+            assert_eq!(history[2].datetime, time_c);
         }
         #[test]
         fn and_aircraft_timestamp_is_oldest_then_correct_order_is_added() {
@@ -261,7 +261,7 @@ mod tests {
                 .expect("expected to have history");
 
             assert_eq!(history.len(), 3);
-            assert_eq!(history[2].time, time_c);
+            assert_eq!(history[2].datetime, time_c);
         }
         #[test]
         fn and_aircraft_timestamp_is_somewhere_in_between_then_correct_order_is_added() {
@@ -300,7 +300,7 @@ mod tests {
                 .expect("expected to have history");
 
             assert_eq!(history.len(), 4);
-            assert_eq!(history[2].time, time_c);
+            assert_eq!(history[2].datetime, time_c);
         }
     }
 }
