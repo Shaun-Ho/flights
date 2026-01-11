@@ -1,3 +1,4 @@
+pub mod airspace;
 pub mod cli;
 pub mod config;
 pub mod ingestor;
