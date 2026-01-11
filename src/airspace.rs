@@ -1,5 +1,5 @@
 use crate::parser::types::{Aircraft, ICAOAddress};
-
+use crate::thread_manager::SteppableTask;
 #[derive(Debug)]
 pub struct Airspace {
     buffer_duration: chrono::Duration,
@@ -86,6 +86,33 @@ impl Airspace {
         icao_address: ICAOAddress,
     ) -> &mut std::collections::VecDeque<Aircraft> {
         self.icao_to_aircraft_map.entry(icao_address).or_default()
+    }
+}
+
+pub struct AirspaceStore {
+    inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
+    aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
+}
+impl AirspaceStore {
+    #[must_use]
+    pub fn new(
+        aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
+        airspace_time_buffer: chrono::TimeDelta,
+    ) -> Self {
+        let empty_airspace = Airspace::new(airspace_time_buffer);
+        AirspaceStore {
+            inner: std::sync::Arc::new(std::sync::RwLock::new(empty_airspace)),
+            aircraft_receiver,
+        }
+    }
+}
+
+impl SteppableTask for AirspaceStore {
+    fn step(&mut self) -> bool {
+        let aircrafts: Vec<Aircraft> = self.aircraft_receiver.iter().collect();
+        let mut airspace = self.inner.write().unwrap();
+        airspace.update(aircrafts);
+        true
     }
 }
 

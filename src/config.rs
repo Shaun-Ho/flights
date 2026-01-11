@@ -5,6 +5,7 @@ use toml;
 #[derive(serde::Deserialize)]
 pub struct ApplicationConfig {
     pub glidernet: GliderNetConfig,
+    pub airspace: AirspaceConfig,
 }
 
 impl ApplicationConfig {
@@ -24,6 +25,11 @@ impl ApplicationConfig {
             });
         config
     }
+}
+
+#[derive(serde::Deserialize)]
+pub struct AirspaceConfig {
+    pub time_buffer_seconds: u8,
 }
 
 pub mod errors {
