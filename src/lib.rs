@@ -4,5 +4,6 @@ pub mod config;
 pub mod ingestor;
 pub mod logging;
 pub mod parser;
+pub mod renderer;
 pub mod thread_manager;
 pub mod types;

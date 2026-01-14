@@ -5,6 +5,7 @@ use flights::config::ApplicationConfig;
 use flights::ingestor::Ingestor;
 use flights::logging::setup_logging;
 use flights::parser::AircraftParser;
+use flights::renderer::TerminalRenderer;
 use flights::thread_manager::ThreadManager;
 use flights::types::Aircraft;
 use log::info;
@@ -40,19 +41,21 @@ fn main() {
         aircraft_data_receiver,
         chrono::TimeDelta::seconds(application_config.airspace.time_buffer_seconds.into()),
     );
+    let renderer_viewer = airspace_store.get_airspace_viewer();
+    let renderer = TerminalRenderer::new(renderer_viewer);
 
     let mut thread_manager = ThreadManager::new();
     thread_manager.add_task(ingestor, std::time::Duration::from_micros(50));
     thread_manager.add_task(parser, std::time::Duration::from_micros(50));
-    let airspace_task_id =
-        thread_manager.add_task(airspace_store, std::time::Duration::from_millis(500));
+    thread_manager.add_task(airspace_store, std::time::Duration::from_millis(500));
+    let renderer_task_id = thread_manager.add_task(renderer, std::time::Duration::from_millis(33));
 
     if let Some(duration) = cli.duration {
         std::thread::sleep(std::time::Duration::from_secs(duration));
         thread_manager.stop_all_tasks();
     }
 
-    thread_manager.wait_on_task_finish(airspace_task_id);
+    thread_manager.wait_on_task_finish(renderer_task_id);
 
     info!("Main: Program finished.");
 }
