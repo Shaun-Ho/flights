@@ -105,14 +105,34 @@ impl AirspaceStore {
             aircraft_receiver,
         }
     }
+    #[must_use]
+    pub fn get_airspace_viewer(&self) -> AirspaceViewer {
+        AirspaceViewer {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl SteppableTask for AirspaceStore {
     fn step(&mut self) -> bool {
-        let aircrafts: Vec<Aircraft> = self.aircraft_receiver.iter().collect();
-        let mut airspace = self.inner.write().unwrap();
-        airspace.update(aircrafts);
-        true
+        log::info!("Airspace store stepped");
+        let aircrafts: Vec<Aircraft> = self.aircraft_receiver.try_iter().collect();
+
+        if let Ok(mut airspace) = self.inner.write() {
+            airspace.update(aircrafts);
+            return true;
+        }
+        false
+    }
+}
+
+pub struct AirspaceViewer {
+    inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
+}
+impl AirspaceViewer {
+    #[allow(clippy::missing_panics_doc)]
+    pub fn read(&self) -> std::sync::RwLockReadGuard<Airspace> {
+        self.inner.read().expect("Read lock poisoned")
     }
 }
 
