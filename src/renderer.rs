@@ -14,6 +14,7 @@ impl TerminalRenderer {
 
 impl SteppableTask for TerminalRenderer {
     fn step(&mut self) -> bool {
+        drop(self.viewer.read());
         true
     }
 }

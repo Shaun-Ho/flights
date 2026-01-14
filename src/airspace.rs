@@ -17,7 +17,8 @@ impl Airspace {
         }
     }
 
-    pub fn update(&mut self, aircrafts: &mut Vec<Aircraft>) {
+    pub fn update(&mut self, aircrafts: Vec<Aircraft>) {
+        let mut aircrafts = aircrafts;
         self.update_datetime_and_prune();
 
         while let Some(aircraft) = aircrafts.pop() {
@@ -115,10 +116,10 @@ impl AirspaceStore {
 impl SteppableTask for AirspaceStore {
     fn step(&mut self) -> bool {
         log::info!("Airspace store stepped");
-        let mut aircrafts: Vec<Aircraft> = self.aircraft_receiver.try_iter().collect();
+        let aircrafts: Vec<Aircraft> = self.aircraft_receiver.try_iter().collect();
 
         if let Ok(mut airspace) = self.inner.write() {
-            airspace.update(&mut aircrafts);
+            airspace.update(aircrafts);
             return true;
         }
         false
@@ -181,12 +182,12 @@ mod tests {
         let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
 
         #[rustfmt::skip]
-        let mut aircrafts = vec![
+        let aircrafts = vec![
             create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
 
-        airspace.update(&mut aircrafts);
+        airspace.update(aircrafts);
 
         assert_eq!(airspace.icao_to_aircraft_map.len(), 2);
 
@@ -235,9 +236,9 @@ mod tests {
                 datetime: to_datetime("00:01:00"),
                 icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
             };
-            let mut new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
-            airspace.update(&mut new_data);
+            airspace.update(new_data);
 
             let history = airspace
                 .get_history(aircraft_icao_address)
@@ -271,9 +272,9 @@ mod tests {
                 datetime: to_datetime("00:01:00"),
                 icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
             };
-            let mut new_data = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
+            let new_data = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
 
-            airspace.update(&mut new_data);
+            airspace.update(new_data);
 
             let history = airspace
                 .get_history(aircraft_icao_address)
@@ -310,9 +311,9 @@ mod tests {
                 datetime: to_datetime("00:01:00"),
                 icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
             };
-            let mut new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
-            airspace.update(&mut new_data);
+            airspace.update(new_data);
 
             let history = airspace
                 .get_history(aircraft_icao_address)
