@@ -66,6 +66,13 @@ impl Airspace {
         self.datetime
     }
 
+    #[must_use]
+    pub fn icao_to_aircraft_mapping(
+        &self,
+    ) -> &std::collections::HashMap<ICAOAddress, std::collections::VecDeque<Aircraft>> {
+        &self.icao_to_aircraft_map
+    }
+
     fn update_datetime_and_prune(&mut self) {
         self.datetime = chrono::Utc::now();
         let cutoff_time = self.datetime - self.buffer_duration;
