@@ -121,7 +121,7 @@ impl AircraftBuilder {
             .callsign
             .as_ref()
             .ok_or(AircraftBuildError::MissingCallsign)?
-            .to_string();
+            .clone();
         let icao_address = self
             .icao_address
             .ok_or(AircraftBuildError::MissingICAOAddress)?;
