@@ -6,6 +6,9 @@ pub struct Cli {
     #[arg(long)]
     pub duration: Option<u64>,
 
+    #[arg(long, default_value_t = false)]
+    pub gui: bool,
+
     #[arg(short, long, default_value_t = log::LevelFilter::Info)]
     pub logging_level: log::LevelFilter,
 

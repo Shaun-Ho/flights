@@ -2,10 +2,10 @@ use clap::Parser;
 use flights::airspace::AirspaceStore;
 use flights::cli::Cli;
 use flights::config::ApplicationConfig;
+use flights::gui::RadarApp;
 use flights::ingestor::Ingestor;
 use flights::logging::setup_logging;
 use flights::parser::AircraftParser;
-use flights::renderer::TerminalRenderer;
 use flights::thread_manager::ThreadManager;
 use flights::types::Aircraft;
 use log::info;
@@ -42,20 +42,42 @@ fn main() {
         chrono::TimeDelta::seconds(application_config.airspace.time_buffer_seconds.into()),
     );
     let renderer_viewer = airspace_store.get_airspace_viewer();
-    let renderer = TerminalRenderer::new(renderer_viewer);
 
     let mut thread_manager = ThreadManager::new();
     thread_manager.add_task(ingestor, std::time::Duration::from_micros(50));
     thread_manager.add_task(parser, std::time::Duration::from_micros(50));
-    thread_manager.add_task(airspace_store, std::time::Duration::from_millis(500));
-    let renderer_task_id = thread_manager.add_task(renderer, std::time::Duration::from_millis(33));
+    let airspace_task_id =
+        thread_manager.add_task(airspace_store, std::time::Duration::from_millis(500));
 
-    if let Some(duration) = cli.duration {
-        std::thread::sleep(std::time::Duration::from_secs(duration));
+    let run_duration = cli.duration.map(std::time::Duration::from_secs);
+
+    if cli.gui {
+        let options = eframe::NativeOptions::default();
+        eframe::run_native(
+            "Rust Airspace Radar",
+            options,
+            Box::new(|cc| {
+                if let Some(duration) = run_duration {
+                    let ctx = cc.egui_ctx.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(duration);
+                        info!("Duration reached. Requesting GUI close.");
+                        ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Close);
+                    });
+                }
+                Ok(Box::new(RadarApp::new(
+                    cc.egui_ctx.clone(),
+                    renderer_viewer,
+                )))
+            }),
+        )
+        .unwrap();
+        thread_manager.stop_all_tasks();
+    } else if let Some(duration) = run_duration {
+        std::thread::sleep(duration);
         thread_manager.stop_all_tasks();
     }
-
-    thread_manager.wait_on_task_finish(renderer_task_id);
+    thread_manager.wait_on_task_finish(airspace_task_id);
 
     info!("Main: Program finished.");
 }
