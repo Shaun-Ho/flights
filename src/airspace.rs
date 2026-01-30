@@ -32,19 +32,19 @@ impl Airspace {
 
             // We expect that the new data is normally most recent data, so we check that we can push
             // back into the end of the VecDeque
-            if let Some(last) = history.back() {
-                if aircraft.datetime >= last.datetime {
-                    history.push_back(aircraft);
-                    continue;
-                }
+            if let Some(last) = history.back()
+                && aircraft.datetime >= last.datetime
+            {
+                history.push_back(aircraft);
+                continue;
             }
 
             // If it is not new data, try to see the data is old enough to be front of VecDeque
-            if let Some(first) = history.front() {
-                if aircraft.datetime <= first.datetime {
-                    history.push_front(aircraft);
-                    continue;
-                }
+            if let Some(first) = history.front()
+                && aircraft.datetime <= first.datetime
+            {
+                history.push_front(aircraft);
+                continue;
             }
 
             // It is somewhere in between
@@ -138,7 +138,7 @@ pub struct AirspaceViewer {
 }
 impl AirspaceViewer {
     #[allow(clippy::missing_panics_doc)]
-    pub fn read(&self) -> std::sync::RwLockReadGuard<Airspace> {
+    pub fn read(&self) -> std::sync::RwLockReadGuard<'_, Airspace> {
         self.inner.read().expect("Read lock poisoned")
     }
 }

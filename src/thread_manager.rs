@@ -58,7 +58,7 @@ impl ThreadManager {
                     }
                     let elapsed = time.elapsed();
                     if elapsed < period {
-                        std::thread::sleep(period - elapsed);
+                        std::thread::sleep(period.checked_sub(elapsed).unwrap());
                     }
                 }
             })
