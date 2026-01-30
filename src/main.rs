@@ -8,7 +8,6 @@ use flights::logging::setup_logging;
 use flights::parser::AircraftParser;
 use flights::thread_manager::ThreadManager;
 use flights::types::Aircraft;
-use log::info;
 
 fn main() {
     let cli = Cli::parse();
@@ -19,7 +18,7 @@ fn main() {
         });
 
     setup_logging(cli.logging_level);
-    info!("Main: Application started.");
+    log::info!("Main: Application started.");
 
     let (messages_sender, messages_receiver): (
         crossbeam_channel::Sender<String>,
@@ -61,7 +60,7 @@ fn main() {
                     let ctx = cc.egui_ctx.clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(duration);
-                        info!("Duration reached. Requesting GUI close.");
+                        log::info!("Duration reached. Requesting GUI close.");
                         ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Close);
                     });
                 }
@@ -79,5 +78,5 @@ fn main() {
     }
     thread_manager.wait_on_task_finish(airspace_task_id);
 
-    info!("Main: Program finished.");
+    log::info!("Main: Program finished.");
 }

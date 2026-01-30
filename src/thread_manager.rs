@@ -75,7 +75,7 @@ impl ThreadManager {
     }
 
     pub fn stop_all_tasks(&self) {
-        info!("Manager: Signaling all tasks to stop...");
+        info!("ThreadManager: Signaling all tasks to stop...");
         for task in self.tasks.values() {
             task.running
                 .store(false, std::sync::atomic::Ordering::Relaxed);
