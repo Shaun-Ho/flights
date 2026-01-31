@@ -53,7 +53,7 @@ fn main() {
     if cli.gui {
         let options = eframe::NativeOptions::default();
         eframe::run_native(
-            "Rust Airspace Radar",
+            "Airspace Radar",
             options,
             Box::new(|cc| {
                 if let Some(duration) = run_duration {

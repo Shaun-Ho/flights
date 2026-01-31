@@ -20,7 +20,7 @@ impl Ingestor {
         sender: crossbeam_channel::Sender<String>,
     ) -> Result<Self, std::io::Error> {
         let login = format!(
-            "user N0CALL pass -1 vers SkyTrace 0.1.0 filter {0} \r\n",
+            "user N0CALL pass -1 vers AirspaceRadar 0.1.0 filter {0} \r\n",
             config.filter
         );
         log::info!("Connecting to TCP stream.");
