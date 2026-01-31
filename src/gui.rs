@@ -96,19 +96,15 @@ impl walkers::Plugin for AirspacePlugin {
                 // don't draw if the dot is off-screen
                 if ui.max_rect().contains(*current_position) {
                     // calculate shape of aircraft drawn on screen based on the actual point
-                    let aircraft_shape_points = apply_shape_on_point(
+                    #[allow(clippy::cast_possible_truncation)]
+                    let aircraft_bearing = aircraft.ground_track.to_radians() as f32;
+                    let shape = build_aircraft_path_shape(
                         *current_position,
-                        &AIRCRAFT_REFERENCE_SHAPE,
-                        #[allow(clippy::cast_possible_truncation)]
-                        egui::emath::Rot2::from_angle(aircraft.ground_track.to_radians() as f32),
                         scale_factor,
+                        aircraft_bearing,
+                        epaint::Color32::RED,
                     );
-                    let shape = epaint::PathShape {
-                        points: aircraft_shape_points,
-                        closed: true,
-                        fill: epaint::Color32::RED,
-                        stroke: egui::epaint::PathStroke::new(0.3, epaint::Color32::BLACK),
-                    };
+
                     ui.painter().add(shape);
                 }
             }
@@ -134,4 +130,24 @@ fn apply_shape_on_point(
         .iter()
         .map(|&shape_point| center_point + rotation * (shape_point.to_vec2() * scale))
         .collect::<Vec<egui::Pos2>>()
+}
+
+fn build_aircraft_path_shape(
+    current_position: egui::Pos2,
+    scale_factor: f32,
+    rotation_radians: f32,
+    fill_color: epaint::Color32,
+) -> epaint::PathShape {
+    let aircraft_shape_points = apply_shape_on_point(
+        current_position,
+        &AIRCRAFT_REFERENCE_SHAPE,
+        egui::emath::Rot2::from_angle(rotation_radians),
+        scale_factor,
+    );
+    epaint::PathShape {
+        points: aircraft_shape_points,
+        closed: true,
+        fill: fill_color,
+        stroke: egui::epaint::PathStroke::new(0.3, epaint::Color32::BLACK),
+    }
 }
