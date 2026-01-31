@@ -124,21 +124,17 @@ fn run_task_with_period<T: SteppableTask>(
         if !task.step() {
             break;
         }
-
         next_run += period;
         let now = std::time::Instant::now();
 
         if next_run > now {
-            log::debug!("on track");
             let sleep_dur = next_run - now;
-            // Wait for timeout (next loop) OR stop signal
             match stop_receiver.recv_timeout(sleep_dur) {
                 Ok(()) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
                 Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
             }
         } else {
             // Reset drift base if we are lagging badly
-            log::debug!("We are slow");
             next_run = now;
 
             if let Ok(()) = stop_receiver.try_recv() {
