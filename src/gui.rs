@@ -69,7 +69,6 @@ impl walkers::Plugin for AirspacePlugin {
         let airspace = self.viewer.read();
 
         for aircraft_queue in airspace.icao_to_aircraft_mapping().values() {
-            // Need at least 1 point to draw anything
             if aircraft_queue.is_empty() {
                 continue;
             }
@@ -91,7 +90,7 @@ impl walkers::Plugin for AirspacePlugin {
             if let Some((aircraft, current_position)) = aircraft_and_points.last() {
                 // don't draw if the dot is off-screen
                 if ui.max_rect().contains(*current_position) {
-                    // overlay the points on the actual point
+                    // calculate shape of aircraft drawn on screen based on the actual point
                     let aircraft_shape = apply_shape_on_point(
                         *current_position,
                         &AIRCRAFT_REFERENCE_SHAPE,
