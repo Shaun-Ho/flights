@@ -1,0 +1,7 @@
+[glidernet]
+host = "aprs.glidernet.org"
+port = 14580
+filter = "r/0/0/250000000000"
+
+[airspace]
+time_buffer_seconds = 60
