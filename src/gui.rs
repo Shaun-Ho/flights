@@ -63,8 +63,13 @@ impl walkers::Plugin for AirspacePlugin {
         ui: &mut egui::Ui,
         _response: &egui::Response,
         projector: &walkers::Projector,
-        _map_memory: &walkers::MapMemory,
+        map_memory: &walkers::MapMemory,
     ) {
+        let zoom = map_memory.zoom();
+
+        #[allow(clippy::cast_possible_truncation)]
+        let scale_factor = (zoom * 0.1).clamp(0.1, 1.0) as f32;
+
         // read from airspace and render information on screen.
         let airspace = self.viewer.read();
 
@@ -96,6 +101,7 @@ impl walkers::Plugin for AirspacePlugin {
                         &AIRCRAFT_REFERENCE_SHAPE,
                         #[allow(clippy::cast_possible_truncation)]
                         egui::emath::Rot2::from_angle(aircraft.ground_track.to_radians() as f32),
+                        scale_factor,
                     );
                     ui.painter().add(egui::Shape::convex_polygon(
                         aircraft_shape,
@@ -112,9 +118,10 @@ fn apply_shape_on_point(
     center_point: egui::Pos2,
     raw_shape: &[egui::Pos2],
     rotation: egui::emath::Rot2,
+    scale: f32,
 ) -> Vec<egui::Pos2> {
     raw_shape
         .iter()
-        .map(|&shape_point| center_point + rotation * shape_point.to_vec2())
+        .map(|&shape_point| center_point + rotation * (shape_point.to_vec2() * scale))
         .collect::<Vec<egui::Pos2>>()
 }
