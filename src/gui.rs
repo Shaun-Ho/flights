@@ -1,5 +1,8 @@
+mod constants;
+
 use crate::airspace::AirspaceViewer;
 use crate::types::Aircraft;
+use constants::AIRCRAFT_REFERENCE_SHAPE;
 use eframe::{egui, epaint};
 use walkers;
 
@@ -43,13 +46,6 @@ impl eframe::App for RadarApp {
             });
     }
 }
-
-const AIRCRAFT_REFERENCE_SHAPE: [egui::Pos2; 4] = [
-    egui::pos2(0.0, -10.0), // Nose
-    egui::pos2(7.0, 8.0),   // Right Wing tip
-    egui::pos2(0.0, 2.0),   // Tail center indentation
-    egui::pos2(-7.0, 8.0),  // Left Wing tip
-];
 
 pub struct AirspacePlugin {
     viewer: AirspaceViewer,
