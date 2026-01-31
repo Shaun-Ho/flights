@@ -54,7 +54,7 @@ jobs:
             - name: Install stable toolchain
               uses: actions-rust-lang/setup-rust-toolchain@v1
             - name: Cargo doc test
-              run: cargo doc --workspace --all-features
+              run: cargo doc --workspace --all-features --no-deps
     cargo-next-test:
         name: Cargo test
         runs-on: ubuntu-latest
