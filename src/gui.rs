@@ -96,20 +96,30 @@ impl walkers::Plugin for AirspacePlugin {
                 // don't draw if the dot is off-screen
                 if ui.max_rect().contains(*current_position) {
                     // calculate shape of aircraft drawn on screen based on the actual point
-                    let aircraft_shape = apply_shape_on_point(
+                    let aircraft_shape_points = apply_shape_on_point(
                         *current_position,
                         &AIRCRAFT_REFERENCE_SHAPE,
                         #[allow(clippy::cast_possible_truncation)]
                         egui::emath::Rot2::from_angle(aircraft.ground_track.to_radians() as f32),
                         scale_factor,
                     );
-                    ui.painter().add(egui::Shape::convex_polygon(
-                        aircraft_shape,
-                        egui::Color32::BLACK,
-                        egui::epaint::PathStroke::new(1.0, epaint::Color32::BLACK),
-                    ));
+                    let shape = epaint::PathShape {
+                        points: aircraft_shape_points,
+                        closed: true,
+                        fill: epaint::Color32::RED,
+                        stroke: egui::epaint::PathStroke::new(0.3, epaint::Color32::BLACK),
+                    };
+                    ui.painter().add(shape);
                 }
             }
+            // draw trails
+            ui.painter().line(
+                aircraft_and_points
+                    .iter()
+                    .map(|(_aircraft, point)| *point)
+                    .collect::<Vec<egui::Pos2>>(),
+                egui::epaint::Stroke::new(1.0, epaint::Color32::BLUE),
+            );
         }
     }
 }
