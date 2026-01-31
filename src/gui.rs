@@ -1,9 +1,9 @@
 use crate::airspace::AirspaceViewer;
-use eframe::egui;
+use crate::types::Aircraft;
+use eframe::{egui, epaint};
 use walkers;
 
 pub struct RadarApp {
-    #[allow(dead_code)]
     airspace_viewer: AirspaceViewer,
     tiles: walkers::HttpTiles,
     map_memory: walkers::MapMemory,
@@ -15,7 +15,6 @@ impl RadarApp {
         Self {
             tiles: walkers::HttpTiles::new(walkers::sources::OpenStreetMap, egui_ctx),
             map_memory: walkers::MapMemory::default(),
-
             airspace_viewer,
         }
     }
@@ -31,11 +30,96 @@ impl eframe::App for RadarApp {
                 let mut map =
                     walkers::Map::new(Some(&mut self.tiles), &mut self.map_memory, my_position);
 
-                map = map.zoom_with_ctrl(false).drag_pan_buttons(
-                    egui::DragPanButtons::PRIMARY | egui::DragPanButtons::SECONDARY,
-                );
+                let airspace_plugin = AirspacePlugin::new(self.airspace_viewer.clone());
+
+                map = map
+                    .zoom_with_ctrl(false)
+                    .drag_pan_buttons(
+                        egui::DragPanButtons::PRIMARY | egui::DragPanButtons::SECONDARY,
+                    )
+                    .with_plugin(airspace_plugin);
 
                 map.show(ui, |_ui, _response, _projector, _map_memory| {})
             });
     }
+}
+
+const AIRCRAFT_REFERENCE_SHAPE: [egui::Pos2; 4] = [
+    egui::pos2(0.0, -10.0), // Nose
+    egui::pos2(7.0, 8.0),   // Right Wing tip
+    egui::pos2(0.0, 2.0),   // Tail center indentation
+    egui::pos2(-7.0, 8.0),  // Left Wing tip
+];
+
+pub struct AirspacePlugin {
+    viewer: AirspaceViewer,
+}
+impl AirspacePlugin {
+    #[must_use]
+    pub fn new(viewer: AirspaceViewer) -> Self {
+        AirspacePlugin { viewer }
+    }
+}
+
+impl walkers::Plugin for AirspacePlugin {
+    fn run(
+        self: Box<Self>,
+        ui: &mut egui::Ui,
+        _response: &egui::Response,
+        projector: &walkers::Projector,
+        _map_memory: &walkers::MapMemory,
+    ) {
+        // read from airspace and render information on screen.
+        let airspace = self.viewer.read();
+
+        for aircraft_queue in airspace.icao_to_aircraft_mapping().values() {
+            // Need at least 1 point to draw anything
+            if aircraft_queue.is_empty() {
+                continue;
+            }
+
+            // convert every position in the history to a screen x,y
+            let aircraft_and_points: Vec<(&Aircraft, egui::Pos2)> = aircraft_queue
+                .iter()
+                .map(|aircraft| {
+                    (
+                        aircraft,
+                        projector
+                            .project(walkers::lat_lon(aircraft.latitude, aircraft.longitude))
+                            .to_pos2(),
+                    )
+                })
+                .collect();
+
+            // draw most recent position
+            if let Some((aircraft, current_position)) = aircraft_and_points.last() {
+                // don't draw if the dot is off-screen
+                if ui.max_rect().contains(*current_position) {
+                    // overlay the points on the actual point
+                    let aircraft_shape = apply_shape_on_point(
+                        *current_position,
+                        &AIRCRAFT_REFERENCE_SHAPE,
+                        #[allow(clippy::cast_possible_truncation)]
+                        egui::emath::Rot2::from_angle(aircraft.ground_track.to_radians() as f32),
+                    );
+                    ui.painter().add(egui::Shape::convex_polygon(
+                        aircraft_shape,
+                        egui::Color32::BLACK,
+                        egui::epaint::PathStroke::new(1.0, epaint::Color32::BLACK),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn apply_shape_on_point(
+    center_point: egui::Pos2,
+    raw_shape: &[egui::Pos2],
+    rotation: egui::emath::Rot2,
+) -> Vec<egui::Pos2> {
+    raw_shape
+        .iter()
+        .map(|&shape_point| center_point + rotation * shape_point.to_vec2())
+        .collect::<Vec<egui::Pos2>>()
 }

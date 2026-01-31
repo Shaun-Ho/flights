@@ -132,7 +132,7 @@ impl SteppableTask for AirspaceStore {
         false
     }
 }
-
+#[derive(Clone)]
 pub struct AirspaceViewer {
     inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
 }
