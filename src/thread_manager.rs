@@ -41,44 +41,53 @@ impl ThreadManager {
     /// # Panics
     ///
     /// Will panic if thread does not spawn successfully.
-    pub fn add_task<T>(&mut self, mut task: T, period: std::time::Duration) -> TaskID
+    pub fn add_task<T>(&mut self, task: T, period: std::time::Duration) -> TaskID
     where
         T: SteppableTask,
     {
         let id = self.current_task_id;
-        let running_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-        let thread_flag = running_flag.clone();
+
+        let (stop_sender, stop_receiver) = crossbeam_channel::bounded::<()>(1);
+
+        let thread_task: Box<dyn FnOnce() + Send> = if period.is_zero() {
+            Box::new(move || {
+                run_task_continuously(task, &stop_receiver);
+            })
+        } else {
+            Box::new(move || {
+                run_task_with_period(task, period, &stop_receiver);
+            })
+        };
+
         let handle = std::thread::Builder::new()
             .name(std::any::type_name::<T>().to_string())
             .spawn(move || {
-                while thread_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                    let time = std::time::Instant::now();
-                    if !task.step() {
-                        break;
-                    }
-                    let elapsed = time.elapsed();
-                    if elapsed < period {
-                        std::thread::sleep(period.checked_sub(elapsed).unwrap());
-                    }
-                }
+                thread_task();
             })
             .expect("Failed to spawn thread");
         self.tasks.insert(
             id,
             ManagedTask {
                 handle,
-                running: running_flag,
+                stop_sender,
             },
         );
         self.current_task_id += 1;
         id
     }
 
+    pub fn stop_task(&self, task_id: TaskID) -> Result<(), crossbeam_channel::SendError<()>> {
+        let task = self
+            .tasks
+            .get(&task_id)
+            .ok_or(crossbeam_channel::SendError(()))?;
+
+        task.stop_sender.send(())
+    }
     pub fn stop_all_tasks(&self) {
         info!("ThreadManager: Signaling all tasks to stop...");
         for task in self.tasks.values() {
-            task.running
-                .store(false, std::sync::atomic::Ordering::Relaxed);
+            let _ = task.stop_sender.send(());
         }
     }
 
@@ -95,9 +104,56 @@ impl Default for ThreadManager {
     }
 }
 
+fn run_task_continuously<T: SteppableTask>(
+    mut task: T,
+    stop_receiver: &crossbeam_channel::Receiver<()>,
+) {
+    loop {
+        match stop_receiver.try_recv() {
+            Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => break,
+            Err(crossbeam_channel::TryRecvError::Empty) => {}
+        }
+
+        if !task.step() {
+            break;
+        }
+
+        std::thread::yield_now();
+    }
+}
+
+fn run_task_with_period<T: SteppableTask>(
+    mut task: T,
+    period: std::time::Duration,
+    stop_receiver: &crossbeam_channel::Receiver<()>,
+) {
+    let mut next_run = std::time::Instant::now();
+    loop {
+        if !task.step() {
+            break;
+        }
+        next_run += period;
+        let now = std::time::Instant::now();
+
+        if next_run > now {
+            let sleep_dur = next_run - now;
+            match stop_receiver.recv_timeout(sleep_dur) {
+                Ok(()) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+            }
+        } else {
+            // Reset drift base if we are lagging badly
+            next_run = now;
+
+            if let Ok(()) = stop_receiver.try_recv() {
+                break;
+            }
+        }
+    }
+}
 struct ManagedTask {
     handle: std::thread::JoinHandle<()>,
-    running: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    stop_sender: crossbeam_channel::Sender<()>,
 }
 #[cfg(test)]
 mod tests {
@@ -230,5 +286,87 @@ mod tests {
 
         manager.wait_on_task_finish(task_id2);
         assert!(manager.tasks.is_empty()); // No tasks left
+    }
+
+    #[test]
+    fn when_specific_task_is_stopped_then_task_is_removed_from_threadmanager() {
+        let mut manager = ThreadManager::new();
+        let (looper_1_sender, looper_1_receiver) = std::sync::mpsc::channel();
+        let (looper_2_sender, looper_2_receiver) = std::sync::mpsc::channel();
+
+        let task_1_id = manager.add_task(
+            LoopingTask::new(looper_1_sender),
+            std::time::Duration::from_millis(10),
+        );
+        let task_2_id = manager.add_task(
+            LoopingTask::new(looper_2_sender),
+            std::time::Duration::from_millis(10),
+        );
+
+        // Give them a moment to start executing
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        let stop_result = manager.stop_task(task_1_id);
+        assert!(stop_result.is_ok(), "Stopping existing task should succeed");
+        manager.wait_on_task_finish(task_1_id);
+
+        let executions_task_1: Vec<usize> = looper_1_receiver.try_iter().collect();
+
+        assert!(
+            !executions_task_1.is_empty(),
+            "Task 1 should have executed at least once after asking to stop"
+        );
+        // check that task no longer exists
+        assert!(!manager.tasks.contains_key(&task_1_id));
+
+        // Verify the other task is still running (or can be stopped)
+        println!(
+            "Verifying task {} is still running (or stoppable)",
+            task_2_id
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        let stop_result_2 = manager.stop_task(task_2_id);
+        assert!(stop_result_2.is_ok(), "Stopping task 2 should succeed");
+
+        manager.wait_on_task_finish(task_2_id);
+        let executions_task2: Vec<usize> = looper_2_receiver.try_iter().collect();
+
+        assert!(
+            !executions_task2.is_empty(),
+            "Task 2 should have executed at least once after asking to stop"
+        );
+        assert!(!manager.tasks.contains_key(&task_2_id));
+
+        assert!(manager.tasks.is_empty());
+    }
+    #[test]
+    fn when_non_existent_task_is_stopped_then_task_is_removed_from_threadmanager() {
+        let mut manager = ThreadManager::new();
+        let (looper_1_sender, _looper_1_receiver) = std::sync::mpsc::channel();
+        let (looper_2_sender, _looper_2_receiver) = std::sync::mpsc::channel();
+
+        let _ = manager.add_task(
+            LoopingTask::new(looper_1_sender),
+            std::time::Duration::from_millis(10),
+        );
+        let _ = manager.add_task(
+            LoopingTask::new(looper_2_sender),
+            std::time::Duration::from_millis(10),
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        let non_existent_task_id = 999;
+        let stop_non_existent_result = manager.stop_task(non_existent_task_id);
+        assert!(
+            stop_non_existent_result.is_err(),
+            "Stopping a non-existent task should return an error"
+        );
+        assert_eq!(
+            stop_non_existent_result.unwrap_err(),
+            crossbeam_channel::SendError(()),
+            "Error for non-existent task should be SendError(())"
+        );
     }
 }

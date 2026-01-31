@@ -11,7 +11,7 @@ pub struct GliderNetConfig {
 }
 
 pub struct Ingestor {
-    stream: std::net::TcpStream,
+    reader: std::io::BufReader<std::net::TcpStream>,
     sender: crossbeam_channel::Sender<String>,
 }
 impl Ingestor {
@@ -28,16 +28,16 @@ impl Ingestor {
             std::net::TcpStream::connect(format!("{0}:{1}", config.host, config.port))?;
         stream.write_all(login.as_bytes())?;
         log::info!("Connection successful.");
-        Ok(Ingestor { stream, sender })
+        let reader = std::io::BufReader::new(stream);
+        Ok(Ingestor { reader, sender })
     }
 }
 
 impl SteppableTask for Ingestor {
     fn step(&mut self) -> bool {
-        let mut reader = std::io::BufReader::new(&self.stream);
         let mut line_buffer = String::new();
 
-        reader
+        self.reader
             .read_line(&mut line_buffer)
             .map_err(|e| {
                 log::error!("{e}");
