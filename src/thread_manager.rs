@@ -341,7 +341,7 @@ mod tests {
         assert!(manager.tasks.is_empty());
     }
     #[test]
-    fn when_non_existant_task_is_stopped_then_task_is_removed_from_threadmanager() {
+    fn when_non_existent_task_is_stopped_then_task_is_removed_from_threadmanager() {
         let mut manager = ThreadManager::new();
         let (looper_1_sender, _looper_1_receiver) = std::sync::mpsc::channel();
         let (looper_2_sender, _looper_2_receiver) = std::sync::mpsc::channel();
