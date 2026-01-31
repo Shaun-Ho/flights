@@ -43,10 +43,10 @@ fn main() {
     let renderer_viewer = airspace_store.get_airspace_viewer();
 
     let mut thread_manager = ThreadManager::new();
-    thread_manager.add_task(ingestor, std::time::Duration::from_micros(50));
-    thread_manager.add_task(parser, std::time::Duration::from_micros(50));
+    thread_manager.add_task(ingestor, std::time::Duration::ZERO);
+    thread_manager.add_task(parser, std::time::Duration::ZERO);
     let airspace_task_id =
-        thread_manager.add_task(airspace_store, std::time::Duration::from_millis(500));
+        thread_manager.add_task(airspace_store, std::time::Duration::from_micros(16667));
 
     let run_duration = cli.duration.map(std::time::Duration::from_secs);
 
