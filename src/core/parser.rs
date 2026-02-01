@@ -2,9 +2,9 @@ pub mod builder;
 mod constants;
 pub mod types;
 
-use crate::parser::builder::build_aircraft_from_string;
-use crate::thread_manager::SteppableTask;
-use crate::types::Aircraft;
+use crate::core::parser::builder::build_aircraft_from_string;
+use crate::core::thread_manager::SteppableTask;
+use crate::core::types::Aircraft;
 
 pub struct AircraftParser {
     receiver: crossbeam_channel::Receiver<String>,

@@ -1,5 +1,5 @@
-use crate::thread_manager::SteppableTask;
-use crate::types::{Aircraft, ICAOAddress};
+use crate::core::thread_manager::SteppableTask;
+use crate::core::types::{Aircraft, ICAOAddress};
 #[derive(Debug)]
 pub struct Airspace {
     buffer_duration: chrono::Duration,
@@ -147,8 +147,8 @@ impl AirspaceViewer {
 mod tests {
 
     use crate::{
-        airspace::Airspace,
-        types::{Aircraft, ICAOAddress},
+        core::airspace::Airspace,
+        core::types::{Aircraft, ICAOAddress},
     };
 
     fn create_dummy_aircraft_at_time(

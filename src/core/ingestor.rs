@@ -1,14 +1,12 @@
-use crate::thread_manager::SteppableTask;
-use crossbeam_channel;
-use serde;
-use std::io::{BufRead, Write};
+pub mod config;
+pub mod error;
 
-#[derive(serde::Deserialize)]
-pub struct GliderNetConfig {
-    pub host: String,
-    pub port: u64,
-    pub filter: String,
-}
+use crate::core::ingestor::config::GliderNetConfig;
+use crate::core::thread_manager::SteppableTask;
+
+use crossbeam_channel;
+
+use std::io::{BufRead, Write};
 
 pub struct Ingestor {
     reader: std::io::BufReader<std::net::TcpStream>,
