@@ -1,18 +1,18 @@
 use clap::Parser;
 use flights::airspace::AirspaceStore;
 use flights::cli::Cli;
-use flights::config::ApplicationConfig;
+use flights::core::ingestor::Ingestor;
+use flights::core::ingestor::config::IngestorConfig;
 use flights::core::parser::AircraftParser;
 use flights::gui::RadarApp;
-use flights::ingestor::Ingestor;
 use flights::logging::setup_logging;
 use flights::thread_manager::ThreadManager;
 use flights::types::Aircraft;
 
 fn main() {
     let cli = Cli::parse();
-    let application_config = ApplicationConfig::construct_from_path(&cli.config_file)
-        .unwrap_or_else(|e| {
+    let application_config =
+        IngestorConfig::construct_from_path(&cli.config_file).unwrap_or_else(|e| {
             log::error!("{e}");
             panic!("Config error. Exiting.")
         });
