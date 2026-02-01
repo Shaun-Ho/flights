@@ -2,7 +2,7 @@ pub mod config;
 pub mod error;
 
 use crate::core::ingestor::config::GliderNetConfig;
-use crate::thread_manager::SteppableTask;
+use crate::core::thread_manager::SteppableTask;
 
 use crossbeam_channel;
 

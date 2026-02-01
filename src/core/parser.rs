@@ -3,8 +3,8 @@ mod constants;
 pub mod types;
 
 use crate::core::parser::builder::build_aircraft_from_string;
+use crate::core::thread_manager::SteppableTask;
 use crate::core::types::Aircraft;
-use crate::thread_manager::SteppableTask;
 
 pub struct AircraftParser {
     receiver: crossbeam_channel::Receiver<String>,

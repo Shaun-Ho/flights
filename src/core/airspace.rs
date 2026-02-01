@@ -1,5 +1,5 @@
+use crate::core::thread_manager::SteppableTask;
 use crate::core::types::{Aircraft, ICAOAddress};
-use crate::thread_manager::SteppableTask;
 #[derive(Debug)]
 pub struct Airspace {
     buffer_duration: chrono::Duration,

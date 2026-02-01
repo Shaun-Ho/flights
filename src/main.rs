@@ -4,10 +4,10 @@ use flights::core::airspace::AirspaceStore;
 use flights::core::ingestor::Ingestor;
 use flights::core::ingestor::config::IngestorConfig;
 use flights::core::parser::AircraftParser;
+use flights::core::thread_manager::ThreadManager;
 use flights::core::types::Aircraft;
 use flights::gui::RadarApp;
 use flights::logging::setup_logging;
-use flights::thread_manager::ThreadManager;
 
 fn main() {
     let cli = Cli::parse();
