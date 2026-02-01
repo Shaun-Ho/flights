@@ -147,7 +147,7 @@ impl AirspaceViewer {
 mod tests {
 
     use crate::{
-        airspace::Airspace,
+        core::airspace::Airspace,
         core::types::{Aircraft, ICAOAddress},
     };
 
