@@ -1,6 +1,6 @@
 use clap::Parser;
-use flights::airspace::AirspaceStore;
 use flights::cli::Cli;
+use flights::core::airspace::AirspaceStore;
 use flights::core::ingestor::Ingestor;
 use flights::core::ingestor::config::IngestorConfig;
 use flights::core::parser::AircraftParser;
