@@ -1,11 +1,8 @@
-mod constants;
-
 use crate::core::airspace::AirspaceViewer;
 use crate::core::types::Aircraft;
-use constants::AIRCRAFT_REFERENCE_SHAPE;
+use crate::gui::constants::AIRCRAFT_REFERENCE_SHAPE;
 use eframe::{egui, epaint};
 use walkers;
-
 pub struct RadarApp {
     airspace_viewer: AirspaceViewer,
     tiles: walkers::HttpTiles,
