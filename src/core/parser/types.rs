@@ -1,4 +1,4 @@
-use crate::types::{ICAOAddress, ICAOAddressError};
+use crate::core::types::{ICAOAddress, ICAOAddressError};
 #[derive(Debug, PartialEq)]
 pub struct OGNBeaconID {
     pub prefix: OGNIDPrefix,

@@ -1,7 +1,7 @@
 mod constants;
 
 use crate::airspace::AirspaceViewer;
-use crate::types::Aircraft;
+use crate::core::types::Aircraft;
 use constants::AIRCRAFT_REFERENCE_SHAPE;
 use eframe::{egui, epaint};
 use walkers;

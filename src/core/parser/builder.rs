@@ -5,7 +5,7 @@ use crate::core::parser::constants::{
 };
 use crate::core::parser::constants::{GPS_DATA_REGEX, OGN_BEACON_ID_REGEX};
 use crate::core::parser::types::OGNBeaconID;
-use crate::types::{Aircraft, ICAOAddress};
+use crate::core::types::{Aircraft, ICAOAddress};
 
 pub fn build_aircraft_from_string(string: &str) -> Result<Aircraft, AircraftBuildError> {
     string
@@ -240,7 +240,7 @@ fn convert_to_current_datetime(
 #[cfg(test)]
 mod test {
     use crate::core::parser::types::{OGNBeaconID, OGNIDPrefix};
-    use crate::types::{Aircraft, ICAOAddress};
+    use crate::core::types::{Aircraft, ICAOAddress};
 
     use super::{AircraftBuilderData, build_aircraft_from_string, extract_data_from_string};
 
