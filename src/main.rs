@@ -2,10 +2,10 @@ use clap::Parser;
 use flights::airspace::AirspaceStore;
 use flights::cli::Cli;
 use flights::config::ApplicationConfig;
+use flights::core::parser::AircraftParser;
 use flights::gui::RadarApp;
 use flights::ingestor::Ingestor;
 use flights::logging::setup_logging;
-use flights::parser::AircraftParser;
 use flights::thread_manager::ThreadManager;
 use flights::types::Aircraft;
 
