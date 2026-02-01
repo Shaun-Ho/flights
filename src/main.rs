@@ -1,8 +1,7 @@
 use clap::Parser;
 use flights::cli::Cli;
 use flights::core::airspace::AirspaceStore;
-use flights::core::ingestor::Ingestor;
-use flights::core::ingestor::config::IngestorConfig;
+use flights::core::ingestor::{Ingestor, config::IngestorConfig};
 use flights::core::parser::AircraftParser;
 use flights::core::thread_manager::ThreadManager;
 use flights::core::types::Aircraft;
