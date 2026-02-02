@@ -23,4 +23,7 @@ pub struct Cli {
 pub struct IngestorConfig {
     #[arg(long, default_value = None)]
     pub log_input_data_stream: Option<std::path::PathBuf>,
+
+    #[arg(long, default_value = None)]
+    pub read_input_data_stream: Option<std::path::PathBuf>,
 }

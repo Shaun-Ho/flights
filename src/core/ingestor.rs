@@ -10,7 +10,7 @@ use crossbeam_channel;
 use std::io::{BufRead, Write};
 
 pub struct Ingestor {
-    reader: std::io::BufReader<std::net::TcpStream>,
+    reader: std::io::BufReader<Box<dyn std::io::Read + Send>>,
     sender: crossbeam_channel::Sender<String>,
     output_writer: Option<std::io::BufWriter<std::fs::File>>,
 }
@@ -20,16 +20,24 @@ impl Ingestor {
         sender: crossbeam_channel::Sender<String>,
         config: IngestorConfig,
     ) -> Result<Self, std::io::Error> {
-        let login = format!(
-            "user N0CALL pass -1 vers AirspaceRadar 0.1.0 filter {0} \r\n",
-            glidernet.filter
-        );
-        log::info!("Connecting to TCP stream.");
-        let mut stream =
-            std::net::TcpStream::connect(format!("{0}:{1}", glidernet.host, glidernet.port))?;
-        stream.write_all(login.as_bytes())?;
-        log::info!("Connection successful.");
-        let reader = std::io::BufReader::new(stream);
+        let reader_source: Box<dyn std::io::Read + Send> = if let Some(path_stream) =
+            config.read_input_data_stream
+        {
+            let file = std::fs::File::open(path_stream)?;
+            Box::new(file)
+        } else {
+            let login = format!(
+                "user N0CALL pass -1 vers AirspaceRadar 0.1.0 filter {0} \r\n",
+                glidernet.filter
+            );
+            log::info!("Connecting to TCP stream.");
+            let mut stream =
+                std::net::TcpStream::connect(format!("{0}:{1}", glidernet.host, glidernet.port))?;
+            stream.write_all(login.as_bytes())?;
+            log::info!("Connection successful.");
+            Box::new(stream)
+        };
+        let reader = std::io::BufReader::new(reader_source);
 
         let writer = config
             .log_input_data_stream
