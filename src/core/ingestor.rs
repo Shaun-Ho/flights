@@ -35,24 +35,23 @@ impl SteppableTask for Ingestor {
     fn step(&mut self) -> bool {
         let mut line_buffer = String::new();
 
-        self.reader
-            .read_line(&mut line_buffer)
-            .map_err(|e| {
-                log::error!("{e}");
-                false
-            })
-            .map(|bytes| {
-                if bytes == 0 {
+        match self.reader.read_line(&mut line_buffer) {
+            Ok(message_bytes) => {
+                // empty messaage from source
+                if message_bytes == 0 {
+                    log::warn!("Empty string received from Ingestor source.");
+                    return true;
+                }
+                if let Err(err) = self.sender.send(line_buffer) {
+                    log::error!("{err}");
                     return false;
                 }
-                self.sender
-                    .send(line_buffer)
-                    .map_err(|e| {
-                        log::error!("{e}");
-                        false
-                    })
-                    .is_ok()
-            })
-            .is_ok()
+                true
+            }
+            Err(err) => {
+                log::error!("{err}");
+                false
+            }
+        }
     }
 }

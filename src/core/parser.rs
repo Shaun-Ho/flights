@@ -25,18 +25,27 @@ impl AircraftParser {
 
 impl SteppableTask for AircraftParser {
     fn step(&mut self) -> bool {
-        self.receiver
-            .recv()
-            .map_err(|e| {
-                log::error!("{e}");
-            })
-            .map(|string| {
-                if let Ok(aircraft) = build_aircraft_from_string(&string) {
-                    let _ = self.sender.send(aircraft).map_err(|err| {
-                        log::error!("Unable to send aircraft to channel: {err}");
-                    });
-                }
-            })
-            .is_ok()
+        match self.receiver.recv() {
+            Ok(message_string) => {
+                match build_aircraft_from_string(&message_string) {
+                    Ok(aircraft) => match self.sender.send(aircraft) {
+                        Ok(()) => true,
+                        Err(err) => {
+                            log::error!("{err}");
+                            true
+                        }
+                    },
+                    Err(err) => {
+                        log::debug!("{err}");
+                        true
+                    }
+                };
+                true
+            }
+            Err(err) => {
+                log::error!("{err}");
+                false
+            }
+        }
     }
 }
