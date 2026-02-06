@@ -35,23 +35,19 @@ impl SteppableTask for Ingestor {
     fn step(&mut self) -> bool {
         let mut line_buffer = String::new();
 
-        match self.reader.read_line(&mut line_buffer) {
-            Ok(message_bytes) => {
-                // empty messaage from source
-                if message_bytes == 0 {
-                    log::warn!("Empty string received from Ingestor source.");
-                    return true;
-                }
-                if let Err(err) = self.sender.send(line_buffer) {
-                    log::error!("{err}");
-                    return false;
-                }
-                true
-            }
-            Err(err) => {
-                log::error!("{err}");
-                false
-            }
+        let Ok(bytes_read) = self.reader.read_line(&mut line_buffer) else {
+            log::error!("Failed to read line from source");
+            return true;
+        };
+
+        if bytes_read == 0 {
+            log::error!("End of TCP stream");
+            return false;
         }
+        if let Err(err) = self.sender.send(line_buffer) {
+            log::error!("Ingestor: Failed to send to channel: {err}");
+            return false;
+        }
+        true
     }
 }
