@@ -77,6 +77,26 @@ pub enum InvalidMessageError {
     MissingHeaderOrBodyError(String),
     MissingCapture(String),
 }
+
+impl std::fmt::Display for InvalidMessageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InvalidMessageError::InvalidFormat(string) => {
+                write!(f, "Invalid Format: {string}")
+            }
+            InvalidMessageError::InvalidTimeFormat(string) => {
+                write!(f, "Invalid Time Format : {string}")
+            }
+            InvalidMessageError::MissingHeaderOrBodyError(string) => {
+                write!(f, "Missing Header or Body : {string}")
+            }
+            InvalidMessageError::MissingCapture(string) => {
+                write!(f, "Missing Capture : {string}")
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum AircraftBuildError {
     MissingCallsign,
@@ -88,6 +108,26 @@ pub enum AircraftBuildError {
     MissingGroundSpeed,
     MissingGPSAltitude,
     InvalidMessage(InvalidMessageError),
+}
+
+impl std::fmt::Display for AircraftBuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let err_message = match self {
+            AircraftBuildError::MissingCallsign => String::from("Missing callsign"),
+            AircraftBuildError::MissingICAOAddress => String::from("Missing ICAO address"),
+            AircraftBuildError::MissingTime => String::from("Missing timestamp"),
+            AircraftBuildError::MissingLatitude => String::from("Missing latitude"),
+            AircraftBuildError::MissingLongitude => String::from("Missing longitude"),
+            AircraftBuildError::MissingGroundTrack => String::from("Missing ground track"),
+            AircraftBuildError::MissingGroundSpeed => String::from("Missing ground speed"),
+            AircraftBuildError::MissingGPSAltitude => String::from("Missing gps altidue"),
+            AircraftBuildError::InvalidMessage(message) => message.to_string(),
+        };
+        write!(
+            f,
+            "Aircraft build error: Unable to construct due to - {err_message}"
+        )
+    }
 }
 
 #[derive(Debug)]
