@@ -40,7 +40,7 @@ impl Ingestor {
         let reader = std::io::BufReader::new(reader_source);
 
         let writer = config
-            .log_input_data_stream
+            .write_input_data_stream
             .map(|output_path| {
                 if output_path.exists() {
                     std::fs::File::options()
@@ -74,7 +74,7 @@ impl SteppableTask for Ingestor {
             let _ = write!(output_writer, "{line_buffer}")
                 .map_err(|error| log::error!("Failed to log to disk: {error}"));
         }
-        
+
         if bytes_read == 0 {
             log::error!("End of TCP stream");
             return false;

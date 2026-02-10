@@ -22,7 +22,7 @@ pub struct Cli {
 #[derive(Parser, Debug, Clone)]
 pub struct IngestorConfig {
     #[arg(long, default_value = None)]
-    pub log_input_data_stream: Option<std::path::PathBuf>,
+    pub write_input_data_stream: Option<std::path::PathBuf>,
 
     #[arg(long, default_value = None)]
     pub read_input_data_stream: Option<std::path::PathBuf>,
