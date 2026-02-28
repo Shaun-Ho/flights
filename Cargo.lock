@@ -1644,6 +1644,7 @@ dependencies = [
  "env_logger",
  "image",
  "log",
+ "nom",
  "once_cell",
  "regex",
  "serde",
