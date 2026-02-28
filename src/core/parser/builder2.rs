@@ -32,13 +32,11 @@ fn parse_timestamp(
 
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
     use nom::{Finish, Parser};
-    // type NomErr<'a> = nom::error::Error<&'a str>;
 
     let (input, _) = (take_until(":/"), tag(":/"))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::HeaderMissing)?;
-    // AircraftParseError::HeaderMissing("Could not find start delimiter ':/'".into())
 
     let (_, datetime) = parse_timestamp
         .parse(input)
@@ -58,12 +56,26 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 }
 #[cfg(test)]
 mod test {
-    mod given_invalid_timestamp {
+    mod timestamps {
         use crate::core::parser::builder2::build_aircraft_from_string;
         use crate::core::parser::builder2::errors::AircraftParseError;
 
         #[test]
-        fn when_invalid_digits_parsed_then_error_shows_correct_digit_error() {
+        fn when_valid_timestamp_digits_parsed_then_correct_datetime_is_returned() {
+            let input = "ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N\00219.21E^065/430/A=040111 !W29! id214B37A8 -64fpm FL400.00 A1:LUC2M";
+            let now = chrono::Utc::now();
+            let expected_datetime = now
+                .date_naive()
+                .and_time(chrono::NaiveTime::from_hms_opt(19, 06, 00).unwrap())
+                .and_utc();
+
+            match build_aircraft_from_string(input) {
+                Ok(aircraft) => assert_eq!(aircraft.datetime, expected_datetime),
+                Err(_) => panic!("Expected no errors."),
+            }
+        }
+        #[test]
+        fn when_invalid_timestamp_digits_parsed_then_error_shows_correct_digit_error() {
             let input = "HEADER:/2a0600h";
 
             match build_aircraft_from_string(input) {
@@ -78,7 +90,7 @@ mod test {
             }
         }
         #[test]
-        fn when_invalid_time_parsed_then_error_shows_correct_time_conversion_error() {
+        fn when_invalid_timestamp_parsed_then_error_shows_correct_time_conversion_error() {
             let input = "HEADER:/260600h";
 
             match build_aircraft_from_string(input) {
