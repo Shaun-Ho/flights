@@ -36,7 +36,7 @@ impl SteppableTask for AircraftParser {
                     log::error!("Failed to forward aircraft: {err}");
                 }
             }
-            Err(err) => log::debug!("Discarding noisy data: {err}"),
+            Err(err) => log::debug!("{err}"),
         }
 
         true
