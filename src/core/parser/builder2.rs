@@ -5,9 +5,9 @@ use nom::{
     Parser,
     bytes::complete::{tag, take, take_until},
 };
-fn parse_callsign(header: &str) -> nom::IResult<&str, &str, errors::APRSParseContext> {
+fn parse_callsign(input: &str) -> nom::IResult<&str, &str, errors::APRSParseContext> {
     nom::sequence::terminated(take_until(">"), tag(">"))
-        .parse(header)
+        .parse(input)
         .map_err(|err| {
             err.map(|e: nom::error::Error<&str>| errors::APRSParseContext {
                 input: e.input.to_string(),
@@ -16,7 +16,7 @@ fn parse_callsign(header: &str) -> nom::IResult<&str, &str, errors::APRSParseCon
         })
 }
 fn parse_timestamp(
-    body: &str,
+    input: &str,
 ) -> nom::IResult<&str, chrono::DateTime<chrono::Utc>, errors::APRSParseContext> {
     use nom::Parser;
     let parse_to_datetime = |s: &str| -> Result<chrono::DateTime<chrono::Utc>, String> {
@@ -36,7 +36,7 @@ fn parse_timestamp(
         ))
     };
 
-    nom::combinator::map_res(take(6usize), parse_to_datetime).parse(body)
+    nom::combinator::map_res(take(6usize), parse_to_datetime).parse(input)
 }
 
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
