@@ -40,10 +40,32 @@ fn parse_timestamp(
     nom::combinator::map_res(take(6usize), parse_to_datetime).parse(input)
 }
 
-fn parse_latitude(input: &str) -> nom::IResult<&str, f64, errors::APRSParseContext> {
+enum Coordinate {
+    Latitude,
+    // LONGITUDE,
+}
+impl std::fmt::Display for Coordinate {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Coordinate::Latitude => write!(f, "latitude"),
+            // Coordinate::LONGITUDE => write!(f, "longitude"),
+        }
+    }
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn parse_coordinate(
+    input: &str,
+    coord: Coordinate,
+) -> nom::IResult<&str, f64, errors::APRSParseContext> {
+    let identifier = match coord {
+        Coordinate::Latitude => "N",
+        // Coordinate::LONGITUDE => "E",
+    };
+
     let parse_to_f64 = |s: &str| -> Result<f64, std::num::ParseFloatError> { s.parse::<f64>() };
     nom::combinator::map_res(
-        nom::sequence::terminated(take_until("N"), tag("N")),
+        nom::sequence::terminated(take_until(identifier), tag(identifier)),
         parse_to_f64,
     )
     .parse(input)
@@ -51,7 +73,7 @@ fn parse_latitude(input: &str) -> nom::IResult<&str, f64, errors::APRSParseConte
         err.map(|e: nom::error::Error<&str>| errors::APRSParseContext {
             input: e.input.to_string(),
 
-            message: "invalid latitude".to_string(),
+            message: format!("invalid {coord}"),
         })
     })
 }
@@ -78,11 +100,11 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
-    let (_input, latitude) = parse_latitude
-        .parse(input)
+    let parse_specific = |input, coord| parse_coordinate(input, coord);
+
+    let (_input, latitude) = parse_specific(input, Coordinate::Latitude)
         .finish()
         .map_err(errors::AircraftParseError::InvalidLatitude)?;
-    println!("{latitude}");
 
     Ok(Aircraft {
         callsign: callsign.to_string(),
