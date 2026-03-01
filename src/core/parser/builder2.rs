@@ -7,7 +7,7 @@ use nom::{
 };
 
 fn parse_timestamp(
-    input: &str,
+    body: &str,
 ) -> nom::IResult<&str, chrono::DateTime<chrono::Utc>, errors::APRSParseContext> {
     use nom::Parser;
     let parse_to_datetime = |s: &str| -> Result<chrono::DateTime<chrono::Utc>, String> {
@@ -27,19 +27,19 @@ fn parse_timestamp(
         ))
     };
 
-    map_res(take(6usize), parse_to_datetime).parse(input)
+    map_res(take(6usize), parse_to_datetime).parse(body)
 }
 
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
     use nom::{Finish, Parser};
 
-    let (input, _) = (take_until(":/"), tag(":/"))
+    let (body, _header) = (take_until(":/"), tag(":/"))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::HeaderMissing)?;
 
     let (_, datetime) = parse_timestamp
-        .parse(input)
+        .parse(body)
         .finish()
         .map_err(errors::AircraftParseError::InvalidTimestamp)?;
 
