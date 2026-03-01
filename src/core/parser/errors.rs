@@ -3,6 +3,7 @@ pub enum AircraftParseError {
     InvalidTimestamp(APRSParseContext),
     InvalidCallsign(APRSParseContext),
     InvalidLatitude(APRSParseContext),
+    InvalidLongitude(APRSParseContext),
 }
 
 impl std::fmt::Display for AircraftParseError {
@@ -11,6 +12,7 @@ impl std::fmt::Display for AircraftParseError {
             AircraftParseError::IncorrectSeparator(e)
             | AircraftParseError::InvalidTimestamp(e)
             | AircraftParseError::InvalidLatitude(e)
+            | AircraftParseError::InvalidLongitude(e)
             | AircraftParseError::InvalidCallsign(e) => e,
         };
         write!(f, "{msg}")

@@ -42,13 +42,13 @@ fn parse_timestamp(
 
 enum Coordinate {
     Latitude,
-    // LONGITUDE,
+    Longitude,
 }
 impl std::fmt::Display for Coordinate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Coordinate::Latitude => write!(f, "latitude"),
-            // Coordinate::LONGITUDE => write!(f, "longitude"),
+            Coordinate::Longitude => write!(f, "longitude"),
         }
     }
 }
@@ -60,7 +60,7 @@ fn parse_coordinate(
 ) -> nom::IResult<&str, f64, errors::APRSParseContext> {
     let identifier = match coord {
         Coordinate::Latitude => "N",
-        // Coordinate::LONGITUDE => "E",
+        Coordinate::Longitude => "E",
     };
 
     let parse_to_f64 = |s: &str| -> Result<f64, std::num::ParseFloatError> { s.parse::<f64>() };
@@ -102,15 +102,24 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 
     let parse_specific = |input, coord| parse_coordinate(input, coord);
 
-    let (_input, latitude) = parse_specific(input, Coordinate::Latitude)
+    let (input, latitude) = parse_specific(input, Coordinate::Latitude)
         .finish()
         .map_err(errors::AircraftParseError::InvalidLatitude)?;
+
+    let (input, _) = take(1usize)
+        .parse(input)
+        .finish()
+        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
+
+    let (_input, longitude) = parse_specific(input, Coordinate::Longitude)
+        .finish()
+        .map_err(errors::AircraftParseError::InvalidLongitude)?;
 
     Ok(Aircraft {
         callsign: callsign.to_string(),
         datetime,
         latitude,
-        longitude: 1.0,
+        longitude,
         icao_address: ICAOAddress::new(0x407_F7A).unwrap(),
         ground_track: 1.0,
         ground_speed: 1.0,
@@ -219,6 +228,31 @@ mod test {
                 }
 
                 Err(other) => panic!("Expected InvalidLatitude, got: {other}"),
+            }
+        }
+
+        #[test]
+        fn when_valid_longitude_coordinates_then_correct_longitude_is_returned() {
+            let expected_latitude = 219.21;
+            match build_aircraft_from_string(VALID_APRS_MESSAGE) {
+                Ok(aircraft) => assert_eq!(aircraft.longitude, expected_latitude),
+                Err(e) => panic!("Expected no errors. {e}"),
+            }
+        }
+
+        #[test]
+        fn when_invalid_longitude_coordinates_then_correct_error_returned() {
+            let input = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N/00219.21";
+
+            match build_aircraft_from_string(input) {
+                Ok(_) => panic!("Expected an error, but got an Aircraft"),
+
+                Err(AircraftParseError::InvalidLongitude(info)) => {
+                    assert_eq!(info.input, "00219.21");
+                    assert_eq!(info.message, "invalid longitude");
+                }
+
+                Err(other) => panic!("Expected InvalidLongitude, got: {other}"),
             }
         }
     }
