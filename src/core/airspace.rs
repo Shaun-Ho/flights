@@ -122,7 +122,6 @@ impl AirspaceStore {
 
 impl SteppableTask for AirspaceStore {
     fn step(&mut self) -> bool {
-        log::info!("Airspace store stepped");
         let aircrafts: Vec<Aircraft> = self.aircraft_receiver.try_iter().collect();
 
         if let Ok(mut airspace) = self.inner.write() {
