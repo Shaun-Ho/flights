@@ -1,12 +1,15 @@
 pub enum AircraftParseError {
     HeaderMissing(APRSParseContext),
     InvalidTimestamp(APRSParseContext),
+    InvalidCallsign(APRSParseContext),
 }
 
 impl std::fmt::Display for AircraftParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg: &dyn std::fmt::Display = match self {
-            AircraftParseError::HeaderMissing(e) | AircraftParseError::InvalidTimestamp(e) => e,
+            AircraftParseError::HeaderMissing(e)
+            | AircraftParseError::InvalidTimestamp(e)
+            | AircraftParseError::InvalidCallsign(e) => e,
         };
         write!(f, "{msg}")
     }

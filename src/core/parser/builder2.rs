@@ -2,10 +2,19 @@ use super::errors;
 use crate::core::types::{Aircraft, ICAOAddress};
 
 use nom::{
+    Parser,
     bytes::complete::{tag, take, take_until},
-    combinator::map_res,
 };
-
+fn parse_callsign(header: &str) -> nom::IResult<&str, &str, errors::APRSParseContext> {
+    nom::sequence::terminated(take_until(">"), tag(">"))
+        .parse(header)
+        .map_err(|err| {
+            err.map(|e: nom::error::Error<&str>| errors::APRSParseContext {
+                input: e.input.to_string(),
+                message: "invalid callsign".to_string(),
+            })
+        })
+}
 fn parse_timestamp(
     body: &str,
 ) -> nom::IResult<&str, chrono::DateTime<chrono::Utc>, errors::APRSParseContext> {
@@ -27,24 +36,28 @@ fn parse_timestamp(
         ))
     };
 
-    map_res(take(6usize), parse_to_datetime).parse(body)
+    nom::combinator::map_res(take(6usize), parse_to_datetime).parse(body)
 }
 
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
     use nom::{Finish, Parser};
 
-    let (body, _header) = (take_until(":/"), tag(":/"))
+    let (input, callsign) = parse_callsign(input)
+        .finish()
+        .map_err(errors::AircraftParseError::InvalidCallsign)?;
+
+    let (input, _) = (take_until(":/"), tag(":/"))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::HeaderMissing)?;
 
     let (_, datetime) = parse_timestamp
-        .parse(body)
+        .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::InvalidTimestamp)?;
 
     Ok(Aircraft {
-        callsign: "Unknown".to_string(),
+        callsign: callsign.to_string(),
         datetime,
         latitude: 1.0,
         longitude: 1.0,
@@ -56,9 +69,35 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 }
 #[cfg(test)]
 mod test {
+    use crate::core::parser::builder2::build_aircraft_from_string;
+    use crate::core::parser::builder2::errors::AircraftParseError;
+
+    #[test]
+    fn when_packet_contains_valid_callsign_identifier_is_correct_then_parsed_callsign_is_correct() {
+        let input = "ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N\00219.21E^065/430/A=040111 !W29! id214B37A8 -64fpm FL400.00 A1:LUC2M";
+        let expected_callsign = "ICA4B37A8";
+        match build_aircraft_from_string(input) {
+            Ok(aircraft) => assert_eq!(aircraft.callsign, expected_callsign),
+            Err(_) => panic!("Expected no errors."),
+        }
+    }
+    #[test]
+    fn when_packet_contains_invalid_callsign_identifier_then_correct_error_is_returned() {
+        let input = "HEADER:/2a0600h";
+
+        match build_aircraft_from_string(input) {
+            Ok(_) => panic!("Expected an error, but got an Aircraft"),
+
+            Err(AircraftParseError::InvalidCallsign(info)) => {
+                assert_eq!(info.input, "HEADER:/2a0600h");
+                assert_eq!(info.message, "invalid callsign");
+            }
+
+            Err(other) => panic!("Expected InvalidCallsign, got: {other}"),
+        }
+    }
     mod timestamps {
-        use crate::core::parser::builder2::build_aircraft_from_string;
-        use crate::core::parser::builder2::errors::AircraftParseError;
+        use super::*;
 
         #[test]
         fn when_valid_timestamp_digits_parsed_then_correct_datetime_is_returned() {
@@ -76,7 +115,7 @@ mod test {
         }
         #[test]
         fn when_invalid_timestamp_digits_parsed_then_error_shows_correct_digit_error() {
-            let input = "HEADER:/2a0600h";
+            let input = "ICA4B37A8>OGADSB,qAS,LELL:/2a0600h";
 
             match build_aircraft_from_string(input) {
                 Ok(_) => panic!("Expected an error, but got an Aircraft"),
@@ -91,7 +130,7 @@ mod test {
         }
         #[test]
         fn when_invalid_timestamp_parsed_then_error_shows_correct_time_conversion_error() {
-            let input = "HEADER:/260600h";
+            let input = "ICA4B37A8>OGADSB,qAS,LELL:/260600h";
 
             match build_aircraft_from_string(input) {
                 Ok(_) => panic!("Expected an error, but got an Aircraft"),
