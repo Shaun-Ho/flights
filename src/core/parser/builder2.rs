@@ -152,16 +152,16 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
-    let parse_specific = |input, coord| parse_coordinate(input, coord);
+    let parse_specific_coordinate = |input, coord| parse_coordinate(input, coord);
 
-    let (input, latitude) = parse_specific(input, Coordinate::Latitude).finish()?;
+    let (input, latitude) = parse_specific_coordinate(input, Coordinate::Latitude).finish()?;
 
     let (input, _) = take(1usize)
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
-    let (_input, longitude) = parse_specific(input, Coordinate::Longitude).finish()?;
+    let (_input, longitude) = parse_specific_coordinate(input, Coordinate::Longitude).finish()?;
 
     Ok(Aircraft {
         callsign: callsign.to_string(),
