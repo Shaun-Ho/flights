@@ -8,6 +8,7 @@ pub enum AircraftParseError {
     InvalidLatitude(APRSParseContext),
     InvalidLongitude(APRSParseContext),
     InvalidGroundTrack(APRSParseContext),
+    InvalidGroundSpeed(APRSParseContext),
 }
 
 impl std::fmt::Display for AircraftParseError {
@@ -20,7 +21,8 @@ impl std::fmt::Display for AircraftParseError {
             | AircraftParseError::InvalidTimestamp(e)
             | AircraftParseError::InvalidLatitude(e)
             | AircraftParseError::InvalidLongitude(e)
-            | AircraftParseError::InvalidGroundTrack(e) => write!(f, "{e}"),
+            | AircraftParseError::InvalidGroundTrack(e)
+            | AircraftParseError::InvalidGroundSpeed(e) => write!(f, "{e}"),
         }
     }
 }

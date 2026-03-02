@@ -145,6 +145,18 @@ fn parse_ground_track(input: &str) -> nom::IResult<&str, f64, errors::AircraftPa
             })
         })
 }
+fn parse_ground_speed(input: &str) -> nom::IResult<&str, f64, errors::AircraftParseError> {
+    nom::combinator::map_res(take(3usize), |s: &str| s.parse::<f64>())
+        .parse(input)
+        .map_err(|e| {
+            e.map(|_e: nom::error::Error<&str>| {
+                errors::AircraftParseError::InvalidGroundSpeed(errors::APRSParseContext {
+                    input: input.to_string(),
+                    message: "invalid ground speed".to_string(),
+                })
+            })
+        })
+}
 
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
     use nom::{Finish, Parser};
@@ -181,25 +193,31 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
-    let (_input, ground_track) = parse_ground_track(input).finish()?;
+    let (input, ground_track) = parse_ground_track(input).finish()?;
 
+    let (input, _) = (take_until("/"), tag("/"))
+        .parse(input)
+        .finish()
+        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
+
+    let (_input, ground_speed) = parse_ground_speed(input).finish()?;
     Ok(Aircraft {
         callsign: callsign.to_string(),
         datetime,
         latitude,
         longitude,
         ground_track,
-        icao_address: ICAOAddress::new(0x407_F7A).unwrap(),
-        ground_speed: 1.0,
+        ground_speed,
         gps_altitude: 1.0,
+        icao_address: ICAOAddress::new(0x407_F7A).unwrap(),
     })
 }
 #[cfg(test)]
 mod test {
     use crate::core::parser::builder2::errors::AircraftParseError;
     use crate::core::parser::builder2::{
-        Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_ground_track,
-        parse_timestamp,
+        Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_ground_speed,
+        parse_ground_track, parse_timestamp,
     };
     use nom::Finish;
 
@@ -365,6 +383,30 @@ mod test {
             }
 
             Err(other) => panic!("Expected InvalidGroundTrack, got: {other}"),
+        }
+    }
+    #[test]
+    fn when_correct_ground_speed_is_given_then_correct_value_is_returned() {
+        let input = "123";
+        let expected_ground_track = 123.0;
+        match parse_ground_speed(input).finish() {
+            Ok((_, ground_track)) => assert_eq!(ground_track, expected_ground_track),
+            Err(err) => panic!("Expected no errors. {err}"),
+        }
+    }
+    #[test]
+    fn when_invalid_ground_speed_parsed_then_correct_error_is_returned() {
+        let input = "12a";
+
+        match parse_ground_speed(input).finish() {
+            Ok(_) => panic!("Expected an error, but got an Aircraft"),
+
+            Err(AircraftParseError::InvalidGroundSpeed(info)) => {
+                assert_eq!(info.input, "12a");
+                assert_eq!(info.message, "invalid ground speed");
+            }
+
+            Err(other) => panic!("Expected InvalidGroundSpeed, got: {other}"),
         }
     }
 }
