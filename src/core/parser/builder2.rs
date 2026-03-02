@@ -65,30 +65,37 @@ fn parse_coordinate(
     input: &str,
     coord: Coordinate,
 ) -> nom::IResult<&str, f64, errors::AircraftParseError> {
-    let identifier = match coord {
-        Coordinate::Latitude => "N",
-        Coordinate::Longitude => "E",
+    let create_error = || {
+        let context = errors::APRSParseContext {
+            input: input.to_string(),
+            message: format!("invalid {coord}"),
+        };
+        match coord {
+            Coordinate::Latitude => errors::AircraftParseError::InvalidLatitude(context),
+            Coordinate::Longitude => errors::AircraftParseError::InvalidLongitude(context),
+        }
+    };
+    let (suffix_positive, suffix_negative) = match coord {
+        Coordinate::Latitude => ("N", "S"),
+        Coordinate::Longitude => ("E", "W"),
     };
 
-    let (remainder, value) = nom::combinator::map_res(
-        nom::sequence::terminated(take_until(identifier), tag(identifier)),
-        |s: &str| s.parse::<f64>(),
-    )
-    .parse(input)
-    .map_err(|e| {
-        e.map(|_inner_e: nom::error::Error<&str>| {
-            let context = errors::APRSParseContext {
-                input: input.to_string(),
-                message: format!("invalid {coord}"),
-            };
+    let mut parser = nom::branch::alt((
+        nom::sequence::pair(take_until(suffix_positive), tag(suffix_positive)),
+        nom::sequence::pair(take_until(suffix_negative), tag(suffix_negative)),
+    ));
 
-            match coord {
-                Coordinate::Latitude => errors::AircraftParseError::InvalidLatitude(context),
-                Coordinate::Longitude => errors::AircraftParseError::InvalidLongitude(context),
-            }
-        })
-    })?;
+    let (remainder, (number_str, matched_suffix)) = parser
+        .parse(input)
+        .map_err(|e| e.map(|_e: nom::error::Error<&str>| create_error()))?;
 
+    let mut value = number_str
+        .parse::<f64>()
+        .map_err(|_| nom::Err::Failure(create_error()))?;
+
+    if matched_suffix == suffix_negative {
+        value = -value;
+    }
     Ok((remainder, value))
 }
 
