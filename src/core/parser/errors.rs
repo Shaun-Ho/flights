@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum AircraftParseError {
     UnknownError(String),
     IncorrectSeparator(APRSParseContext),
@@ -39,7 +40,7 @@ impl nom::error::FromExternalError<&str, AircraftParseError> for AircraftParseEr
         e
     }
 }
-
+#[derive(Debug)]
 pub struct APRSParseContext {
     pub input: String,
     pub message: String,

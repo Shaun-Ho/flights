@@ -176,24 +176,28 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 }
 #[cfg(test)]
 mod test {
-    use crate::core::parser::builder2::build_aircraft_from_string;
     use crate::core::parser::builder2::errors::AircraftParseError;
+    use crate::core::parser::builder2::{
+        Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_timestamp,
+    };
+    use nom::Finish;
 
-    const VALID_APRS_MESSAGE: &str = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N\00219.21E^065/430/A=040111 !W29! id214B37A8 -64fpm FL400.00 A1:LUC2M";
+    const _VALID_APRS_MESSAGE: &str = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N\00219.21E^065/430/A=040111 !W29! id214B37A8 -64fpm FL400.00 A1:LUC2M";
 
     #[test]
     fn when_packet_contains_valid_callsign_identifier_is_correct_then_parsed_callsign_is_correct() {
+        let input = "ICA4B37A8>";
         let expected_callsign = "ICA4B37A8";
-        match build_aircraft_from_string(VALID_APRS_MESSAGE) {
-            Ok(aircraft) => assert_eq!(aircraft.callsign, expected_callsign),
-            Err(_) => panic!("Expected no errors."),
+        match parse_callsign(input).finish() {
+            Ok((_, callsign)) => assert_eq!(callsign, expected_callsign),
+            Err(err) => panic!("Expected no errors. {err}"),
         }
     }
     #[test]
     fn when_packet_contains_invalid_callsign_identifier_then_correct_error_is_returned() {
         let input = "HEADER:/2a0600h";
 
-        match build_aircraft_from_string(input) {
+        match parse_callsign(input).finish() {
             Ok(_) => panic!("Expected an error, but got an Aircraft"),
 
             Err(AircraftParseError::InvalidCallsign(info)) => {
@@ -207,7 +211,8 @@ mod test {
 
     #[test]
     fn when_packet_contains_ognadsb_signal_type_then_message_continue_parsing() {
-        match build_aircraft_from_string(VALID_APRS_MESSAGE) {
+        let input = "OGADSB,";
+        match parse_aprs_signal_type(input).finish() {
             Ok(_) => {}
             Err(err) => panic!("Expected no errors. {err}"),
         }
@@ -218,22 +223,23 @@ mod test {
 
         #[test]
         fn when_valid_timestamp_digits_parsed_then_correct_datetime_is_returned() {
+            let input = "190600h";
             let now = chrono::Utc::now();
             let expected_datetime = now
                 .date_naive()
                 .and_time(chrono::NaiveTime::from_hms_opt(19, 06, 00).unwrap())
                 .and_utc();
 
-            match build_aircraft_from_string(VALID_APRS_MESSAGE) {
-                Ok(aircraft) => assert_eq!(aircraft.datetime, expected_datetime),
+            match parse_timestamp(input) {
+                Ok((_, datetime)) => assert_eq!(datetime, expected_datetime),
                 Err(err) => panic!("Expected no errors, received:  {err}"),
             }
         }
         #[test]
         fn when_invalid_timestamp_digits_parsed_then_error_shows_correct_digit_error() {
-            let input = "ICA4B37A8>OGADSB,qAS,LELL:/2a0600h";
+            let input = "2a0600h";
 
-            match build_aircraft_from_string(input) {
+            match parse_timestamp(input).finish() {
                 Ok(_) => panic!("Expected an error, but got an Aircraft"),
 
                 Err(AircraftParseError::InvalidTimestamp(info)) => {
@@ -246,9 +252,9 @@ mod test {
         }
         #[test]
         fn when_invalid_timestamp_parsed_then_error_shows_correct_time_conversion_error() {
-            let input = "ICA4B37A8>OGADSB,qAS,LELL:/260600h";
+            let input = "260600h";
 
-            match build_aircraft_from_string(input) {
+            match parse_timestamp(input).finish() {
                 Ok(_) => panic!("Expected an error, but got an Aircraft"),
 
                 Err(AircraftParseError::InvalidTimestamp(info)) => {
@@ -265,18 +271,19 @@ mod test {
 
         #[test]
         fn when_valid_latitude_coordinates_then_correct_latitude_is_returned() {
+            let input = "4121.18N";
             let expected_latitude = 4121.18;
-            match build_aircraft_from_string(VALID_APRS_MESSAGE) {
-                Ok(aircraft) => assert_eq!(aircraft.latitude, expected_latitude),
+            match parse_coordinate(input, Coordinate::Latitude).finish() {
+                Ok((_, latitude)) => assert_eq!(latitude, expected_latitude),
                 Err(e) => panic!("Expected no errors. {e}"),
             }
         }
 
         #[test]
         fn when_invalid_latitude_coordinates_then_correct_error_returned() {
-            let input = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18";
+            let input = "4121.18";
 
-            match build_aircraft_from_string(input) {
+            match parse_coordinate(input, Coordinate::Latitude).finish() {
                 Ok(_) => panic!("Expected an error, but got an Aircraft"),
 
                 Err(AircraftParseError::InvalidLatitude(info)) => {
@@ -290,18 +297,19 @@ mod test {
 
         #[test]
         fn when_valid_longitude_coordinates_then_correct_longitude_is_returned() {
-            let expected_latitude = 219.21;
-            match build_aircraft_from_string(VALID_APRS_MESSAGE) {
-                Ok(aircraft) => assert_eq!(aircraft.longitude, expected_latitude),
+            let input = "219.21E";
+            let expected_longitude = 219.21;
+            match parse_coordinate(input, Coordinate::Longitude).finish() {
+                Ok((_, longitude)) => assert_eq!(longitude, expected_longitude),
                 Err(e) => panic!("Expected no errors. {e}"),
             }
         }
 
         #[test]
         fn when_invalid_longitude_coordinates_then_correct_error_returned() {
-            let input = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N/00219.21";
+            let input = r"00219.21";
 
-            match build_aircraft_from_string(input) {
+            match parse_coordinate(input, Coordinate::Longitude).finish() {
                 Ok(_) => panic!("Expected an error, but got an Aircraft"),
 
                 Err(AircraftParseError::InvalidLongitude(info)) => {
