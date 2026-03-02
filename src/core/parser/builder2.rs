@@ -134,19 +134,16 @@ fn parse_aprs_signal_type(
 }
 
 fn parse_ground_track(input: &str) -> nom::IResult<&str, f64, errors::AircraftParseError> {
-    nom::combinator::map_res(
-        nom::sequence::terminated(take_until("/"), tag("/")),
-        |s: &str| s.parse::<f64>(),
-    )
-    .parse(input)
-    .map_err(|e| {
-        e.map(|_e: nom::error::Error<&str>| {
-            errors::AircraftParseError::InvalidGroundTrack(errors::APRSParseContext {
-                input: input.to_string(),
-                message: "invalid ground track".to_string(),
+    nom::combinator::map_res(take(3usize), |s: &str| s.parse::<f64>())
+        .parse(input)
+        .map_err(|e| {
+            e.map(|_e: nom::error::Error<&str>| {
+                errors::AircraftParseError::InvalidGroundTrack(errors::APRSParseContext {
+                    input: input.to_string(),
+                    message: "invalid ground track".to_string(),
+                })
             })
         })
-    })
 }
 
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
@@ -163,7 +160,7 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 
     let (input, datetime) = parse_timestamp(input).finish()?;
 
-    let (input, _) = take(1usize)
+    let (input, _) = (take_until("h"), tag("h"))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
@@ -172,14 +169,14 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 
     let (input, latitude) = parse_specific_coordinate(input, Coordinate::Latitude).finish()?;
 
-    let (input, _) = take(1usize)
+    let (input, _) = (take_until("/"), tag("/"))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
     let (input, longitude) = parse_specific_coordinate(input, Coordinate::Longitude).finish()?;
 
-    let (input, _) = take(1usize)
+    let (input, _) = (take_until("^"), tag("^"))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
@@ -348,7 +345,7 @@ mod test {
 
     #[test]
     fn when_correct_ground_track_is_given_then_correct_value_is_returned() {
-        let input = "123/";
+        let input = "123";
         let expected_ground_track = 123.0;
         match parse_ground_track(input).finish() {
             Ok((_, ground_track)) => assert_eq!(ground_track, expected_ground_track),
