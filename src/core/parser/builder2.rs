@@ -8,20 +8,22 @@ use nom::{
     Parser,
     bytes::complete::{tag, take, take_until},
 };
-fn parse_callsign(input: &str) -> nom::IResult<&str, &str, errors::APRSParseContext> {
+fn parse_callsign(input: &str) -> nom::IResult<&str, &str, errors::AircraftParseError> {
     nom::sequence::terminated(take_until(">"), tag(">"))
         .parse(input)
-        .map_err(|err| {
-            err.map(|e: nom::error::Error<&str>| errors::APRSParseContext {
-                input: e.input.to_string(),
-                message: "invalid callsign".to_string(),
+        .map_err(|e| {
+            e.map(|_e: nom::error::Error<&str>| {
+                errors::AircraftParseError::InvalidCallsign(errors::APRSParseContext {
+                    input: input.to_string(),
+                    message: "invalid callsign".to_string(),
+                })
             })
         })
 }
 
 fn parse_timestamp(
     input: &str,
-) -> nom::IResult<&str, chrono::DateTime<chrono::Utc>, errors::APRSParseContext> {
+) -> nom::IResult<&str, chrono::DateTime<chrono::Utc>, errors::AircraftParseError> {
     use nom::Parser;
     let parse_to_datetime = |s: &str| -> Result<chrono::DateTime<chrono::Utc>, String> {
         let now = chrono::Utc::now();
@@ -40,7 +42,9 @@ fn parse_timestamp(
         ))
     };
 
-    nom::combinator::map_res(take(6usize), parse_to_datetime).parse(input)
+    nom::combinator::map_res(take(6usize), parse_to_datetime)
+        .parse(input)
+        .map_err(|err| err.map(errors::AircraftParseError::InvalidTimestamp))
 }
 
 enum Coordinate {
@@ -60,25 +64,32 @@ impl std::fmt::Display for Coordinate {
 fn parse_coordinate(
     input: &str,
     coord: Coordinate,
-) -> nom::IResult<&str, f64, errors::APRSParseContext> {
+) -> nom::IResult<&str, f64, errors::AircraftParseError> {
     let identifier = match coord {
         Coordinate::Latitude => "N",
         Coordinate::Longitude => "E",
     };
 
-    let parse_to_f64 = |s: &str| -> Result<f64, std::num::ParseFloatError> { s.parse::<f64>() };
-    nom::combinator::map_res(
+    let (remainder, value) = nom::combinator::map_res(
         nom::sequence::terminated(take_until(identifier), tag(identifier)),
-        parse_to_f64,
+        |s: &str| s.parse::<f64>(),
     )
     .parse(input)
-    .map_err(|err| {
-        err.map(|e: nom::error::Error<&str>| errors::APRSParseContext {
-            input: e.input.to_string(),
+    .map_err(|e| {
+        e.map(|_inner_e: nom::error::Error<&str>| {
+            let context = errors::APRSParseContext {
+                input: input.to_string(),
+                message: format!("invalid {coord}"),
+            };
 
-            message: format!("invalid {coord}"),
+            match coord {
+                Coordinate::Latitude => errors::AircraftParseError::InvalidLatitude(context),
+                Coordinate::Longitude => errors::AircraftParseError::InvalidLongitude(context),
+            }
         })
-    })
+    })?;
+
+    Ok((remainder, value))
 }
 
 pub enum APRSSignalType {
@@ -118,21 +129,16 @@ fn parse_aprs_signal_type(
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
     use nom::{Finish, Parser};
 
-    let (input, callsign) = parse_callsign(input)
-        .finish()
-        .map_err(errors::AircraftParseError::InvalidCallsign)?;
+    let (input, callsign) = parse_callsign(input).finish()?;
 
-    let (input, _aprs_packet_type) = parse_aprs_signal_type.parse(input).finish()?;
+    let (input, _aprs_packet_type) = parse_aprs_signal_type(input).finish()?;
 
     let (input, _) = (take_until(":/"), tag(":/"))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
-    let (input, datetime) = parse_timestamp
-        .parse(input)
-        .finish()
-        .map_err(errors::AircraftParseError::InvalidTimestamp)?;
+    let (input, datetime) = parse_timestamp(input).finish()?;
 
     let (input, _) = take(1usize)
         .parse(input)
@@ -141,18 +147,14 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 
     let parse_specific = |input, coord| parse_coordinate(input, coord);
 
-    let (input, latitude) = parse_specific(input, Coordinate::Latitude)
-        .finish()
-        .map_err(errors::AircraftParseError::InvalidLatitude)?;
+    let (input, latitude) = parse_specific(input, Coordinate::Latitude).finish()?;
 
     let (input, _) = take(1usize)
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
-    let (_input, longitude) = parse_specific(input, Coordinate::Longitude)
-        .finish()
-        .map_err(errors::AircraftParseError::InvalidLongitude)?;
+    let (_input, longitude) = parse_specific(input, Coordinate::Longitude).finish()?;
 
     Ok(Aircraft {
         callsign: callsign.to_string(),
