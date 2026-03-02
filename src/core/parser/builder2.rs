@@ -1,5 +1,8 @@
 use super::errors;
-use crate::core::types::{Aircraft, ICAOAddress};
+use crate::core::{
+    parser::errors::APRSParseContext,
+    types::{Aircraft, ICAOAddress},
+};
 
 use nom::{
     Parser,
@@ -78,12 +81,48 @@ fn parse_coordinate(
     })
 }
 
+pub enum APRSSignalType {
+    OGADSB,
+}
+
+impl std::str::FromStr for APRSSignalType {
+    type Err = errors::AircraftParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "OGADSB" => Ok(APRSSignalType::OGADSB),
+            _ => Err(errors::AircraftParseError::InvalidAPRSSignalType(
+                APRSParseContext {
+                    input: s.to_owned(),
+                    message: "Invalid APRS Signal Type".to_owned(),
+                },
+            )),
+        }
+    }
+}
+fn parse_aprs_signal_type(
+    input: &str,
+) -> nom::IResult<&str, APRSSignalType, errors::AircraftParseError> {
+    use nom::Parser;
+    let parse_to_aprs_signal_type =
+        |s: &str| -> Result<APRSSignalType, errors::AircraftParseError> {
+            s.parse::<APRSSignalType>()
+        };
+    nom::combinator::map_res(
+        nom::sequence::terminated(take_until(","), tag(",")),
+        parse_to_aprs_signal_type,
+    )
+    .parse(input)
+}
+
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
     use nom::{Finish, Parser};
 
     let (input, callsign) = parse_callsign(input)
         .finish()
         .map_err(errors::AircraftParseError::InvalidCallsign)?;
+
+    let (input, _aprs_packet_type) = parse_aprs_signal_type.parse(input).finish()?;
 
     let (input, _) = (take_until(":/"), tag(":/"))
         .parse(input)
@@ -156,6 +195,15 @@ mod test {
             Err(other) => panic!("Expected InvalidCallsign, got: {other}"),
         }
     }
+
+    #[test]
+    fn when_packet_contains_ognadsb_signal_type_then_message_continue_parsing() {
+        match build_aircraft_from_string(VALID_APRS_MESSAGE) {
+            Ok(_) => {}
+            Err(err) => panic!("Expected no errors. {err}"),
+        }
+    }
+
     mod timestamps {
         use super::*;
 

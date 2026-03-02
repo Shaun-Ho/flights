@@ -1,5 +1,7 @@
 pub enum AircraftParseError {
+    UnknownError(String),
     IncorrectSeparator(APRSParseContext),
+    InvalidAPRSSignalType(APRSParseContext),
     InvalidTimestamp(APRSParseContext),
     InvalidCallsign(APRSParseContext),
     InvalidLatitude(APRSParseContext),
@@ -8,14 +10,33 @@ pub enum AircraftParseError {
 
 impl std::fmt::Display for AircraftParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let msg: &dyn std::fmt::Display = match self {
+        match self {
+            AircraftParseError::UnknownError(e) => write!(f, "Failed to parse: {e}"),
             AircraftParseError::IncorrectSeparator(e)
+            | AircraftParseError::InvalidAPRSSignalType(e)
             | AircraftParseError::InvalidTimestamp(e)
             | AircraftParseError::InvalidLatitude(e)
             | AircraftParseError::InvalidLongitude(e)
-            | AircraftParseError::InvalidCallsign(e) => e,
-        };
-        write!(f, "{msg}")
+            | AircraftParseError::InvalidCallsign(e) => write!(f, "{e}"),
+        }
+    }
+}
+impl nom::error::ParseError<&str> for AircraftParseError {
+    fn from_error_kind(input: &str, _kind: nom::error::ErrorKind) -> Self {
+        AircraftParseError::UnknownError(input.to_string())
+    }
+
+    fn append(_: &str, _: nom::error::ErrorKind, other: Self) -> Self {
+        other
+    }
+}
+impl nom::error::FromExternalError<&str, AircraftParseError> for AircraftParseError {
+    fn from_external_error(
+        _input: &str,
+        _kind: nom::error::ErrorKind,
+        e: AircraftParseError,
+    ) -> Self {
+        e
     }
 }
 
