@@ -2,11 +2,12 @@
 pub enum AircraftParseError {
     UnknownError(String),
     IncorrectSeparator(APRSParseContext),
+    InvalidCallsign(APRSParseContext),
     InvalidAPRSSignalType(APRSParseContext),
     InvalidTimestamp(APRSParseContext),
-    InvalidCallsign(APRSParseContext),
     InvalidLatitude(APRSParseContext),
     InvalidLongitude(APRSParseContext),
+    InvalidGroundTrack(APRSParseContext),
 }
 
 impl std::fmt::Display for AircraftParseError {
@@ -14,11 +15,12 @@ impl std::fmt::Display for AircraftParseError {
         match self {
             AircraftParseError::UnknownError(e) => write!(f, "Failed to parse: {e}"),
             AircraftParseError::IncorrectSeparator(e)
+            | AircraftParseError::InvalidCallsign(e)
             | AircraftParseError::InvalidAPRSSignalType(e)
             | AircraftParseError::InvalidTimestamp(e)
             | AircraftParseError::InvalidLatitude(e)
             | AircraftParseError::InvalidLongitude(e)
-            | AircraftParseError::InvalidCallsign(e) => write!(f, "{e}"),
+            | AircraftParseError::InvalidGroundTrack(e) => write!(f, "{e}"),
         }
     }
 }
