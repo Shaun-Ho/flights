@@ -10,6 +10,7 @@ pub enum AircraftParseError {
     InvalidGroundTrack(APRSParseContext),
     InvalidGroundSpeed(APRSParseContext),
     InvalidGPSAltitude(APRSParseContext),
+    InvalidOGNBeaconId(APRSParseContext),
 }
 
 impl std::fmt::Display for AircraftParseError {
@@ -24,7 +25,8 @@ impl std::fmt::Display for AircraftParseError {
             | AircraftParseError::InvalidLongitude(e)
             | AircraftParseError::InvalidGroundTrack(e)
             | AircraftParseError::InvalidGPSAltitude(e)
-            | AircraftParseError::InvalidGroundSpeed(e) => write!(f, "{e}"),
+            | AircraftParseError::InvalidGroundSpeed(e)
+            | AircraftParseError::InvalidOGNBeaconId(e) => write!(f, "{e}"),
         }
     }
 }
@@ -46,6 +48,7 @@ impl nom::error::FromExternalError<&str, AircraftParseError> for AircraftParseEr
         e
     }
 }
+
 #[derive(Debug)]
 pub struct APRSParseContext {
     pub input: String,

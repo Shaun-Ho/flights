@@ -1,8 +1,7 @@
 use super::errors;
-use crate::core::{
-    parser::errors::APRSParseContext,
-    types::{Aircraft, ICAOAddress},
-};
+use crate::core::parser::errors::APRSParseContext;
+use crate::core::parser::types::OGNBeaconID;
+use crate::core::types::Aircraft;
 
 use nom::{
     Parser,
@@ -170,6 +169,30 @@ fn parse_gps_altitude(input: &str) -> nom::IResult<&str, f64, errors::AircraftPa
         })
 }
 
+fn parse_ogn_beacon_id(input: &str) -> nom::IResult<&str, OGNBeaconID, errors::AircraftParseError> {
+    // string is of format `idXXYYYYYY`
+    let (remainder, id_str) = nom::sequence::preceded(tag("id"), take(8usize))
+        .parse(input)
+        .map_err(|e| {
+            e.map(|_nom_err: nom::error::Error<&str>| {
+                errors::AircraftParseError::InvalidOGNBeaconId(errors::APRSParseContext {
+                    input: input.to_string(),
+                    message: "invalid ogn beacon id format".to_string(),
+                })
+            })
+        })?;
+
+    match id_str.parse::<OGNBeaconID>() {
+        Ok(beacon_id) => Ok((remainder, beacon_id)),
+        Err(err) => Err(nom::Err::Failure(
+            errors::AircraftParseError::InvalidOGNBeaconId(errors::APRSParseContext {
+                input: id_str.to_string(),
+                message: format!("invalid ogn beacon id: {err}"),
+            }),
+        )),
+    }
+}
+
 pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
     use nom::{Finish, Parser};
 
@@ -219,7 +242,15 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
-    let (_input, gps_altitude) = parse_gps_altitude(input).finish()?;
+    let (input, gps_altitude) = parse_gps_altitude(input).finish()?;
+
+    let (input, _) = (take_until(" "), tag(" "))
+        .parse(input)
+        .finish()
+        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
+
+    let (_input, ogn_beacon_id) = parse_ogn_beacon_id(input).finish()?;
+
     Ok(Aircraft {
         callsign: callsign.to_string(),
         datetime,
@@ -228,7 +259,7 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
         ground_track,
         ground_speed,
         gps_altitude,
-        icao_address: ICAOAddress::new(0x407_F7A).unwrap(),
+        icao_address: ogn_beacon_id.icao_address,
     })
 }
 #[cfg(test)]
@@ -236,8 +267,11 @@ mod test {
     use crate::core::parser::builder2::errors::AircraftParseError;
     use crate::core::parser::builder2::{
         Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_gps_altitude,
-        parse_ground_speed, parse_ground_track, parse_timestamp,
+        parse_ground_speed, parse_ground_track, parse_ogn_beacon_id, parse_timestamp,
     };
+    use crate::core::parser::types::{OGNAddressType, OGNAircraftType};
+    use crate::core::parser::types::{OGNBeaconID, OGNIDPrefix};
+    use crate::core::types::ICAOAddress;
     use nom::Finish;
 
     const _VALID_APRS_MESSAGE: &str = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N\00219.21E^065/430/A=040111 !W29! id214B37A8 -64fpm FL400.00 A1:LUC2M";
@@ -447,6 +481,56 @@ mod test {
             Err(AircraftParseError::InvalidGPSAltitude(info)) => {
                 assert_eq!(info.input, "12a");
                 assert_eq!(info.message, "invalid gps altitude");
+            }
+
+            Err(other) => panic!("Expected InvalidGPSAltitude, got: {other}"),
+        }
+    }
+    #[test]
+    fn when_when_valid_ogn_beacon_id_is_given_then_correct_ogn_beacon_id_returned() {
+        let input = "id253007EE";
+        let expected_ogn_beacon_id = OGNBeaconID::new(
+            OGNIDPrefix {
+                aircraft_type: OGNAircraftType::JetTurbopropAircraft,
+                no_track: false,
+                address_type: OGNAddressType::ICAO,
+                stealth_mode: false,
+            },
+            ICAOAddress::new(3147758).unwrap(),
+        );
+        match parse_ogn_beacon_id(input).finish() {
+            Ok((_, ogn_beacon_id)) => assert_eq!(ogn_beacon_id, expected_ogn_beacon_id),
+            Err(err) => panic!("Expected no errors. {err}"),
+        }
+    }
+    #[test]
+    fn when_when_invalid_ogn_beacon_id_from_hex_length_is_given_then_correct_error_is_returned() {
+        let input = "id123";
+
+        match parse_ogn_beacon_id(input).finish() {
+            Ok(_) => panic!("Expected an error"),
+
+            Err(AircraftParseError::InvalidOGNBeaconId(info)) => {
+                assert_eq!(info.input, "id123");
+                assert_eq!(info.message, "invalid ogn beacon id format");
+            }
+
+            Err(other) => panic!("Expected InvalidGPSAltitude, got: {other}"),
+        }
+    }
+    #[test]
+    fn when_when_invalid_ogn_beacon_id_hex_format_is_given_then_correct_error_is_returned() {
+        let input = "id253007EG";
+
+        match parse_ogn_beacon_id(input).finish() {
+            Ok(_) => panic!("Expected an error"),
+
+            Err(AircraftParseError::InvalidOGNBeaconId(info)) => {
+                assert_eq!(info.input, "253007EG");
+                assert_eq!(
+                    info.message,
+                    "invalid ogn beacon id: Invalid hexadecimal format"
+                );
             }
 
             Err(other) => panic!("Expected InvalidGPSAltitude, got: {other}"),
