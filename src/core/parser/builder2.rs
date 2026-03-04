@@ -264,6 +264,7 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 }
 #[cfg(test)]
 mod test {
+    use crate::core::parser::builder::build_aircraft_from_string;
     use crate::core::parser::builder2::errors::AircraftParseError;
     use crate::core::parser::builder2::{
         Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_gps_altitude,
@@ -271,7 +272,7 @@ mod test {
     };
     use crate::core::parser::types::{OGNAddressType, OGNAircraftType};
     use crate::core::parser::types::{OGNBeaconID, OGNIDPrefix};
-    use crate::core::types::ICAOAddress;
+    use crate::core::types::{Aircraft, ICAOAddress};
     use nom::Finish;
 
     const _VALID_APRS_MESSAGE: &str = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N\00219.21E^065/430/A=040111 !W29! id214B37A8 -64fpm FL400.00 A1:LUC2M";
@@ -535,5 +536,27 @@ mod test {
 
             Err(other) => panic!("Expected InvalidGPSAltitude, got: {other}"),
         }
+    }
+
+    #[test]
+    fn test_when_valid_ogn_message_is_received_full_aircraft_construction_complete() {
+        let input = r"ICA4400DC>OGADSB,qAS,HLST:/190606h5158.29N/01013.06E^066/488/A=034218 !W10! id254400DC -832fpm FL353.00 A3:EJU47ML";
+        let now = chrono::Utc::now();
+        let expected_datetime = now
+            .date_naive()
+            .and_time(chrono::NaiveTime::from_hms_opt(19, 06, 06).unwrap())
+            .and_utc();
+        let expected_aircraft = Aircraft {
+            callsign: String::from("ICA4400DC"),
+            datetime: expected_datetime,
+            latitude: 51.9715,
+            longitude: 10.217666666666666,
+            ground_track: 66.0,
+            ground_speed: 488.0,
+            gps_altitude: 34218.0,
+            icao_address: ICAOAddress::new(4456668).unwrap(),
+        };
+        let aircraft = build_aircraft_from_string(input).unwrap();
+        assert_eq!(aircraft, expected_aircraft);
     }
 }
