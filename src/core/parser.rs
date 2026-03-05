@@ -1,5 +1,5 @@
 pub mod builder;
-mod constants;
+pub mod errors;
 pub mod types;
 
 use crate::core::parser::builder::build_aircraft_from_string;
@@ -36,7 +36,7 @@ impl SteppableTask for AircraftParser {
                     log::error!("Failed to forward aircraft: {err}");
                 }
             }
-            Err(err) => log::debug!("{err}"),
+            Err(err) => log::debug!("{err:?}"),
         }
 
         true

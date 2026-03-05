@@ -88,7 +88,6 @@ impl std::fmt::Display for OGNAddressTypeError {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct OGNIDPrefix {
-    hex: u8,
     pub aircraft_type: OGNAircraftType,
     pub address_type: OGNAddressType,
     pub no_track: bool,
@@ -108,7 +107,6 @@ impl OGNIDPrefix {
         let no_track = ((value >> 6) & 0b1) == 1;
         let stealth_mode = ((value >> 7) & 0b1) == 1;
         Ok(OGNIDPrefix {
-            hex: value,
             aircraft_type,
             address_type,
             no_track,
