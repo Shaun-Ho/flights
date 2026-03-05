@@ -7,6 +7,11 @@ use nom::{
     Parser,
     bytes::complete::{tag, take, take_until},
 };
+
+fn convert_latlon_minutes_to_decimals(degrees: f64, minutes: f64) -> f64 {
+    degrees + minutes / 60.0
+}
+
 fn parse_callsign(input: &str) -> nom::IResult<&str, &str, errors::AircraftParseError> {
     nom::sequence::terminated(take_until(">"), tag(">"))
         .parse(input)
@@ -78,24 +83,33 @@ fn parse_coordinate(
         Coordinate::Latitude => ("N", "S"),
         Coordinate::Longitude => ("E", "W"),
     };
-
     let mut parser = nom::branch::alt((
         nom::sequence::pair(take_until(suffix_positive), tag(suffix_positive)),
         nom::sequence::pair(take_until(suffix_negative), tag(suffix_negative)),
     ));
-
-    let (remainder, (number_str, matched_suffix)) = parser
+    let (remainder, degrees_str) = take(2usize)
         .parse(input)
         .map_err(|e| e.map(|_e: nom::error::Error<&str>| create_error()))?;
 
-    let mut value = number_str
+    let (remainder, (minutes_str, matched_suffix)) = parser
+        .parse(remainder)
+        .map_err(|e| e.map(|_e: nom::error::Error<&str>| create_error()))?;
+
+    let degrees_f64 = degrees_str
         .parse::<f64>()
         .map_err(|_| nom::Err::Failure(create_error()))?;
 
+    let minutes_f64 = minutes_str
+        .parse::<f64>()
+        .map_err(|_| nom::Err::Failure(create_error()))?;
+
+    let value = convert_latlon_minutes_to_decimals(degrees_f64, minutes_f64);
+
     if matched_suffix == suffix_negative {
-        value = -value;
+        Ok((remainder, -value))
+    } else {
+        Ok((remainder, value))
     }
-    Ok((remainder, value))
 }
 
 pub enum APRSSignalType {
@@ -244,7 +258,7 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 
     let (input, gps_altitude) = parse_gps_altitude(input).finish()?;
 
-    let (input, _) = (take_until(" "), tag(" "))
+    let (input, _) = (take_until(" id"), tag(" "))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
@@ -264,7 +278,7 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 }
 #[cfg(test)]
 mod test {
-    use crate::core::parser::builder::build_aircraft_from_string;
+    use crate::core::parser::builder2::build_aircraft_from_string;
     use crate::core::parser::builder2::errors::AircraftParseError;
     use crate::core::parser::builder2::{
         Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_gps_altitude,
@@ -363,9 +377,18 @@ mod test {
         use super::*;
 
         #[test]
-        fn when_valid_latitude_coordinates_then_correct_latitude_is_returned() {
+        fn when_valid_latitude_north_coordinates_then_correct_latitude_is_returned() {
             let input = "4121.18N";
-            let expected_latitude = 4121.18;
+            let expected_latitude = 41.353;
+            match parse_coordinate(input, Coordinate::Latitude).finish() {
+                Ok((_, latitude)) => assert_eq!(latitude, expected_latitude),
+                Err(e) => panic!("Expected no errors. {e}"),
+            }
+        }
+        #[test]
+        fn when_valid_latitude_south_coordinates_then_correct_latitude_is_returned() {
+            let input = "4121.18S";
+            let expected_latitude = -41.353;
             match parse_coordinate(input, Coordinate::Latitude).finish() {
                 Ok((_, latitude)) => assert_eq!(latitude, expected_latitude),
                 Err(e) => panic!("Expected no errors. {e}"),
@@ -389,9 +412,19 @@ mod test {
         }
 
         #[test]
-        fn when_valid_longitude_coordinates_then_correct_longitude_is_returned() {
+        fn when_valid_longitude_east_coordinates_then_correct_longitude_is_returned() {
             let input = "219.21E";
-            let expected_longitude = 219.21;
+            let expected_longitude = 21.1535;
+            match parse_coordinate(input, Coordinate::Longitude).finish() {
+                Ok((_, longitude)) => assert_eq!(longitude, expected_longitude),
+                Err(e) => panic!("Expected no errors. {e}"),
+            }
+        }
+
+        #[test]
+        fn when_valid_longitude_west_coordinates_then_correct_longitude_is_returned() {
+            let input = "219.21W";
+            let expected_longitude = -21.1535;
             match parse_coordinate(input, Coordinate::Longitude).finish() {
                 Ok((_, longitude)) => assert_eq!(longitude, expected_longitude),
                 Err(e) => panic!("Expected no errors. {e}"),
@@ -550,7 +583,7 @@ mod test {
             callsign: String::from("ICA4400DC"),
             datetime: expected_datetime,
             latitude: 51.9715,
-            longitude: 10.217666666666666,
+            longitude: 1.2176666666666667,
             ground_track: 66.0,
             ground_speed: 488.0,
             gps_altitude: 34218.0,
