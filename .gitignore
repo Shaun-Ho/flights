@@ -16,3 +16,7 @@ target
 # data used in dev
 data
 inputs
+
+.vscode
+
+*.log
