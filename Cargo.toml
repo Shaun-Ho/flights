@@ -26,3 +26,6 @@ all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = 0 }
 missing_errors_doc = { level = "allow", priority = 1 }
 missing_panics_doc = { level = "allow", priority = 1 }
+
+[dev-dependencies]
+rstest = "0.26.1"

@@ -69,39 +69,44 @@ fn parse_coordinate(
     input: &str,
     coord: Coordinate,
 ) -> nom::IResult<&str, f64, errors::AircraftParseError> {
-    let create_error = || {
+    let create_error = |msg: &str| {
         let context = errors::APRSParseContext {
             input: input.to_string(),
-            message: format!("invalid {coord}"),
+            message: msg.to_string(),
         };
         match coord {
             Coordinate::Latitude => errors::AircraftParseError::InvalidLatitude(context),
             Coordinate::Longitude => errors::AircraftParseError::InvalidLongitude(context),
         }
     };
-    let (suffix_positive, suffix_negative) = match coord {
-        Coordinate::Latitude => ("N", "S"),
-        Coordinate::Longitude => ("E", "W"),
+    let suffix_negative = match coord {
+        Coordinate::Latitude => "S",
+        Coordinate::Longitude => "W",
     };
-    let mut parser = nom::branch::alt((
-        nom::sequence::pair(take_until(suffix_positive), tag(suffix_positive)),
-        nom::sequence::pair(take_until(suffix_negative), tag(suffix_negative)),
-    ));
-    let (remainder, degrees_str) = take(2usize)
-        .parse(input)
-        .map_err(|e| e.map(|_e: nom::error::Error<&str>| create_error()))?;
 
-    let (remainder, (minutes_str, matched_suffix)) = parser
-        .parse(remainder)
-        .map_err(|e| e.map(|_e: nom::error::Error<&str>| create_error()))?;
+    let size = match coord {
+        Coordinate::Latitude => 2usize,
+        Coordinate::Longitude => 3usize,
+    };
+    let (remainder, degrees_str) = take(size).parse(input).map_err(|e| {
+        e.map(|_e: nom::error::Error<&str>| create_error("invalid number of digits for degrees"))
+    })?;
+
+    let (remainder, minutes_str) = take(5usize).parse(remainder).map_err(|e| {
+        e.map(|_e: nom::error::Error<&str>| create_error("invalid number of digits for minutes"))
+    })?;
+
+    let (remainder, matched_suffix) = take(1usize).parse(remainder).map_err(|e| {
+        e.map(|_e: nom::error::Error<&str>| create_error("no suffix for coordinate found"))
+    })?;
 
     let degrees_f64 = degrees_str
         .parse::<f64>()
-        .map_err(|_| nom::Err::Failure(create_error()))?;
+        .map_err(|_| nom::Err::Failure(create_error("could not parse degrees")))?;
 
     let minutes_f64 = minutes_str
         .parse::<f64>()
-        .map_err(|_| nom::Err::Failure(create_error()))?;
+        .map_err(|_| nom::Err::Failure(create_error("could not parse minutes")))?;
 
     let value = convert_latlon_minutes_to_decimals(degrees_f64, minutes_f64);
 
@@ -288,6 +293,7 @@ mod test {
     use crate::core::parser::types::{OGNBeaconID, OGNIDPrefix};
     use crate::core::types::{Aircraft, ICAOAddress};
     use nom::Finish;
+    use rstest::rstest;
 
     const _VALID_APRS_MESSAGE: &str = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N\00219.21E^065/430/A=040111 !W29! id214B37A8 -64fpm FL400.00 A1:LUC2M";
 
@@ -404,7 +410,7 @@ mod test {
 
                 Err(AircraftParseError::InvalidLatitude(info)) => {
                     assert_eq!(info.input, "4121.18");
-                    assert_eq!(info.message, "invalid latitude");
+                    assert_eq!(info.message, "no suffix for coordinate found");
                 }
 
                 Err(other) => panic!("Expected InvalidLatitude, got: {other}"),
@@ -413,8 +419,8 @@ mod test {
 
         #[test]
         fn when_valid_longitude_east_coordinates_then_correct_longitude_is_returned() {
-            let input = "219.21E";
-            let expected_longitude = 21.1535;
+            let input = "12219.21E";
+            let expected_longitude = 122.32016666666667;
             match parse_coordinate(input, Coordinate::Longitude).finish() {
                 Ok((_, longitude)) => assert_eq!(longitude, expected_longitude),
                 Err(e) => panic!("Expected no errors. {e}"),
@@ -423,8 +429,8 @@ mod test {
 
         #[test]
         fn when_valid_longitude_west_coordinates_then_correct_longitude_is_returned() {
-            let input = "219.21W";
-            let expected_longitude = -21.1535;
+            let input = "12219.21W";
+            let expected_longitude = -122.32016666666667;
             match parse_coordinate(input, Coordinate::Longitude).finish() {
                 Ok((_, longitude)) => assert_eq!(longitude, expected_longitude),
                 Err(e) => panic!("Expected no errors. {e}"),
@@ -440,7 +446,7 @@ mod test {
 
                 Err(AircraftParseError::InvalidLongitude(info)) => {
                     assert_eq!(info.input, "00219.21");
-                    assert_eq!(info.message, "invalid longitude");
+                    assert_eq!(info.message, "no suffix for coordinate found");
                 }
 
                 Err(other) => panic!("Expected InvalidLongitude, got: {other}"),
@@ -570,26 +576,58 @@ mod test {
             Err(other) => panic!("Expected InvalidGPSAltitude, got: {other}"),
         }
     }
-
-    #[test]
-    fn test_when_valid_ogn_message_is_received_full_aircraft_construction_complete() {
-        let input = r"ICA4400DC>OGADSB,qAS,HLST:/190606h5158.29N/01013.06E^066/488/A=034218 !W10! id254400DC -832fpm FL353.00 A3:EJU47ML";
-        let now = chrono::Utc::now();
-        let expected_datetime = now
+    #[rstest]
+    #[case(
+    r"ICA4400DC>OGADSB,qAS,HLST:/190606h5158.29N/01013.06E^066/488/A=034218 !W10! id254400DC -832fpm FL353.00 A3:EJU47ML",
+    "ICA4400DC",
+    (19, 06, 06),
+    51.9715,
+    10.217666666666666,
+    66.0,
+    488.0,
+    34218.0,
+    4456668
+)]
+    #[case(
+    r"ICA4B027D>OGADSB,qAS,AVX1224:/190606h4651.87N/00118.95W^356/328/A=012618 !W37! id254B027D -1792fpm FL131.75 A3:EZS14TJ",
+    "ICA4B027D",
+    (19, 06, 06),
+    46.8645,
+    -1.3158333333333334,
+    356.0,
+    328.0,
+    12618.0,
+    4915837
+)]
+    fn test_aircraft_construction(
+        #[case] raw_input: &str,
+        #[case] expected_callsign: &str,
+        #[case] time_tuple: (u32, u32, u32),
+        #[case] expected_lat: f64,
+        #[case] expected_lon: f64,
+        #[case] expected_track: f64,
+        #[case] expected_gs: f64,
+        #[case] expected_alt: f64,
+        #[case] expected_icao_int: u32,
+    ) {
+        let (h, m, s) = time_tuple;
+        let expected_datetime = chrono::Utc::now()
             .date_naive()
-            .and_time(chrono::NaiveTime::from_hms_opt(19, 06, 06).unwrap())
+            .and_time(chrono::NaiveTime::from_hms_opt(h, m, s).unwrap())
             .and_utc();
+
         let expected_aircraft = Aircraft {
-            callsign: String::from("ICA4400DC"),
+            callsign: String::from(expected_callsign),
             datetime: expected_datetime,
-            latitude: 51.9715,
-            longitude: 1.2176666666666667,
-            ground_track: 66.0,
-            ground_speed: 488.0,
-            gps_altitude: 34218.0,
-            icao_address: ICAOAddress::new(4456668).unwrap(),
+            latitude: expected_lat,
+            longitude: expected_lon,
+            ground_track: expected_track,
+            ground_speed: expected_gs,
+            gps_altitude: expected_alt,
+            icao_address: ICAOAddress::new(expected_icao_int).unwrap(),
         };
-        let aircraft = build_aircraft_from_string(input).unwrap();
+
+        let aircraft = build_aircraft_from_string(raw_input).unwrap();
         assert_eq!(aircraft, expected_aircraft);
     }
 }
