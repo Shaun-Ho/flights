@@ -14,8 +14,8 @@ target
 **/mutants.out*/
 
 # data used in dev
-data
-inputs
+/data
+/inputs
 
 .vscode
 
