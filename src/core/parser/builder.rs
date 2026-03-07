@@ -294,9 +294,6 @@ mod test {
     use crate::core::types::{Aircraft, ICAOAddress};
     use approx::relative_eq;
     use nom::Finish;
-    use rstest::rstest;
-
-    const _VALID_APRS_MESSAGE: &str = r"ICA4B37A8>OGADSB,qAS,LELL:/190600h4121.18N\00219.21E^065/430/A=040111 !W29! id214B37A8 -64fpm FL400.00 A1:LUC2M";
 
     #[test]
     fn when_packet_contains_valid_callsign_identifier_is_correct_then_parsed_callsign_is_correct() {
@@ -579,58 +576,60 @@ mod test {
             Err(other) => panic!("Expected InvalidGPSAltitude, got: {other}"),
         }
     }
-    #[rstest]
-    #[case(
-    r"ICA4400DC>OGADSB,qAS,HLST:/190606h5158.29N/01013.06E^066/488/A=034218 !W10! id254400DC -832fpm FL353.00 A3:EJU47ML",
-    "ICA4400DC",
-    (19, 6, 6),
-    51.9715,
-    10.217_666_666_666_666,
-    66.0,
-    488.0,
-    34218.0,
-    4_456_668
-)]
-    #[case(
-    r"ICA4B027D>OGADSB,qAS,AVX1224:/190606h4651.87N/00118.95W^356/328/A=012618 !W37! id254B027D -1792fpm FL131.75 A3:EZS14TJ",
-    "ICA4B027D",
-    (19, 6, 6),
-    46.8645,
-    -1.315_833_333_333_333_4,
-    356.0,
-    328.0,
-    12618.0,
-    4_915_837
-)]
-    fn test_aircraft_construction(
-        #[case] raw_input: &str,
-        #[case] expected_callsign: &str,
-        #[case] time_tuple: (u32, u32, u32),
-        #[case] expected_lat: f64,
-        #[case] expected_lon: f64,
-        #[case] expected_track: f64,
-        #[case] expected_gs: f64,
-        #[case] expected_alt: f64,
-        #[case] expected_icao_int: u32,
-    ) {
-        let (h, m, s) = time_tuple;
-        let expected_datetime = chrono::Utc::now()
-            .date_naive()
-            .and_time(chrono::NaiveTime::from_hms_opt(h, m, s).unwrap())
-            .and_utc();
 
-        let expected_aircraft = Aircraft {
-            callsign: String::from(expected_callsign),
-            datetime: expected_datetime,
-            latitude: expected_lat,
-            longitude: expected_lon,
-            ground_track: expected_track,
-            ground_speed: expected_gs,
-            gps_altitude: expected_alt,
-            icao_address: ICAOAddress::new(expected_icao_int).unwrap(),
-        };
+    struct AircraftComparison {
+        raw: &'static str,
+        expected_callsign: &'static str,
+        hms: (u32, u32, u32),
+        lat_lon: (f64, f64),
+        specs: (f64, f64, f64), // track, ground_speed, alt
+        icao: u32,
+    }
 
-        let aircraft = build_aircraft_from_string(raw_input).unwrap();
-        assert_eq!(aircraft, expected_aircraft);
+    impl AircraftComparison {
+        fn to_comparison_tuple(&self) -> (&'static str, Aircraft) {
+            let (h, m, s) = self.hms;
+            let (lat, lon) = self.lat_lon;
+            let (track, gs, alt) = self.specs;
+
+            let aircraft = Aircraft {
+                callsign: self.expected_callsign.to_string(),
+                datetime: chrono::Utc::now()
+                    .date_naive()
+                    .and_time(chrono::NaiveTime::from_hms_opt(h, m, s).expect("Invalid time"))
+                    .and_utc(),
+                latitude: lat,
+                longitude: lon,
+                ground_track: track,
+                ground_speed: gs,
+                gps_altitude: alt,
+                icao_address: ICAOAddress::new(self.icao).unwrap(),
+            };
+            (self.raw, aircraft)
+        }
+    }
+
+    #[rstest::rstest]
+    #[case::case_1(AircraftComparison {
+        raw: r"ICA4400DC>OGADSB,qAS,HLST:/190606h5158.29N/01013.06E^066/488/A=034218 !W10! id254400DC -832fpm FL353.00 A3:EJU47ML",
+        expected_callsign: "ICA4400DC",
+        hms: (19, 6, 6),
+        lat_lon: (51.9715, 10.217_666_666_666_666),
+        specs: (66.0, 488.0, 34218.0),
+        icao: 4_456_668
+    })]
+    #[case::case_2(AircraftComparison {
+        raw: r"ICA4B027D>OGADSB,qAS,AVX1224:/190606h4651.87N/00118.95W^356/328/A=012618 !W37! id254B027D -1792fpm FL131.75 A3:EZS14TJ",
+        expected_callsign:     "ICA4B027D",
+        hms: (19, 6, 6),
+        lat_lon: (46.8645, -1.315_833_333_333_333_4),
+        specs: (356.0, 328.0, 12618.0),
+        icao: 4_915_837
+    })]
+    fn test_aircraft_construction_(#[case] scenario: AircraftComparison) {
+        let (raw_input, expected) = scenario.to_comparison_tuple();
+        let result = build_aircraft_from_string(raw_input).unwrap();
+
+        assert_eq!(result, expected);
     }
 }
