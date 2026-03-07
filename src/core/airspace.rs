@@ -156,7 +156,7 @@ mod tests {
     ) -> Aircraft {
         Aircraft {
             callsign: String::from("dummy"),
-            icao_address: icao_address,
+            icao_address,
             datetime,
             latitude: 0.0,
             longitude: 0.0,

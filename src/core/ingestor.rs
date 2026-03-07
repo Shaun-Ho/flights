@@ -245,14 +245,14 @@ mod test {
         let mut ingestor = Ingestor::new(source, sender, Some(writer));
         let mut cont = true;
         while cont {
-            cont = ingestor.step()
+            cont = ingestor.step();
         }
 
         // drop ingestor to flush writer
         drop(ingestor);
 
         let input_file_contents =
-            std::fs::read_to_string(&input_path).expect("Failed to read log file");
+            std::fs::read_to_string(input_path).expect("Failed to read log file");
         let output_file_contents =
             std::fs::read_to_string(&log_path).expect("Failed to read log file");
 

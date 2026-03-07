@@ -320,10 +320,7 @@ mod tests {
         assert!(!manager.tasks.contains_key(&task_1_id));
 
         // Verify the other task is still running (or can be stopped)
-        println!(
-            "Verifying task {} is still running (or stoppable)",
-            task_2_id
-        );
+        println!("Verifying task {task_2_id} is still running (or stoppable)");
         std::thread::sleep(std::time::Duration::from_millis(50));
 
         let stop_result_2 = manager.stop_task(task_2_id);

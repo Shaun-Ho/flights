@@ -44,7 +44,7 @@ jobs:
               with:
                   components: clippy
             - name: Clippy Check
-              run: cargo clippy
+              run: cargo clippy --all-targets
     cargo-doc:
         name: Cargo doc
         runs-on: ubuntu-latest
