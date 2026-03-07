@@ -26,5 +26,6 @@ missing_errors_doc = { level = "allow", priority = 1 }
 missing_panics_doc = { level = "allow", priority = 1 }
 
 [dev-dependencies]
+approx = "0.5.1"
 rstest = "0.26.1"
 tempfile = "3.26.0"

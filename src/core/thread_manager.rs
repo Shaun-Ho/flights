@@ -321,8 +321,7 @@ mod tests {
 
         // Verify the other task is still running (or can be stopped)
         println!(
-            "Verifying task {} is still running (or stoppable)",
-            task_2_id
+            "Verifying task {task_2_id} is still running (or stoppable)"
         );
         std::thread::sleep(std::time::Duration::from_millis(50));
 
