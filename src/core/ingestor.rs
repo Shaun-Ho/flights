@@ -128,11 +128,11 @@ mod test {
     use crate::core::ingestor::{FileDataSource, Ingestor, create_writer};
     use crate::core::thread_manager::SteppableTask;
 
-    struct MockConnection {
+    struct MockStream {
         incoming_data: std::io::Cursor<Vec<u8>>,
         outgoing_data: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
     }
-    impl MockConnection {
+    impl MockStream {
         pub fn new(input_data: &str) -> Self {
             Self {
                 incoming_data: std::io::Cursor::new(input_data.as_bytes().to_vec()),
@@ -140,13 +140,13 @@ mod test {
             }
         }
     }
-    impl std::io::Read for MockConnection {
+    impl std::io::Read for MockStream {
         fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
             self.incoming_data.read(buf)
         }
     }
 
-    impl std::io::Write for MockConnection {
+    impl std::io::Write for MockStream {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
             let mut out = self.outgoing_data.lock().unwrap();
             out.extend_from_slice(buf);
@@ -163,9 +163,9 @@ mod test {
      {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let data = "APRS_PACKET_DATA\n";
-        let mock_connection = MockConnection::new(data);
+        let mock_stream = MockStream::new(data);
 
-        let mut ingestor = Ingestor::new(mock_connection, sender, None);
+        let mut ingestor = Ingestor::new(mock_stream, sender, None);
 
         let keep_running = ingestor.step();
 
@@ -177,9 +177,9 @@ mod test {
     fn given_connection_to_stream_when_end_of_stream_then_ingestor_stops_running() {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let data = "";
-        let mock_connection = MockConnection::new(data);
+        let mock_stream = MockStream::new(data);
 
-        let mut ingestor = Ingestor::new(mock_connection, sender, None);
+        let mut ingestor = Ingestor::new(mock_stream, sender, None);
 
         let keep_running = ingestor.step();
 
@@ -216,10 +216,10 @@ mod test {
         let log_path = test_path.path.join("test_log.log");
         let (sender, receiver) = crossbeam_channel::unbounded();
         let data = "test";
-        let mock_connection = MockConnection::new(data);
+        let mock_stream = MockStream::new(data);
         let writer = create_writer(&log_path).expect("Failed to create writer");
 
-        let mut ingestor = Ingestor::new(mock_connection, sender, Some(writer));
+        let mut ingestor = Ingestor::new(mock_stream, sender, Some(writer));
 
         ingestor.step();
 
