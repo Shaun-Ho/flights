@@ -3,6 +3,9 @@ pub mod core;
 pub mod gui;
 pub mod logging;
 
+#[cfg(test)]
+pub mod test_utilities;
+
 use crate::core::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::ingestor::Ingestor;
 use crate::core::ingestor::config::IngestorConfig;

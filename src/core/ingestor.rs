@@ -127,6 +127,7 @@ mod test {
 
     use crate::core::ingestor::{FileDataSource, Ingestor, create_writer};
     use crate::core::thread_manager::SteppableTask;
+    use crate::test_utilities::{TestPath, test_data_path, test_path};
 
     struct MockStream {
         incoming_data: std::io::Cursor<Vec<u8>>,
@@ -185,28 +186,6 @@ mod test {
 
         assert!(!keep_running);
         assert!(receiver.try_recv().is_err(), "Channel should be empty");
-    }
-
-    pub struct TestPath {
-        _guard: tempfile::TempDir,
-        pub path: std::path::PathBuf,
-    }
-
-    #[rstest::fixture]
-    fn test_path() -> TestPath {
-        let guard = tempfile::tempdir().expect("Failed to create temporary directory");
-        let path = guard.path().to_path_buf();
-        TestPath {
-            _guard: guard,
-            path,
-        }
-    }
-
-    #[rstest::fixture]
-    fn test_data_path() -> std::path::PathBuf {
-        let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.push("tests/data");
-        path
     }
 
     #[rstest::rstest]
