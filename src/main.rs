@@ -28,12 +28,18 @@ fn main() {
         crossbeam_channel::Sender<Aircraft>,
         crossbeam_channel::Receiver<Aircraft>,
     ) = crossbeam_channel::unbounded();
-
-    let ingestor = Ingestor::new(
-        &ingestor_config.glidernet,
-        messages_sender,
-        ingestor_config.write_path.as_deref(),
-    )
+    let ingestor = match ingestor_config.read_path {
+        Some(read_path) => Ingestor::read_data_from_file(
+            &read_path,
+            messages_sender,
+            ingestor_config.write_path.as_deref(),
+        ),
+        None => Ingestor::connect_glidernet(
+            &ingestor_config.glidernet,
+            messages_sender,
+            ingestor_config.write_path.as_deref(),
+        ),
+    }
     .map_err(|e| log::error!("Error constructing ingestor: {e}"))
     .unwrap();
 
