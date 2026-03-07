@@ -5,6 +5,7 @@ use toml;
 
 #[derive(serde::Deserialize)]
 pub struct IngestorConfig {
+    pub write_path: Option<std::path::PathBuf>,
     pub glidernet: GliderNetConfig,
     pub airspace: AirspaceConfig,
 }

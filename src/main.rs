@@ -10,7 +10,7 @@ use flights::logging::setup_logging;
 
 fn main() {
     let cli = Cli::parse();
-    let application_config =
+    let ingestor_config =
         IngestorConfig::construct_from_path(&cli.config_file).unwrap_or_else(|e| {
             log::error!("{e}");
             panic!("Config error. Exiting.")
@@ -29,15 +29,19 @@ fn main() {
         crossbeam_channel::Receiver<Aircraft>,
     ) = crossbeam_channel::unbounded();
 
-    let ingestor = Ingestor::new(&application_config.glidernet, messages_sender)
-        .map_err(|e| log::error!("Error constructing ingestor: {e}"))
-        .unwrap();
+    let ingestor = Ingestor::new(
+        &ingestor_config.glidernet,
+        messages_sender,
+        ingestor_config.write_path.as_deref(),
+    )
+    .map_err(|e| log::error!("Error constructing ingestor: {e}"))
+    .unwrap();
 
     let parser = AircraftParser::new(messages_receiver, aircraft_data_sender);
 
     let airspace_store = AirspaceStore::new(
         aircraft_data_receiver,
-        chrono::TimeDelta::seconds(application_config.airspace.time_buffer_seconds.into()),
+        chrono::TimeDelta::seconds(ingestor_config.airspace.time_buffer_seconds.into()),
     );
     let renderer_viewer = airspace_store.get_airspace_viewer();
 
