@@ -1,12 +1,9 @@
 use clap::Parser;
 use flights::cli::Cli;
-use flights::core::airspace::AirspaceStore;
-use flights::core::ingestor::{Ingestor, config::IngestorConfig};
-use flights::core::parser::AircraftParser;
-use flights::core::thread_manager::ThreadManager;
-use flights::core::types::Aircraft;
+use flights::core::ingestor::config::IngestorConfig;
 use flights::gui::RadarApp;
 use flights::logging::setup_logging;
+use flights::setup_pipeline;
 
 fn main() {
     let cli = Cli::parse();
@@ -19,43 +16,7 @@ fn main() {
     setup_logging(cli.logging_level);
     log::info!("Main: Application started.");
 
-    let (messages_sender, messages_receiver): (
-        crossbeam_channel::Sender<String>,
-        crossbeam_channel::Receiver<String>,
-    ) = crossbeam_channel::unbounded();
-
-    let (aircraft_data_sender, aircraft_data_receiver): (
-        crossbeam_channel::Sender<Aircraft>,
-        crossbeam_channel::Receiver<Aircraft>,
-    ) = crossbeam_channel::unbounded();
-    let ingestor = match ingestor_config.read_path {
-        Some(read_path) => Ingestor::read_data_from_file(
-            &read_path,
-            messages_sender,
-            ingestor_config.write_path.as_deref(),
-        ),
-        None => Ingestor::connect_glidernet(
-            &ingestor_config.glidernet,
-            messages_sender,
-            ingestor_config.write_path.as_deref(),
-        ),
-    }
-    .map_err(|e| log::error!("Error constructing ingestor: {e}"))
-    .unwrap();
-
-    let parser = AircraftParser::new(messages_receiver, aircraft_data_sender);
-
-    let airspace_store = AirspaceStore::new(
-        aircraft_data_receiver,
-        chrono::TimeDelta::seconds(ingestor_config.airspace.time_buffer_seconds.into()),
-    );
-    let renderer_viewer = airspace_store.get_airspace_viewer();
-
-    let mut thread_manager = ThreadManager::new();
-    thread_manager.add_task(ingestor, std::time::Duration::ZERO);
-    thread_manager.add_task(parser, std::time::Duration::ZERO);
-    let airspace_task_id =
-        thread_manager.add_task(airspace_store, std::time::Duration::from_micros(16667));
+    let pipeline = setup_pipeline(ingestor_config);
 
     let run_duration = cli.duration.map(std::time::Duration::from_secs);
 
@@ -75,17 +36,13 @@ fn main() {
                 }
                 Ok(Box::new(RadarApp::new(
                     cc.egui_ctx.clone(),
-                    renderer_viewer,
+                    pipeline.get_airspace_viewer(),
                 )))
             }),
         )
         .unwrap();
-        thread_manager.stop_all_tasks();
     } else if let Some(duration) = run_duration {
         std::thread::sleep(duration);
-        thread_manager.stop_all_tasks();
     }
-    thread_manager.wait_on_task_finish(airspace_task_id);
-
-    log::info!("Main: Program finished.");
+    log::info!("Shutting down application.");
 }
