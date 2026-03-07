@@ -78,3 +78,32 @@ pub fn setup_pipeline(ingestor_config: IngestorConfig) -> Pipeline {
         renderer_viewer,
     }
 }
+#[cfg(test)]
+mod test {
+    use crate::core::ingestor::config::{AirspaceConfig, GliderNetConfig};
+    use crate::test_utilities::test_data_path;
+    use crate::{core::ingestor::config::IngestorConfig, setup_pipeline};
+
+    #[rstest::rstest]
+    #[test_log::test]
+    fn given_pipeline_setup_with_ingestor_reading_from_file_when_ingestor_terminates_then_entire_pipeline_shuts_down_gracefully(
+        test_data_path: std::path::PathBuf,
+    ) {
+        let read_path = test_data_path.join("test_ingestor_log.txt");
+
+        let ingestor_config = IngestorConfig {
+            read_path: Some(read_path),
+            write_path: None,
+            glidernet: GliderNetConfig {
+                host: String::new(),
+                port: 0,
+                filter: String::new(),
+            },
+            airspace: AirspaceConfig {
+                time_buffer_seconds: 1,
+            },
+        };
+        let pipeline = setup_pipeline(ingestor_config);
+        drop(pipeline);
+    }
+}
