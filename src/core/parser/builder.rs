@@ -235,28 +235,28 @@ pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::Aircr
 
     let (input, latitude) = parse_specific_coordinate(input, Coordinate::Latitude).finish()?;
 
-    let (input, _) = (take_until("/"), tag("/"))
+    let (input, _) = (take(1usize))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
     let (input, longitude) = parse_specific_coordinate(input, Coordinate::Longitude).finish()?;
 
-    let (input, _) = (take_until("^"), tag("^"))
+    let (input, _) = (take(1usize))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
     let (input, ground_track) = parse_ground_track(input).finish()?;
 
-    let (input, _) = (take_until("/"), tag("/"))
+    let (input, _) = (take(1usize))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
 
     let (input, ground_speed) = parse_ground_speed(input).finish()?;
 
-    let (input, _) = (take_until("/A="), tag("/A="))
+    let (input, _) = (take_until("A="), tag("A="))
         .parse(input)
         .finish()
         .map_err(errors::AircraftParseError::IncorrectSeparator)?;
