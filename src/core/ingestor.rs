@@ -35,6 +35,10 @@ impl Ingestor {
         sender: crossbeam_channel::Sender<String>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
+        log::info!(
+            "Reading APRS data from file: {}",
+            read_path.to_string_lossy()
+        );
         let source = FileDataSource::new(read_path)?;
         let writer = write_path.map(create_writer).transpose()?;
         Ok(Self::new(source, sender, writer))
