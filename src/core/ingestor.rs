@@ -59,20 +59,6 @@ impl Ingestor {
         Ok(Self::new(stream, sender, writer))
     }
 }
-struct FileDataSource {
-    pub reader: std::fs::File,
-}
-impl FileDataSource {
-    pub fn new(input_path: &std::path::Path) -> Result<Self, std::io::Error> {
-        let reader = std::fs::File::options().read(true).open(input_path)?;
-        Ok(Self { reader })
-    }
-}
-impl std::io::Read for FileDataSource {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.reader.read(buf)
-    }
-}
 
 impl SteppableTask for Ingestor {
     fn step(&mut self) -> bool {
@@ -100,6 +86,20 @@ impl SteppableTask for Ingestor {
                 true
             }
         }
+    }
+}
+struct FileDataSource {
+    pub reader: std::fs::File,
+}
+impl FileDataSource {
+    pub fn new(input_path: &std::path::Path) -> Result<Self, std::io::Error> {
+        let reader = std::fs::File::options().read(true).open(input_path)?;
+        Ok(Self { reader })
+    }
+}
+impl std::io::Read for FileDataSource {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.reader.read(buf)
     }
 }
 
