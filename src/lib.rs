@@ -11,7 +11,7 @@ use crate::core::ingestor::Ingestor;
 use crate::core::ingestor::config::IngestorConfig;
 use crate::core::parser::AircraftParser;
 use crate::core::thread_manager::{TaskID, ThreadManager};
-use crate::core::types::Aircraft;
+use crate::core::types::{APRSPacket, Aircraft};
 
 pub struct Pipeline {
     threadmanager: ThreadManager,
@@ -35,8 +35,8 @@ impl Drop for Pipeline {
 #[must_use]
 pub fn setup_pipeline(ingestor_config: IngestorConfig) -> Pipeline {
     let (messages_sender, messages_receiver): (
-        crossbeam_channel::Sender<String>,
-        crossbeam_channel::Receiver<String>,
+        crossbeam_channel::Sender<APRSPacket>,
+        crossbeam_channel::Receiver<APRSPacket>,
     ) = crossbeam_channel::unbounded();
 
     let (aircraft_data_sender, aircraft_data_receiver): (

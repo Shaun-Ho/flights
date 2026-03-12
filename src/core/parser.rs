@@ -4,16 +4,16 @@ pub mod types;
 
 use crate::core::parser::builder::build_aircraft_from_string;
 use crate::core::thread_manager::SteppableTask;
-use crate::core::types::Aircraft;
+use crate::core::types::{APRSPacket, Aircraft};
 
 pub struct AircraftParser {
-    receiver: crossbeam_channel::Receiver<String>,
+    receiver: crossbeam_channel::Receiver<APRSPacket>,
     sender: crossbeam_channel::Sender<Aircraft>,
 }
 impl AircraftParser {
     #[must_use]
     pub fn new(
-        messages_receiver: crossbeam_channel::Receiver<String>,
+        messages_receiver: crossbeam_channel::Receiver<APRSPacket>,
         aircraft_sender: crossbeam_channel::Sender<Aircraft>,
     ) -> Self {
         AircraftParser {
@@ -25,12 +25,12 @@ impl AircraftParser {
 
 impl SteppableTask for AircraftParser {
     fn step(&mut self) -> bool {
-        let Ok(message_string) = self.receiver.recv() else {
+        let Ok(aprs_packet) = self.receiver.recv() else {
             log::error!("AircraftParser upstream disconnected");
             return false;
         };
 
-        match build_aircraft_from_string(&message_string) {
+        match build_aircraft_from_string(&aprs_packet.payload) {
             Ok(aircraft) => {
                 if let Err(err) = self.sender.send(aircraft) {
                     log::error!("Failed to forward aircraft: {err}");

@@ -5,6 +5,7 @@ use std::io::Write;
 
 use crate::core::ingestor::config::GliderNetConfig;
 use crate::core::thread_manager::SteppableTask;
+use crate::core::types::APRSPacket;
 
 use crossbeam_channel;
 
@@ -13,14 +14,14 @@ impl<T: std::io::Read + Send> DataSource for T {}
 
 pub struct Ingestor {
     reader: std::io::BufReader<Box<dyn DataSource>>,
-    sender: crossbeam_channel::Sender<String>,
+    sender: crossbeam_channel::Sender<APRSPacket>,
     writer: Option<std::io::BufWriter<std::fs::File>>,
 }
 
 impl Ingestor {
     pub fn new<C: DataSource + 'static>(
         source: C,
-        sender: crossbeam_channel::Sender<String>,
+        sender: crossbeam_channel::Sender<APRSPacket>,
         writer: Option<std::io::BufWriter<std::fs::File>>,
     ) -> Self {
         Self {
@@ -32,7 +33,7 @@ impl Ingestor {
 
     pub fn read_data_from_file(
         read_path: &std::path::Path,
-        sender: crossbeam_channel::Sender<String>,
+        sender: crossbeam_channel::Sender<APRSPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!(
@@ -46,7 +47,7 @@ impl Ingestor {
 
     pub fn connect_glidernet(
         config: &GliderNetConfig,
-        sender: crossbeam_channel::Sender<String>,
+        sender: crossbeam_channel::Sender<APRSPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
@@ -74,8 +75,9 @@ impl SteppableTask for Ingestor {
                     let _ = write!(writer, "{line_buffer}")
                         .map_err(|error| log::error!("Failed to log to disk: {error}"));
                 }
-
-                if let Err(err) = self.sender.send(line_buffer) {
+                let timestamp_ns = chrono::Utc::now().timestamp_nanos_opt().unwrap();
+                let timed_packet = APRSPacket::new(timestamp_ns, line_buffer);
+                if let Err(err) = self.sender.send(timed_packet) {
                     log::error!("Ingestor: Failed to send to channel: {err}");
                     return false;
                 }
@@ -175,7 +177,7 @@ mod test {
         let keep_running = ingestor.step();
 
         assert!(keep_running);
-        assert_eq!(receiver.recv().unwrap(), data);
+        assert_eq!(receiver.recv().unwrap().payload, data);
     }
 
     #[test]
@@ -212,7 +214,7 @@ mod test {
         let file_contents = std::fs::read_to_string(&log_path).expect("Failed to read log file");
 
         assert_eq!(file_contents, data);
-        assert_eq!(receiver.recv().unwrap(), data);
+        assert_eq!(receiver.recv().unwrap().payload, data);
     }
     #[rstest::rstest]
     fn when_ingestor_reads_from_historical_file_then_output_is_the_same(
