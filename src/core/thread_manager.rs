@@ -1,4 +1,5 @@
-use log::info;
+use log;
+
 pub type ThreadID = i32;
 pub type TaskID = i32;
 
@@ -85,7 +86,7 @@ impl ThreadManager {
         task.stop_sender.send(())
     }
     pub fn stop_all_tasks(&self) {
-        info!("ThreadManager: Signaling all tasks to stop...");
+        log::info!("ThreadManager: Signaling all tasks to stop...");
         for task in self.tasks.values() {
             let _ = task.stop_sender.send(());
         }

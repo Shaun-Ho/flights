@@ -3,28 +3,25 @@ pub mod error;
 
 use std::io::Write;
 
-use crate::core::ingestor::config::GliderNetConfig;
-use crate::core::thread_manager::SteppableTask;
-
 use crossbeam_channel;
 
-pub trait DataSource: std::io::Read + Send {}
-impl<T: std::io::Read + Send> DataSource for T {}
+use crate::core::ingestor::config::GliderNetConfig;
+use crate::core::thread_manager::SteppableTask;
+use crate::core::types::APRSPacket;
 
 pub struct Ingestor {
-    reader: std::io::BufReader<Box<dyn DataSource>>,
-    sender: crossbeam_channel::Sender<String>,
+    source: Box<dyn APRSDataSource>,
+    sender: crossbeam_channel::Sender<APRSPacket>,
     writer: Option<std::io::BufWriter<std::fs::File>>,
 }
-
 impl Ingestor {
-    pub fn new<C: DataSource + 'static>(
+    pub fn new<C: APRSDataSource + 'static>(
         source: C,
-        sender: crossbeam_channel::Sender<String>,
+        sender: crossbeam_channel::Sender<APRSPacket>,
         writer: Option<std::io::BufWriter<std::fs::File>>,
     ) -> Self {
         Self {
-            reader: std::io::BufReader::new(Box::new(source)),
+            source: Box::new(source),
             sender,
             writer,
         }
@@ -32,21 +29,21 @@ impl Ingestor {
 
     pub fn read_data_from_file(
         read_path: &std::path::Path,
-        sender: crossbeam_channel::Sender<String>,
+        sender: crossbeam_channel::Sender<APRSPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!(
             "Reading APRS data from file: {}",
             read_path.to_string_lossy()
         );
-        let source = FileDataSource::new(read_path)?;
+        let source = ReplaySource::new(read_path)?;
         let writer = write_path.map(create_writer).transpose()?;
         Ok(Self::new(source, sender, writer))
     }
 
     pub fn connect_glidernet(
         config: &GliderNetConfig,
-        sender: crossbeam_channel::Sender<String>,
+        sender: crossbeam_channel::Sender<APRSPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
@@ -56,48 +53,100 @@ impl Ingestor {
         authentication_handshake(&mut stream, &config.filter)?;
 
         let writer = write_path.map(create_writer).transpose()?;
-        Ok(Self::new(stream, sender, writer))
-    }
-}
-struct FileDataSource {
-    pub reader: std::fs::File,
-}
-impl FileDataSource {
-    pub fn new(input_path: &std::path::Path) -> Result<Self, std::io::Error> {
-        let reader = std::fs::File::options().read(true).open(input_path)?;
-        Ok(Self { reader })
-    }
-}
-impl std::io::Read for FileDataSource {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.reader.read(buf)
+
+        let source = LiveSource::new(stream);
+
+        Ok(Self::new(source, sender, writer))
     }
 }
 
 impl SteppableTask for Ingestor {
     fn step(&mut self) -> bool {
+        match self.source.create_aprs_packet() {
+            Ok(packet_packet_opt) => {
+                if let Some(aprs_packet) = packet_packet_opt {
+                    // write to disk
+                    if let Some(writer) = self.writer.as_mut() {
+                        let _ = write!(writer, "{}", aprs_packet.payload)
+                            .map_err(|error| log::error!("Failed to log to disk: {error}"));
+                    }
+
+                    if let Err(err) = self.sender.send(aprs_packet) {
+                        log::error!("Ingestor: Failed to send to channel: {err}");
+                        return false;
+                    }
+                    return true;
+                }
+                false
+            }
+            Err(err) => {
+                log::error!("{err}");
+                false
+            }
+        }
+    }
+}
+pub trait APRSDataSource: Send {
+    fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error>;
+}
+
+struct LiveSource<R: std::io::Read> {
+    pub reader: std::io::BufReader<R>,
+}
+impl<R: std::io::Read> LiveSource<R> {
+    pub fn new(tcp_stream: R) -> Self {
+        Self {
+            reader: std::io::BufReader::new(tcp_stream),
+        }
+    }
+}
+impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
+    fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error> {
         let mut line_buffer = String::new();
         match std::io::BufRead::read_line(&mut self.reader, &mut line_buffer) {
             Ok(bytes_read) => {
                 if bytes_read == 0 {
                     log::error!("End of TCP stream");
-                    return false;
+                    return Ok(None);
                 }
 
-                if let Some(writer) = self.writer.as_mut() {
-                    let _ = write!(writer, "{line_buffer}")
-                        .map_err(|error| log::error!("Failed to log to disk: {error}"));
-                }
-
-                if let Err(err) = self.sender.send(line_buffer) {
-                    log::error!("Ingestor: Failed to send to channel: {err}");
-                    return false;
-                }
-                true
+                let timestamp_ns = chrono::Utc::now().timestamp_nanos_opt().unwrap();
+                Ok(Some(APRSPacket::new(timestamp_ns, line_buffer)))
             }
             Err(error) => {
                 log::error!("Failed to read line from source: {error}");
-                true
+                Err(error)
+            }
+        }
+    }
+}
+
+struct ReplaySource {
+    pub reader: std::io::BufReader<std::fs::File>,
+}
+impl ReplaySource {
+    pub fn new(input_path: &std::path::Path) -> Result<Self, std::io::Error> {
+        let file = std::fs::File::options().read(true).open(input_path)?;
+        let reader = std::io::BufReader::new(file);
+        Ok(Self { reader })
+    }
+}
+impl APRSDataSource for ReplaySource {
+    fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error> {
+        let mut line_buffer = String::new();
+        match std::io::BufRead::read_line(&mut self.reader, &mut line_buffer) {
+            Ok(bytes_read) => {
+                if bytes_read == 0 {
+                    log::error!("End of TCP stream");
+                    return Ok(None);
+                }
+
+                let timestamp_ns = chrono::Utc::now().timestamp_nanos_opt().unwrap();
+                Ok(Some(APRSPacket::new(timestamp_ns, line_buffer)))
+            }
+            Err(error) => {
+                log::error!("Failed to read line from source: {error}");
+                Err(error)
             }
         }
     }
@@ -128,8 +177,7 @@ fn create_writer(
 
 #[cfg(test)]
 mod test {
-
-    use crate::core::ingestor::{FileDataSource, Ingestor, create_writer};
+    use crate::core::ingestor::{Ingestor, LiveSource, ReplaySource, create_writer};
     use crate::core::thread_manager::SteppableTask;
     use crate::test_utilities::{TestPath, test_data_path, test_path};
 
@@ -169,13 +217,14 @@ mod test {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let data = "APRS_PACKET_DATA\n";
         let mock_stream = MockStream::new(data);
+        let source = LiveSource::new(mock_stream);
 
-        let mut ingestor = Ingestor::new(mock_stream, sender, None);
+        let mut ingestor = Ingestor::new(source, sender, None);
 
         let keep_running = ingestor.step();
 
         assert!(keep_running);
-        assert_eq!(receiver.recv().unwrap(), data);
+        assert_eq!(receiver.recv().unwrap().payload, data);
     }
 
     #[test]
@@ -183,8 +232,8 @@ mod test {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let data = "";
         let mock_stream = MockStream::new(data);
-
-        let mut ingestor = Ingestor::new(mock_stream, sender, None);
+        let source = LiveSource::new(mock_stream);
+        let mut ingestor = Ingestor::new(source, sender, None);
 
         let keep_running = ingestor.step();
 
@@ -201,8 +250,8 @@ mod test {
         let data = "test";
         let mock_stream = MockStream::new(data);
         let writer = create_writer(&log_path).expect("Failed to create writer");
-
-        let mut ingestor = Ingestor::new(mock_stream, sender, Some(writer));
+        let source = LiveSource::new(mock_stream);
+        let mut ingestor = Ingestor::new(source, sender, Some(writer));
 
         ingestor.step();
 
@@ -212,7 +261,7 @@ mod test {
         let file_contents = std::fs::read_to_string(&log_path).expect("Failed to read log file");
 
         assert_eq!(file_contents, data);
-        assert_eq!(receiver.recv().unwrap(), data);
+        assert_eq!(receiver.recv().unwrap().payload, data);
     }
     #[rstest::rstest]
     fn when_ingestor_reads_from_historical_file_then_output_is_the_same(
@@ -222,7 +271,7 @@ mod test {
         let input_path = &test_data_path.join("test_ingestor_log.txt");
         let log_path = test_path.path.join("test_log.log");
         let (sender, _receiver) = crossbeam_channel::unbounded();
-        let source = FileDataSource::new(input_path).expect("Failed to create data source");
+        let source = ReplaySource::new(input_path).expect("Failed to create data source");
         let writer = create_writer(&log_path).expect("Failed to create writer");
 
         let mut ingestor = Ingestor::new(source, sender, Some(writer));

@@ -1,4 +1,5 @@
 use clap::Parser;
+
 use flights::cli::Cli;
 use flights::core::ingestor::config::IngestorConfig;
 use flights::gui::RadarApp;

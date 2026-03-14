@@ -1,7 +1,7 @@
-use crate::core::ingestor::error;
-
 use serde;
 use toml;
+
+use crate::core::ingestor::error;
 
 #[derive(serde::Deserialize)]
 pub struct IngestorConfig {

@@ -1,5 +1,6 @@
-use env_logger;
 use std::io::Write;
+
+use env_logger;
 
 pub fn setup_logging(level: log::LevelFilter) {
     env_logger::Builder::new()
