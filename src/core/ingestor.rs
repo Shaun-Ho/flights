@@ -10,13 +10,13 @@ use crate::core::thread_manager::SteppableTask;
 use crate::core::types::APRSPacket;
 
 pub struct Ingestor {
-    source: Box<dyn DataSource>,
+    source: Box<dyn APRSDataSource>,
     sender: crossbeam_channel::Sender<APRSPacket>,
     writer: Option<std::io::BufWriter<std::fs::File>>,
 }
 
 impl Ingestor {
-    pub fn new<C: DataSource + 'static>(
+    pub fn new<C: APRSDataSource + 'static>(
         source: C,
         sender: crossbeam_channel::Sender<APRSPacket>,
         writer: Option<std::io::BufWriter<std::fs::File>>,
@@ -87,7 +87,7 @@ impl SteppableTask for Ingestor {
         }
     }
 }
-pub trait DataSource: Send {
+pub trait APRSDataSource: Send {
     fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error>;
 }
 struct LiveSource<R: std::io::Read> {
@@ -100,7 +100,7 @@ impl<R: std::io::Read> LiveSource<R> {
         }
     }
 }
-impl<R: std::io::Read + Send> DataSource for LiveSource<R> {
+impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
     fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error> {
         let mut line_buffer = String::new();
         match std::io::BufRead::read_line(&mut self.reader, &mut line_buffer) {
@@ -131,7 +131,7 @@ impl ReplaySource {
         Ok(Self { reader })
     }
 }
-impl DataSource for ReplaySource {
+impl APRSDataSource for ReplaySource {
     fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error> {
         let mut line_buffer = String::new();
         match std::io::BufRead::read_line(&mut self.reader, &mut line_buffer) {
