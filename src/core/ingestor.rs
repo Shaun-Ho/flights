@@ -14,7 +14,6 @@ pub struct Ingestor {
     sender: crossbeam_channel::Sender<APRSPacket>,
     writer: Option<std::io::BufWriter<std::fs::File>>,
 }
-
 impl Ingestor {
     pub fn new<C: APRSDataSource + 'static>(
         source: C,
@@ -90,6 +89,7 @@ impl SteppableTask for Ingestor {
 pub trait APRSDataSource: Send {
     fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error>;
 }
+
 struct LiveSource<R: std::io::Read> {
     pub reader: std::io::BufReader<R>,
 }
