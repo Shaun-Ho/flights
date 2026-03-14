@@ -2,18 +2,19 @@ pub mod builder;
 pub mod errors;
 pub mod types;
 
+use crate::core::ingestor::pb::PbAprsPacket;
 use crate::core::parser::builder::build_aircraft_from_string;
 use crate::core::thread_manager::SteppableTask;
-use crate::core::types::{APRSPacket, Aircraft};
+use crate::core::types::Aircraft;
 
 pub struct AircraftParser {
-    receiver: crossbeam_channel::Receiver<APRSPacket>,
+    receiver: crossbeam_channel::Receiver<PbAprsPacket>,
     sender: crossbeam_channel::Sender<Aircraft>,
 }
 impl AircraftParser {
     #[must_use]
     pub fn new(
-        messages_receiver: crossbeam_channel::Receiver<APRSPacket>,
+        messages_receiver: crossbeam_channel::Receiver<PbAprsPacket>,
         aircraft_sender: crossbeam_channel::Sender<Aircraft>,
     ) -> Self {
         AircraftParser {
