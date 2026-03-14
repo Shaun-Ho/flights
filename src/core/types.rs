@@ -1,17 +1,3 @@
-pub struct APRSPacket {
-    pub timestamp_ns: i64,
-    pub payload: String,
-}
-impl APRSPacket {
-    #[must_use]
-    pub fn new(timestamp_ns: i64, aprs_data: String) -> Self {
-        APRSPacket {
-            timestamp_ns,
-            payload: aprs_data,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct Aircraft {
     pub callsign: String,

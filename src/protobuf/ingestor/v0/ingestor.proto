@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package protobuf.ingestor.v0.ingestor;
+import "google/protobuf/timestamp.proto";
+
+message PbAprsPacket{
+  google.protobuf.Timestamp timestamp = 1;
+  string                    payload   = 2;
+}
