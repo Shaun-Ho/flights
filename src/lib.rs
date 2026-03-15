@@ -9,9 +9,10 @@ pub mod test_utilities;
 use crate::core::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::ingestor::Ingestor;
 use crate::core::ingestor::config::IngestorConfig;
+use crate::core::ingestor::pb::PbAprsPacket;
 use crate::core::parser::AircraftParser;
 use crate::core::thread_manager::{TaskID, ThreadManager};
-use crate::core::types::{APRSPacket, Aircraft};
+use crate::core::types::Aircraft;
 
 pub struct Pipeline {
     threadmanager: ThreadManager,
@@ -35,8 +36,8 @@ impl Drop for Pipeline {
 #[must_use]
 pub fn setup_pipeline(ingestor_config: IngestorConfig) -> Pipeline {
     let (messages_sender, messages_receiver): (
-        crossbeam_channel::Sender<APRSPacket>,
-        crossbeam_channel::Receiver<APRSPacket>,
+        crossbeam_channel::Sender<PbAprsPacket>,
+        crossbeam_channel::Receiver<PbAprsPacket>,
     ) = crossbeam_channel::unbounded();
 
     let (aircraft_data_sender, aircraft_data_receiver): (

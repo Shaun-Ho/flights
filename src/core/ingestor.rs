@@ -4,20 +4,27 @@ pub mod error;
 use std::io::Write;
 
 use crossbeam_channel;
+use prost_types;
 
 use crate::core::ingestor::config::GliderNetConfig;
 use crate::core::thread_manager::SteppableTask;
-use crate::core::types::APRSPacket;
+
+pub mod pb {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/protobuf.ingestor.v0.ingestor.rs"
+    ));
+}
 
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
-    sender: crossbeam_channel::Sender<APRSPacket>,
+    sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
     writer: Option<std::io::BufWriter<std::fs::File>>,
 }
 impl Ingestor {
     pub fn new<C: APRSDataSource + 'static>(
         source: C,
-        sender: crossbeam_channel::Sender<APRSPacket>,
+        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
         writer: Option<std::io::BufWriter<std::fs::File>>,
     ) -> Self {
         Self {
@@ -29,7 +36,7 @@ impl Ingestor {
 
     pub fn read_data_from_file(
         read_path: &std::path::Path,
-        sender: crossbeam_channel::Sender<APRSPacket>,
+        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!(
@@ -43,7 +50,7 @@ impl Ingestor {
 
     pub fn connect_glidernet(
         config: &GliderNetConfig,
-        sender: crossbeam_channel::Sender<APRSPacket>,
+        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
@@ -87,7 +94,7 @@ impl SteppableTask for Ingestor {
     }
 }
 pub trait APRSDataSource: Send {
-    fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error>;
+    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error>;
 }
 
 struct LiveSource<R: std::io::Read> {
@@ -101,7 +108,7 @@ impl<R: std::io::Read> LiveSource<R> {
     }
 }
 impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
-    fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error> {
+    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error> {
         let mut line_buffer = String::new();
         match std::io::BufRead::read_line(&mut self.reader, &mut line_buffer) {
             Ok(bytes_read) => {
@@ -110,8 +117,12 @@ impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
                     return Ok(None);
                 }
 
-                let timestamp_ns = chrono::Utc::now().timestamp_nanos_opt().unwrap();
-                Ok(Some(APRSPacket::new(timestamp_ns, line_buffer)))
+                let now = std::time::SystemTime::now();
+                let timestamp = prost_types::Timestamp::from(now);
+                Ok(Some(pb::PbAprsPacket {
+                    timestamp: Some(timestamp),
+                    payload: line_buffer,
+                }))
             }
             Err(error) => {
                 log::error!("Failed to read line from source: {error}");
@@ -132,7 +143,7 @@ impl ReplaySource {
     }
 }
 impl APRSDataSource for ReplaySource {
-    fn create_aprs_packet(&mut self) -> Result<Option<APRSPacket>, std::io::Error> {
+    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error> {
         let mut line_buffer = String::new();
         match std::io::BufRead::read_line(&mut self.reader, &mut line_buffer) {
             Ok(bytes_read) => {
@@ -140,9 +151,12 @@ impl APRSDataSource for ReplaySource {
                     log::error!("End of TCP stream");
                     return Ok(None);
                 }
-
-                let timestamp_ns = chrono::Utc::now().timestamp_nanos_opt().unwrap();
-                Ok(Some(APRSPacket::new(timestamp_ns, line_buffer)))
+                let now = std::time::SystemTime::now();
+                let timestamp = prost_types::Timestamp::from(now);
+                Ok(Some(pb::PbAprsPacket {
+                    timestamp: Some(timestamp),
+                    payload: line_buffer,
+                }))
             }
             Err(error) => {
                 log::error!("Failed to read line from source: {error}");
