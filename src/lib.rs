@@ -82,15 +82,26 @@ pub fn setup_pipeline(ingestor_config: IngestorConfig) -> Pipeline {
 #[cfg(test)]
 mod test {
     use crate::core::ingestor::config::{AirspaceConfig, GliderNetConfig};
-    use crate::test_utilities::test_data_path;
+    use crate::core::ingestor::pb::PbAprsPacket;
+    use crate::core::ingestor::write_pb_aprs_packet_to_disk;
+    use crate::test_utilities::{TestPath, test_path};
     use crate::{core::ingestor::config::IngestorConfig, setup_pipeline};
 
     #[rstest::rstest]
     #[test_log::test]
     fn given_pipeline_setup_with_ingestor_reading_from_file_when_ingestor_terminates_then_entire_pipeline_shuts_down_gracefully(
-        test_data_path: std::path::PathBuf,
+        test_path: TestPath,
     ) {
-        let read_path = test_data_path.join("test_ingestor_log.txt");
+        let now = std::time::SystemTime::now();
+        let timestamp = prost_types::Timestamp::from(now);
+        let payload = "ICA020113>OGADSB,qAS,AVX1081:/190558h5050.73N/00413.19E^222/262/A=007246 !W06! id25020113 +2880fpm FL079.69 A3:RAM831F Sq7122";
+        let packet = PbAprsPacket {
+            timestamp: Some(timestamp),
+            payload: payload.to_owned(),
+        };
+        let read_path = test_path.path.join("test_ingestor_log.pb");
+        let mut writer = std::io::BufWriter::new(std::fs::File::create(&read_path).unwrap());
+        let _ = write_pb_aprs_packet_to_disk(&mut writer, &packet);
 
         let ingestor_config = IngestorConfig {
             read_path: Some(read_path),
