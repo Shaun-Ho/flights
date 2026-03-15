@@ -130,10 +130,11 @@ impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
 
                 let now = std::time::SystemTime::now();
                 let timestamp = prost_types::Timestamp::from(now);
-                Ok(Some(pb::PbAprsPacket {
+                let packet = pb::PbAprsPacket {
                     timestamp: Some(timestamp),
                     payload: line_buffer,
-                }))
+                };
+                Ok(Some(packet))
             }
             Err(error) => {
                 log::error!("Failed to read line from source: {error}");
@@ -144,13 +145,19 @@ impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
 }
 
 struct ReplaySource {
-    pub cursor: std::io::Cursor<Vec<u8>>,
+    cursor: std::io::Cursor<Vec<u8>>,
+    first_packet_timestamp: Option<std::time::SystemTime>,
+    first_replay_time: Option<std::time::Instant>,
 }
 impl ReplaySource {
     pub fn new(input_path: &std::path::Path) -> Result<Self, std::io::Error> {
         let bytes = std::fs::read(input_path)?;
         let cursor = std::io::Cursor::new(bytes);
-        Ok(Self { cursor })
+        Ok(Self {
+            cursor,
+            first_packet_timestamp: None,
+            first_replay_time: None,
+        })
     }
 }
 impl APRSDataSource for ReplaySource {
@@ -163,7 +170,30 @@ impl APRSDataSource for ReplaySource {
         }
 
         match pb::PbAprsPacket::decode_length_delimited(&mut self.cursor) {
-            Ok(packet) => Ok(Some(packet)),
+            Ok(packet) => {
+                if let Some(packet_timestamp) = packet.timestamp
+                    && let Ok(packet_system_time) =
+                        std::time::SystemTime::try_from(packet_timestamp)
+                {
+                    // set first_replay_time and first_packet_timestamp with the first packet
+                    let start_time = *self
+                        .first_replay_time
+                        .get_or_insert_with(std::time::Instant::now);
+                    let first_time = *self
+                        .first_packet_timestamp
+                        .get_or_insert(packet_system_time);
+
+                    // Calculate the duration from the first packet to current packet
+                    if let Ok(target_offset) = packet_system_time.duration_since(first_time) {
+                        let elapsed = start_time.elapsed();
+
+                        if target_offset > elapsed {
+                            std::thread::sleep(target_offset.checked_sub(elapsed).unwrap());
+                        }
+                    }
+                }
+                Ok(Some(packet))
+            }
             Err(error) => {
                 log::error!("Failed to decode protobuf message from file: {error}");
                 Err(std::io::Error::new(std::io::ErrorKind::InvalidData, error))
@@ -200,10 +230,12 @@ mod test {
     use std::io::Write;
 
     use prost::Message;
+    use rstest;
 
     use crate::core::ingestor::pb::PbAprsPacket;
     use crate::core::ingestor::{
-        Ingestor, LiveSource, ReplaySource, create_writer, write_pb_aprs_packet_to_disk,
+        APRSDataSource, Ingestor, LiveSource, ReplaySource, create_writer,
+        write_pb_aprs_packet_to_disk,
     };
     use crate::core::thread_manager::SteppableTask;
     use crate::test_utilities::{TestPath, test_path};
@@ -328,5 +360,61 @@ mod test {
         let vec: Vec<PbAprsPacket> = receiver.iter().collect();
         assert!(vec.len() == 1);
         assert_eq!(*vec.first().unwrap(), expected_aprs_packet);
+    }
+
+    #[rstest::rstest]
+    fn when_reading_from_replay_source_then_delays_are_applied_correctly(test_path: TestPath) {
+        let log_path = test_path.path.join("test_replay_delay.pb");
+
+        let base_time = std::time::SystemTime::now();
+        let time_p1 = base_time;
+        let time_p2 = base_time + std::time::Duration::from_millis(50);
+        let time_p3 = base_time + std::time::Duration::from_millis(100);
+
+        let packet1 = PbAprsPacket {
+            timestamp: Some(prost_types::Timestamp::from(time_p1)),
+            payload: "packet 1".to_string(),
+        };
+        let packet2 = PbAprsPacket {
+            timestamp: Some(prost_types::Timestamp::from(time_p2)),
+            payload: "packet 2".to_string(),
+        };
+        let packet3 = PbAprsPacket {
+            timestamp: Some(prost_types::Timestamp::from(time_p3)),
+            payload: "packet 3".to_string(),
+        };
+
+        // Write the packets to the mock log file
+        {
+            let mut writer = create_writer(&log_path).expect("Failed to create writer");
+            write_pb_aprs_packet_to_disk(&mut writer, &packet1).unwrap();
+            write_pb_aprs_packet_to_disk(&mut writer, &packet2).unwrap();
+            write_pb_aprs_packet_to_disk(&mut writer, &packet3).unwrap();
+            writer.flush().unwrap();
+        }
+
+        let mut source = ReplaySource::new(&log_path).expect("Failed to open replay source");
+
+        let start = std::time::Instant::now();
+
+        let p1 = source.create_aprs_packet().unwrap().unwrap();
+        assert_eq!(p1.payload, "packet 1");
+        let elapsed_p1 = start.elapsed().as_millis();
+        assert!(elapsed_p1.abs_diff(0) <= 5);
+
+        let p2 = source.create_aprs_packet().unwrap().unwrap();
+        assert_eq!(p2.payload, "packet 2");
+        let elapsed_p2 = start.elapsed().as_millis();
+        assert!(elapsed_p2 >= 50);
+        assert!(elapsed_p2.abs_diff(50) <= 5);
+
+        let p3 = source.create_aprs_packet().unwrap().unwrap();
+        assert_eq!(p3.payload, "packet 3");
+        let elapsed_p3 = start.elapsed().as_millis();
+        assert!(elapsed_p3 >= 100);
+        assert!(elapsed_p3.abs_diff(100) <= 5);
+
+        let p4 = source.create_aprs_packet().unwrap();
+        assert!(p4.is_none());
     }
 }
