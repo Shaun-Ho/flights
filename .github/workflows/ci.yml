@@ -125,3 +125,11 @@ jobs:
               run: go install github.com/google/yamlfmt/cmd/yamlfmt@latest
             - name: Run yamlfmt
               run: yamlfmt .
+
+    protolint:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Fetch Repository
+              uses: actions/checkout@v4
+            - name: run protolint
+              uses: plexsystems/protolint-action@v0.7.0
