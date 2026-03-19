@@ -8,8 +8,8 @@ pub mod test_utilities;
 
 use crate::core::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::ingestor::Ingestor;
+use crate::core::ingestor::PbAprsPacket;
 use crate::core::ingestor::config::IngestorConfig;
-use crate::core::ingestor::pb::PbAprsPacket;
 use crate::core::parser::AircraftParser;
 use crate::core::thread_manager::{TaskID, ThreadManager};
 use crate::core::types::Aircraft;
@@ -81,8 +81,8 @@ pub fn setup_pipeline(ingestor_config: IngestorConfig) -> Pipeline {
 }
 #[cfg(test)]
 mod test {
+    use crate::core::ingestor::PbAprsPacket;
     use crate::core::ingestor::config::{AirspaceConfig, GliderNetConfig};
-    use crate::core::ingestor::pb::PbAprsPacket;
     use crate::core::ingestor::write_pb_aprs_packet_to_disk;
     use crate::test_utilities::{TestPath, test_path};
     use crate::{core::ingestor::config::IngestorConfig, setup_pipeline};

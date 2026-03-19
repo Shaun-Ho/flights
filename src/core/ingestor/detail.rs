@@ -1,6 +1,3 @@
-pub mod config;
-pub mod error;
-
 use std::io::Write;
 
 use crossbeam_channel;
@@ -8,7 +5,6 @@ use prost::Message;
 use prost_types;
 
 use crate::core::ingestor::config::GliderNetConfig;
-use crate::core::ingestor::pb::PbAprsPacket;
 use crate::core::thread_manager::SteppableTask;
 
 pub mod pb {
@@ -98,7 +94,7 @@ impl SteppableTask for Ingestor {
 
 pub fn write_pb_aprs_packet_to_disk(
     writer: &mut std::io::BufWriter<std::fs::File>,
-    aprs_packet: &PbAprsPacket,
+    aprs_packet: &pb::PbAprsPacket,
 ) -> Result<(), std::io::Error> {
     let mut buf = Vec::new();
     let () = aprs_packet.encode_length_delimited(&mut buf)?;
@@ -232,8 +228,8 @@ mod test {
     use prost::Message;
     use rstest;
 
-    use crate::core::ingestor::pb::PbAprsPacket;
-    use crate::core::ingestor::{
+    use crate::core::ingestor::detail::pb::PbAprsPacket;
+    use crate::core::ingestor::detail::{
         APRSDataSource, Ingestor, LiveSource, ReplaySource, create_writer,
         write_pb_aprs_packet_to_disk,
     };
