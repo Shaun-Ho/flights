@@ -86,14 +86,6 @@ impl SteppableTask for Ingestor {
     }
 }
 
-pub fn write_pb_aprs_packet_to_disk(
-    writer: &mut std::io::BufWriter<std::fs::File>,
-    aprs_packet: &PbAprsPacket,
-) -> Result<(), std::io::Error> {
-    let mut buf = Vec::new();
-    let () = aprs_packet.encode_length_delimited(&mut buf)?;
-    writer.write_all(&buf)
-}
 pub trait APRSDataSource: Send {
     fn create_aprs_packet(&mut self) -> Result<Option<PbAprsPacket>, std::io::Error>;
 }
@@ -190,6 +182,15 @@ impl APRSDataSource for ReplaySource {
             }
         }
     }
+}
+
+pub fn write_pb_aprs_packet_to_disk(
+    writer: &mut std::io::BufWriter<std::fs::File>,
+    aprs_packet: &PbAprsPacket,
+) -> Result<(), std::io::Error> {
+    let mut buf = Vec::new();
+    let () = aprs_packet.encode_length_delimited(&mut buf)?;
+    writer.write_all(&buf)
 }
 
 fn authentication_handshake<W: std::io::Write>(
