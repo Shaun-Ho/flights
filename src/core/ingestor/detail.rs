@@ -5,24 +5,18 @@ use prost::Message;
 use prost_types;
 
 use crate::core::ingestor::config::GliderNetConfig;
+use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::thread_manager::SteppableTask;
-
-pub mod pb {
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/protobuf.ingestor.v0.ingestor.rs"
-    ));
-}
 
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
-    sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
+    sender: crossbeam_channel::Sender<PbAprsPacket>,
     writer: Option<std::io::BufWriter<std::fs::File>>,
 }
 impl Ingestor {
     pub fn new<C: APRSDataSource + 'static>(
         source: C,
-        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
+        sender: crossbeam_channel::Sender<PbAprsPacket>,
         writer: Option<std::io::BufWriter<std::fs::File>>,
     ) -> Self {
         Self {
@@ -34,7 +28,7 @@ impl Ingestor {
 
     pub fn read_data_from_file(
         read_path: &std::path::Path,
-        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
+        sender: crossbeam_channel::Sender<PbAprsPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!(
@@ -48,7 +42,7 @@ impl Ingestor {
 
     pub fn connect_glidernet(
         config: &GliderNetConfig,
-        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
+        sender: crossbeam_channel::Sender<PbAprsPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
@@ -94,14 +88,14 @@ impl SteppableTask for Ingestor {
 
 pub fn write_pb_aprs_packet_to_disk(
     writer: &mut std::io::BufWriter<std::fs::File>,
-    aprs_packet: &pb::PbAprsPacket,
+    aprs_packet: &PbAprsPacket,
 ) -> Result<(), std::io::Error> {
     let mut buf = Vec::new();
     let () = aprs_packet.encode_length_delimited(&mut buf)?;
     writer.write_all(&buf)
 }
 pub trait APRSDataSource: Send {
-    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error>;
+    fn create_aprs_packet(&mut self) -> Result<Option<PbAprsPacket>, std::io::Error>;
 }
 
 struct LiveSource<R: std::io::Read> {
@@ -115,7 +109,7 @@ impl<R: std::io::Read> LiveSource<R> {
     }
 }
 impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
-    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error> {
+    fn create_aprs_packet(&mut self) -> Result<Option<PbAprsPacket>, std::io::Error> {
         let mut line_buffer = String::new();
         match std::io::BufRead::read_line(&mut self.reader, &mut line_buffer) {
             Ok(bytes_read) => {
@@ -126,7 +120,7 @@ impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
 
                 let now = std::time::SystemTime::now();
                 let timestamp = prost_types::Timestamp::from(now);
-                let packet = pb::PbAprsPacket {
+                let packet = PbAprsPacket {
                     timestamp: Some(timestamp),
                     payload: line_buffer,
                 };
@@ -157,7 +151,7 @@ impl ReplaySource {
     }
 }
 impl APRSDataSource for ReplaySource {
-    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error> {
+    fn create_aprs_packet(&mut self) -> Result<Option<PbAprsPacket>, std::io::Error> {
         let position = usize::try_from(self.cursor.position())
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?;
 
@@ -165,7 +159,7 @@ impl APRSDataSource for ReplaySource {
             return Ok(None);
         }
 
-        match pb::PbAprsPacket::decode_length_delimited(&mut self.cursor) {
+        match PbAprsPacket::decode_length_delimited(&mut self.cursor) {
             Ok(packet) => {
                 if let Some(packet_timestamp) = packet.timestamp
                     && let Ok(packet_system_time) =
@@ -228,7 +222,7 @@ mod test {
     use prost::Message;
     use rstest;
 
-    use crate::core::ingestor::detail::pb::PbAprsPacket;
+    use crate::core::ingestor::detail::PbAprsPacket;
     use crate::core::ingestor::detail::{
         APRSDataSource, Ingestor, LiveSource, ReplaySource, create_writer,
         write_pb_aprs_packet_to_disk,

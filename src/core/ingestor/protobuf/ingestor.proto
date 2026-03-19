@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package protobuf.ingestor.v0.ingestor;
+package ingestor;
 import "google/protobuf/timestamp.proto";
 
 message PbAprsPacket{
