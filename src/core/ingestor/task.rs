@@ -6,12 +6,6 @@ use crate::core::ingestor::error;
 use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::thread_manager::SteppableTask;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AprsPacket {
-    pub timestamp: std::time::SystemTime,
-    pub message: bytes::Bytes,
-}
-
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
     sender: crossbeam_channel::Sender<AprsPacket>,
@@ -89,6 +83,11 @@ impl SteppableTask for Ingestor {
             }
         }
     }
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AprsPacket {
+    pub timestamp: std::time::SystemTime,
+    pub message: bytes::Bytes,
 }
 
 pub trait APRSDataSource: Send {
