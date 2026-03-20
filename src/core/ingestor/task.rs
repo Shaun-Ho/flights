@@ -256,11 +256,11 @@ mod test {
     use prost::Message;
     use rstest;
 
-    use crate::core::ingestor::detail::{
+    use crate::core::ingestor::task::{
         APRSDataSource, Ingestor, LiveSource, ReplaySource, create_writer,
         write_pb_aprs_packet_to_disk,
     };
-    use crate::core::ingestor::detail::{AprsPacket, PbAprsPacket};
+    use crate::core::ingestor::task::{AprsPacket, PbAprsPacket};
     use crate::core::thread_manager::SteppableTask;
     use crate::test_utilities::{TestPath, test_path};
 
