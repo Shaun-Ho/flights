@@ -14,8 +14,10 @@ fn main() -> Result<()> {
             Err(e) => println!("cargo:warning=Glob error: {e:?}"),
         }
     }
+    let mut config = prost_build::Config::new();
+    config.bytes(["."]);
 
-    prost_build::compile_protos(&proto_files, &["src/"])?;
+    config.compile_protos(&proto_files, &["src/"])?;
 
     Ok(())
 }

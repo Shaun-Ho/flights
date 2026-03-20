@@ -2,19 +2,19 @@ pub mod builder;
 pub mod errors;
 pub mod types;
 
-use crate::core::ingestor::protobuf::PbAprsPacket;
+use crate::core::ingestor::AprsPacket;
 use crate::core::parser::builder::build_aircraft_from_string;
 use crate::core::thread_manager::SteppableTask;
 use crate::core::types::Aircraft;
 
 pub struct AircraftParser {
-    receiver: crossbeam_channel::Receiver<PbAprsPacket>,
+    receiver: crossbeam_channel::Receiver<AprsPacket>,
     sender: crossbeam_channel::Sender<Aircraft>,
 }
 impl AircraftParser {
     #[must_use]
     pub fn new(
-        messages_receiver: crossbeam_channel::Receiver<PbAprsPacket>,
+        messages_receiver: crossbeam_channel::Receiver<AprsPacket>,
         aircraft_sender: crossbeam_channel::Sender<Aircraft>,
     ) -> Self {
         AircraftParser {
@@ -30,8 +30,8 @@ impl SteppableTask for AircraftParser {
             log::error!("AircraftParser upstream disconnected");
             return false;
         };
-
-        match build_aircraft_from_string(&aprs_packet.payload) {
+        let message_string = String::from_utf8_lossy(&aprs_packet.message).to_string();
+        match build_aircraft_from_string(&message_string) {
             Ok(aircraft) => {
                 if let Err(err) = self.sender.send(aircraft) {
                     log::error!("Failed to forward aircraft: {err}");
