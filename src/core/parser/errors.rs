@@ -30,18 +30,18 @@ impl std::fmt::Display for AircraftParseError {
         }
     }
 }
-impl nom::error::ParseError<&str> for AircraftParseError {
-    fn from_error_kind(input: &str, _kind: nom::error::ErrorKind) -> Self {
-        AircraftParseError::UnknownError(input.to_string())
+impl nom::error::ParseError<&[u8]> for AircraftParseError {
+    fn from_error_kind(input: &[u8], _kind: nom::error::ErrorKind) -> Self {
+        AircraftParseError::UnknownError(String::from_utf8_lossy(input).to_string())
     }
 
-    fn append(_: &str, _: nom::error::ErrorKind, other: Self) -> Self {
+    fn append(_: &[u8], _: nom::error::ErrorKind, other: Self) -> Self {
         other
     }
 }
-impl nom::error::FromExternalError<&str, AircraftParseError> for AircraftParseError {
+impl nom::error::FromExternalError<&[u8], AircraftParseError> for AircraftParseError {
     fn from_external_error(
-        _input: &str,
+        _input: &[u8],
         _kind: nom::error::ErrorKind,
         e: AircraftParseError,
     ) -> Self {
@@ -55,22 +55,22 @@ pub struct APRSParseContext {
     pub message: String,
 }
 
-impl nom::error::ParseError<&str> for APRSParseContext {
-    fn from_error_kind(input: &str, kind: nom::error::ErrorKind) -> Self {
+impl nom::error::ParseError<&[u8]> for APRSParseContext {
+    fn from_error_kind(input: &[u8], kind: nom::error::ErrorKind) -> Self {
         APRSParseContext {
-            input: input.to_string(),
+            input: String::from_utf8_lossy(input).to_string(),
             message: format!("nom error: {kind:?}"),
         }
     }
 
-    fn append(_: &str, _: nom::error::ErrorKind, other: Self) -> Self {
+    fn append(_: &[u8], _: nom::error::ErrorKind, other: Self) -> Self {
         other
     }
 }
-impl nom::error::FromExternalError<&str, String> for APRSParseContext {
-    fn from_external_error(input: &str, _kind: nom::error::ErrorKind, error: String) -> Self {
+impl nom::error::FromExternalError<&[u8], String> for APRSParseContext {
+    fn from_external_error(input: &[u8], _kind: nom::error::ErrorKind, error: String) -> Self {
         APRSParseContext {
-            input: input.to_string(),
+            input: String::from_utf8_lossy(input).to_string(),
             message: error,
         }
     }
