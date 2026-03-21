@@ -1,23 +1,163 @@
-use super::errors;
-use crate::core::parser::errors::APRSParseContext;
-use crate::core::parser::types::OGNBeaconID;
-use crate::core::types::Aircraft;
+use super::errors::{APRSParseContext, AircraftParseError};
+use crate::core::parser::aprs_types::{APRSSignalType, OGNBeaconID};
 
 use nom::{
     Parser,
     bytes::complete::{tag, take, take_until},
 };
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct Aircraft {
+    pub callsign: String,
+    pub icao_address: ICAOAddress,
+    pub datetime: chrono::DateTime<chrono::Utc>,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub ground_track: f64,
+    pub ground_speed: f64,
+    pub gps_altitude: f64,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
+pub struct ICAOAddress(u32);
+
+impl ICAOAddress {
+    pub const MAX_VALUE: u32 = 0x00FF_FFFF;
+
+    pub fn new(value: u32) -> Result<Self, ICAOAddressError> {
+        if value <= Self::MAX_VALUE {
+            Ok(ICAOAddress(value))
+        } else {
+            Err(ICAOAddressError::InvalidAddress(value))
+        }
+    }
+
+    #[must_use]
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for ICAOAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:08X}", self.0)
+    }
+}
+
+#[derive(Debug)]
+pub enum ICAOAddressError {
+    InvalidHexFormat,
+    InvalidAddress(u32),
+}
+impl std::fmt::Display for ICAOAddressError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ICAOAddressError::InvalidHexFormat => write!(f, "Invalid hexadecimal format"),
+            ICAOAddressError::InvalidAddress(val) => {
+                write!(
+                    f,
+                    "Value 0x{:X} ({}) exceeds 24-bit ICAO address limit (0x{:X})",
+                    val,
+                    val,
+                    ICAOAddress::MAX_VALUE
+                )
+            }
+        }
+    }
+}
+
+pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, AircraftParseError> {
+    use nom::{Finish, Parser};
+
+    let (input, callsign) = parse_callsign(input).finish()?;
+
+    let (input, _aprs_packet_type) = parse_aprs_signal_type(input).finish()?;
+
+    let (input, _) = (take_until(":/"), tag(":/"))
+        .parse(input)
+        .finish()
+        .map_err(AircraftParseError::IncorrectSeparator)?;
+
+    let (input, datetime) = parse_timestamp(input).finish()?;
+
+    let (input, _) = (take_until("h"), tag("h"))
+        .parse(input)
+        .finish()
+        .map_err(AircraftParseError::IncorrectSeparator)?;
+
+    let parse_specific_coordinate = |input, coord| parse_coordinate(input, coord);
+
+    let (input, latitude) = parse_specific_coordinate(input, Coordinate::Latitude).finish()?;
+
+    let (input, _) = (take(1usize))
+        .parse(input)
+        .finish()
+        .map_err(AircraftParseError::IncorrectSeparator)?;
+
+    let (input, longitude) = parse_specific_coordinate(input, Coordinate::Longitude).finish()?;
+
+    let (input, _) = (take(1usize))
+        .parse(input)
+        .finish()
+        .map_err(AircraftParseError::IncorrectSeparator)?;
+
+    let (input, ground_track) = parse_ground_track(input).finish()?;
+
+    let (input, _) = (take(1usize))
+        .parse(input)
+        .finish()
+        .map_err(AircraftParseError::IncorrectSeparator)?;
+
+    let (input, ground_speed) = parse_ground_speed(input).finish()?;
+
+    let (input, _) = (take_until("A="), tag("A="))
+        .parse(input)
+        .finish()
+        .map_err(AircraftParseError::IncorrectSeparator)?;
+
+    let (input, gps_altitude) = parse_gps_altitude(input).finish()?;
+
+    let (input, _) = (take_until(" id"), tag(" "))
+        .parse(input)
+        .finish()
+        .map_err(AircraftParseError::IncorrectSeparator)?;
+
+    let (_input, ogn_beacon_id) = parse_ogn_beacon_id(input).finish()?;
+
+    Ok(Aircraft {
+        callsign: callsign.to_string(),
+        datetime,
+        latitude,
+        longitude,
+        ground_track,
+        ground_speed,
+        gps_altitude,
+        icao_address: ogn_beacon_id.icao_address,
+    })
+}
+
+enum Coordinate {
+    Latitude,
+    Longitude,
+}
+impl std::fmt::Display for Coordinate {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Coordinate::Latitude => write!(f, "latitude"),
+            Coordinate::Longitude => write!(f, "longitude"),
+        }
+    }
+}
 fn convert_latlon_minutes_to_decimals(degrees: f64, minutes: f64) -> f64 {
     degrees + minutes / 60.0
 }
 
-fn parse_callsign(input: &str) -> nom::IResult<&str, &str, errors::AircraftParseError> {
+fn parse_callsign(input: &str) -> nom::IResult<&str, &str, AircraftParseError> {
     nom::sequence::terminated(take_until(">"), tag(">"))
         .parse(input)
         .map_err(|e| {
             e.map(|_e: nom::error::Error<&str>| {
-                errors::AircraftParseError::InvalidCallsign(errors::APRSParseContext {
+                AircraftParseError::InvalidCallsign(APRSParseContext {
                     input: input.to_string(),
                     message: "invalid callsign".to_string(),
                 })
@@ -27,7 +167,7 @@ fn parse_callsign(input: &str) -> nom::IResult<&str, &str, errors::AircraftParse
 
 fn parse_timestamp(
     input: &str,
-) -> nom::IResult<&str, chrono::DateTime<chrono::Utc>, errors::AircraftParseError> {
+) -> nom::IResult<&str, chrono::DateTime<chrono::Utc>, AircraftParseError> {
     use nom::Parser;
     let parse_to_datetime = |s: &str| -> Result<chrono::DateTime<chrono::Utc>, String> {
         let now = chrono::Utc::now();
@@ -48,35 +188,19 @@ fn parse_timestamp(
 
     nom::combinator::map_res(take(6usize), parse_to_datetime)
         .parse(input)
-        .map_err(|err| err.map(errors::AircraftParseError::InvalidTimestamp))
-}
-
-enum Coordinate {
-    Latitude,
-    Longitude,
-}
-impl std::fmt::Display for Coordinate {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Coordinate::Latitude => write!(f, "latitude"),
-            Coordinate::Longitude => write!(f, "longitude"),
-        }
-    }
+        .map_err(|err| err.map(AircraftParseError::InvalidTimestamp))
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn parse_coordinate(
-    input: &str,
-    coord: Coordinate,
-) -> nom::IResult<&str, f64, errors::AircraftParseError> {
+fn parse_coordinate(input: &str, coord: Coordinate) -> nom::IResult<&str, f64, AircraftParseError> {
     let create_error = |msg: &str| {
-        let context = errors::APRSParseContext {
+        let context = APRSParseContext {
             input: input.to_string(),
             message: msg.to_string(),
         };
         match coord {
-            Coordinate::Latitude => errors::AircraftParseError::InvalidLatitude(context),
-            Coordinate::Longitude => errors::AircraftParseError::InvalidLongitude(context),
+            Coordinate::Latitude => AircraftParseError::InvalidLatitude(context),
+            Coordinate::Longitude => AircraftParseError::InvalidLongitude(context),
         }
     };
     let suffix_negative = match coord {
@@ -117,33 +241,10 @@ fn parse_coordinate(
     }
 }
 
-pub enum APRSSignalType {
-    OGADSB,
-}
-
-impl std::str::FromStr for APRSSignalType {
-    type Err = errors::AircraftParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "OGADSB" => Ok(APRSSignalType::OGADSB),
-            _ => Err(errors::AircraftParseError::InvalidAPRSSignalType(
-                APRSParseContext {
-                    input: s.to_owned(),
-                    message: "Invalid APRS Signal Type".to_owned(),
-                },
-            )),
-        }
-    }
-}
-fn parse_aprs_signal_type(
-    input: &str,
-) -> nom::IResult<&str, APRSSignalType, errors::AircraftParseError> {
+fn parse_aprs_signal_type(input: &str) -> nom::IResult<&str, APRSSignalType, AircraftParseError> {
     use nom::Parser;
     let parse_to_aprs_signal_type =
-        |s: &str| -> Result<APRSSignalType, errors::AircraftParseError> {
-            s.parse::<APRSSignalType>()
-        };
+        |s: &str| -> Result<APRSSignalType, AircraftParseError> { s.parse::<APRSSignalType>() };
     nom::combinator::map_res(
         nom::sequence::terminated(take_until(","), tag(",")),
         parse_to_aprs_signal_type,
@@ -151,36 +252,36 @@ fn parse_aprs_signal_type(
     .parse(input)
 }
 
-fn parse_ground_track(input: &str) -> nom::IResult<&str, f64, errors::AircraftParseError> {
+fn parse_ground_track(input: &str) -> nom::IResult<&str, f64, AircraftParseError> {
     nom::combinator::map_res(take(3usize), |s: &str| s.parse::<f64>())
         .parse(input)
         .map_err(|e| {
             e.map(|_e: nom::error::Error<&str>| {
-                errors::AircraftParseError::InvalidGroundTrack(errors::APRSParseContext {
+                AircraftParseError::InvalidGroundTrack(APRSParseContext {
                     input: input.to_string(),
                     message: "invalid ground track".to_string(),
                 })
             })
         })
 }
-fn parse_ground_speed(input: &str) -> nom::IResult<&str, f64, errors::AircraftParseError> {
+fn parse_ground_speed(input: &str) -> nom::IResult<&str, f64, AircraftParseError> {
     nom::combinator::map_res(take(3usize), |s: &str| s.parse::<f64>())
         .parse(input)
         .map_err(|e| {
             e.map(|_e: nom::error::Error<&str>| {
-                errors::AircraftParseError::InvalidGroundSpeed(errors::APRSParseContext {
+                AircraftParseError::InvalidGroundSpeed(APRSParseContext {
                     input: input.to_string(),
                     message: "invalid ground speed".to_string(),
                 })
             })
         })
 }
-fn parse_gps_altitude(input: &str) -> nom::IResult<&str, f64, errors::AircraftParseError> {
+fn parse_gps_altitude(input: &str) -> nom::IResult<&str, f64, AircraftParseError> {
     nom::combinator::map_res(take(6usize), |s: &str| s.parse::<f64>())
         .parse(input)
         .map_err(|e| {
             e.map(|_e: nom::error::Error<&str>| {
-                errors::AircraftParseError::InvalidGPSAltitude(errors::APRSParseContext {
+                AircraftParseError::InvalidGPSAltitude(APRSParseContext {
                     input: input.to_string(),
                     message: "invalid gps altitude".to_string(),
                 })
@@ -188,13 +289,13 @@ fn parse_gps_altitude(input: &str) -> nom::IResult<&str, f64, errors::AircraftPa
         })
 }
 
-fn parse_ogn_beacon_id(input: &str) -> nom::IResult<&str, OGNBeaconID, errors::AircraftParseError> {
+fn parse_ogn_beacon_id(input: &str) -> nom::IResult<&str, OGNBeaconID, AircraftParseError> {
     // string is of format `idXXYYYYYY`
     let (remainder, id_str) = nom::sequence::preceded(tag("id"), take(8usize))
         .parse(input)
         .map_err(|e| {
             e.map(|_nom_err: nom::error::Error<&str>| {
-                errors::AircraftParseError::InvalidOGNBeaconId(errors::APRSParseContext {
+                AircraftParseError::InvalidOGNBeaconId(APRSParseContext {
                     input: input.to_string(),
                     message: "invalid ogn beacon id format".to_string(),
                 })
@@ -203,95 +304,27 @@ fn parse_ogn_beacon_id(input: &str) -> nom::IResult<&str, OGNBeaconID, errors::A
 
     match id_str.parse::<OGNBeaconID>() {
         Ok(beacon_id) => Ok((remainder, beacon_id)),
-        Err(err) => Err(nom::Err::Failure(
-            errors::AircraftParseError::InvalidOGNBeaconId(errors::APRSParseContext {
+        Err(err) => Err(nom::Err::Failure(AircraftParseError::InvalidOGNBeaconId(
+            APRSParseContext {
                 input: id_str.to_string(),
                 message: format!("invalid ogn beacon id: {err}"),
-            }),
-        )),
+            },
+        ))),
     }
 }
 
-pub fn build_aircraft_from_string(input: &str) -> Result<Aircraft, errors::AircraftParseError> {
-    use nom::{Finish, Parser};
-
-    let (input, callsign) = parse_callsign(input).finish()?;
-
-    let (input, _aprs_packet_type) = parse_aprs_signal_type(input).finish()?;
-
-    let (input, _) = (take_until(":/"), tag(":/"))
-        .parse(input)
-        .finish()
-        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
-
-    let (input, datetime) = parse_timestamp(input).finish()?;
-
-    let (input, _) = (take_until("h"), tag("h"))
-        .parse(input)
-        .finish()
-        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
-
-    let parse_specific_coordinate = |input, coord| parse_coordinate(input, coord);
-
-    let (input, latitude) = parse_specific_coordinate(input, Coordinate::Latitude).finish()?;
-
-    let (input, _) = (take(1usize))
-        .parse(input)
-        .finish()
-        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
-
-    let (input, longitude) = parse_specific_coordinate(input, Coordinate::Longitude).finish()?;
-
-    let (input, _) = (take(1usize))
-        .parse(input)
-        .finish()
-        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
-
-    let (input, ground_track) = parse_ground_track(input).finish()?;
-
-    let (input, _) = (take(1usize))
-        .parse(input)
-        .finish()
-        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
-
-    let (input, ground_speed) = parse_ground_speed(input).finish()?;
-
-    let (input, _) = (take_until("A="), tag("A="))
-        .parse(input)
-        .finish()
-        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
-
-    let (input, gps_altitude) = parse_gps_altitude(input).finish()?;
-
-    let (input, _) = (take_until(" id"), tag(" "))
-        .parse(input)
-        .finish()
-        .map_err(errors::AircraftParseError::IncorrectSeparator)?;
-
-    let (_input, ogn_beacon_id) = parse_ogn_beacon_id(input).finish()?;
-
-    Ok(Aircraft {
-        callsign: callsign.to_string(),
-        datetime,
-        latitude,
-        longitude,
-        ground_track,
-        ground_speed,
-        gps_altitude,
-        icao_address: ogn_beacon_id.icao_address,
-    })
-}
 #[cfg(test)]
 mod test {
+    use crate::core::parser::aprs_types::{
+        OGNAddressType, OGNAircraftType, OGNBeaconID, OGNIDPrefix,
+    };
+    use crate::core::parser::builder::AircraftParseError;
     use crate::core::parser::builder::build_aircraft_from_string;
-    use crate::core::parser::builder::errors::AircraftParseError;
+    use crate::core::parser::builder::{Aircraft, ICAOAddress};
     use crate::core::parser::builder::{
         Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_gps_altitude,
         parse_ground_speed, parse_ground_track, parse_ogn_beacon_id, parse_timestamp,
     };
-    use crate::core::parser::types::{OGNAddressType, OGNAircraftType};
-    use crate::core::parser::types::{OGNBeaconID, OGNIDPrefix};
-    use crate::core::types::{Aircraft, ICAOAddress};
     use approx::relative_eq;
     use nom::Finish;
 

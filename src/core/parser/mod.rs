@@ -1,6 +1,7 @@
+mod aprs_types;
 pub mod builder;
 pub mod errors;
 pub mod task;
-pub mod types;
 
+pub use builder::{Aircraft, ICAOAddress};
 pub use task::AircraftParser;

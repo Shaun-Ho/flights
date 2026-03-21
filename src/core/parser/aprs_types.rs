@@ -1,4 +1,26 @@
-use crate::core::types::{ICAOAddress, ICAOAddressError};
+use crate::core::parser::builder::{ICAOAddress, ICAOAddressError};
+use crate::core::parser::errors::{APRSParseContext, AircraftParseError};
+
+#[allow(clippy::upper_case_acronyms)]
+pub enum APRSSignalType {
+    OGADSB,
+}
+
+impl std::str::FromStr for APRSSignalType {
+    type Err = AircraftParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "OGADSB" => Ok(APRSSignalType::OGADSB),
+            _ => Err(AircraftParseError::InvalidAPRSSignalType(
+                APRSParseContext {
+                    input: s.to_owned(),
+                    message: "Invalid APRS Signal Type".to_owned(),
+                },
+            )),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct OGNBeaconID {
@@ -37,6 +59,7 @@ impl std::str::FromStr for OGNBeaconID {
         }
     }
 }
+
 pub enum OGNBeaconIDError {
     OGNIDPrefixError(OGNIDPrefixError),
     ICAOAddressError(ICAOAddressError),
@@ -54,12 +77,13 @@ impl std::fmt::Display for OGNBeaconIDError {
     }
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OGNAddressType {
     Unknown = 0,
     ICAO = 1,
     FLARM = 2,
-    OgnTracker = 3,
+    OGNTracker = 3,
 }
 impl OGNAddressType {
     pub fn from_u8(value: u8) -> Result<Self, OGNAddressTypeError> {
@@ -67,7 +91,7 @@ impl OGNAddressType {
             0 => Ok(OGNAddressType::Unknown),
             1 => Ok(OGNAddressType::ICAO),
             2 => Ok(OGNAddressType::FLARM),
-            3 => Ok(OGNAddressType::OgnTracker),
+            3 => Ok(OGNAddressType::OGNTracker),
             other => Err(OGNAddressTypeError::InvalidAddressType(other)),
         }
     }
@@ -99,11 +123,11 @@ impl OGNIDPrefix {
     pub fn new(value: u8) -> Result<Self, OGNIDPrefixError> {
         let raw_type = (value >> 2) & 0b1111; // extract 4 bits
         let aircraft_type =
-            OGNAircraftType::from_u8(raw_type).map_err(OGNIDPrefixError::InvalidAircraftType)?;
+            OGNAircraftType::from_u8(raw_type).map_err(OGNIDPrefixError::AircraftType)?;
 
         let raw_address = value & 0b11; // extract 2 bits
         let address_type =
-            OGNAddressType::from_u8(raw_address).map_err(OGNIDPrefixError::InvalidAddressType)?;
+            OGNAddressType::from_u8(raw_address).map_err(OGNIDPrefixError::AddressType)?;
 
         let no_track = ((value >> 6) & 0b1) == 1;
         let stealth_mode = ((value >> 7) & 0b1) == 1;
@@ -117,26 +141,25 @@ impl OGNIDPrefix {
 
     pub fn from_hex_str(s: &str) -> Result<Self, OGNIDPrefixError> {
         if s.len() != 2 {
-            return Err(OGNIDPrefixError::InvalidHexFormat);
+            return Err(OGNIDPrefixError::HexFormat);
         }
-        let parsed_value =
-            u8::from_str_radix(s, 16).map_err(|_| OGNIDPrefixError::InvalidHexFormat)?;
+        let parsed_value = u8::from_str_radix(s, 16).map_err(|_| OGNIDPrefixError::HexFormat)?;
 
         OGNIDPrefix::new(parsed_value)
     }
 }
 #[derive(Debug)]
 pub enum OGNIDPrefixError {
-    InvalidHexFormat,
-    InvalidAircraftType(OGNAircraftTypeError),
-    InvalidAddressType(OGNAddressTypeError),
+    HexFormat,
+    AircraftType(OGNAircraftTypeError),
+    AddressType(OGNAddressTypeError),
 }
 impl std::fmt::Display for OGNIDPrefixError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OGNIDPrefixError::InvalidHexFormat => write!(f, "Invalid hexadecimal format"),
-            OGNIDPrefixError::InvalidAircraftType(e) => write!(f, "{e}"),
-            OGNIDPrefixError::InvalidAddressType(e) => write!(f, "{e}"),
+            OGNIDPrefixError::HexFormat => write!(f, "Invalid hexadecimal format"),
+            OGNIDPrefixError::AircraftType(e) => write!(f, "{e}"),
+            OGNIDPrefixError::AddressType(e) => write!(f, "{e}"),
         }
     }
 }
