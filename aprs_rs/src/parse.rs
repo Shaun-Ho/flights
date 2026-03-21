@@ -1,5 +1,5 @@
 use super::errors::{APRSParseContext, AircraftParseError};
-use crate::core::parser::aprs_types::{APRSSignalType, OGNBeaconID};
+use crate::aprs_types::{APRSSignalType, OGNBeaconID};
 
 use nom::{
     Parser,
@@ -335,14 +335,12 @@ fn parse_ogn_beacon_id(input: &[u8]) -> nom::IResult<&[u8], OGNBeaconID, Aircraf
 }
 
 #[cfg(test)]
-mod test {
-    use crate::core::parser::aprs_types::{
-        OGNAddressType, OGNAircraftType, OGNBeaconID, OGNIDPrefix,
-    };
-    use crate::core::parser::parse::AircraftParseError;
-    use crate::core::parser::parse::parse_aircraft;
-    use crate::core::parser::parse::{Aircraft, ICAOAddress};
-    use crate::core::parser::parse::{
+mod tests {
+    use crate::aprs_types::{OGNAddressType, OGNAircraftType, OGNBeaconID, OGNIDPrefix};
+    use crate::parse::AircraftParseError;
+    use crate::parse::parse_aircraft;
+    use crate::parse::{Aircraft, ICAOAddress};
+    use crate::parse::{
         Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_gps_altitude,
         parse_ground_speed, parse_ground_track, parse_ogn_beacon_id, parse_timestamp,
     };

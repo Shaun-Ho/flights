@@ -244,6 +244,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "aprs_rs"
+version = "0.0.0"
+dependencies = [
+ "approx",
+ "chrono",
+ "nom",
+ "rstest",
+]
+
+[[package]]
 name = "arboard"
 version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -725,9 +735,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.43"
+version = "0.4.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fac4744fb15ae8337dc853fee7fb3f4e48c0fbaa23d0afe49c447b4fab126118"
+checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
 dependencies = [
  "iana-time-zone",
  "js-sys",
@@ -1376,9 +1386,10 @@ dependencies = [
 
 [[package]]
 name = "flights"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "approx",
+ "aprs_rs",
  "bytes",
  "chrono",
  "clap",
@@ -1387,7 +1398,6 @@ dependencies = [
  "env_logger",
  "glob",
  "log",
- "nom",
  "prost",
  "prost-build",
  "prost-types",
@@ -4128,9 +4138,9 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.26.0"
+version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82a72c767771b47409d2345987fda8628641887d5466101319899796367354a0"
+checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
  "getrandom 0.3.4",
@@ -4504,9 +4514,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.22"
+version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f30143827ddab0d256fd843b7a66d164e9f271cfa0dde49142c5ca0ca291f1e"
+checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
 dependencies = [
  "matchers",
  "nu-ansi-term",
@@ -4675,15 +4685,16 @@ dependencies = [
 
 [[package]]
 name = "walkers"
-version = "0.51.0"
+version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd3958caa580a54cda715deaaa798c0fc61d4d88144957a0bbba0bc68e180d1a"
+checksum = "b715d486776584cab429e176be1785bc328a9067061be903cb88ff2ddd76d36a"
 dependencies = [
  "bytes",
  "egui",
  "egui_extras",
  "futures",
  "geo-types",
+ "getrandom 0.2.17",
  "http-cache-reqwest",
  "image",
  "log",

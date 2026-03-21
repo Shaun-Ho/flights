@@ -1,4 +1,5 @@
-use crate::core::parser::{Aircraft, ICAOAddress};
+use aprs_rs::{Aircraft, ICAOAddress};
+
 use crate::core::thread_manager::SteppableTask;
 
 #[derive(Debug)]
@@ -146,10 +147,9 @@ impl AirspaceViewer {
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        core::airspace::Airspace,
-        core::parser::{Aircraft, ICAOAddress},
-    };
+    use aprs_rs::{Aircraft, ICAOAddress};
+
+    use crate::core::airspace::Airspace;
 
     fn create_dummy_aircraft_at_time(
         datetime: chrono::DateTime<chrono::Utc>,
