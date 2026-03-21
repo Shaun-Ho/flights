@@ -1,7 +1,8 @@
 [package]
 name = "aprs_rs"
-version = "0.1.0"
-edition = "2024"
+rust-version = { workspace = true }
+edition = { workspace = true }
+
 
 [dependencies]
 chrono = { workspace = true }
