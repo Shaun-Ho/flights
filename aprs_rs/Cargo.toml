@@ -1,0 +1,12 @@
+[package]
+name = "aprs_rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = { workspace = true }
+nom = "8.0.0"
+
+[dev-dependencies]
+approx = { workspace = true }
+rstest = { workspace = true }

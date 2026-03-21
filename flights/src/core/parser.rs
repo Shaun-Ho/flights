@@ -1,6 +1,6 @@
+use aprs_rs::{Aircraft, parse_aircraft};
+
 use crate::core::ingestor::AprsPacket;
-use crate::core::parser::Aircraft;
-use crate::core::parser::parse::parse_aircraft;
 use crate::core::thread_manager::SteppableTask;
 
 pub struct AircraftParser {

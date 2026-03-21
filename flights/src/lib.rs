@@ -6,11 +6,12 @@ pub mod logging;
 #[cfg(test)]
 pub mod test_utilities;
 
+use aprs_rs::Aircraft;
+
 use crate::core::airspace::{AirspaceStore, AirspaceViewer};
-use crate::core::ingestor::AprsPacket;
-use crate::core::ingestor::Ingestor;
 use crate::core::ingestor::config::IngestorConfig;
-use crate::core::parser::{Aircraft, AircraftParser};
+use crate::core::ingestor::{AprsPacket, Ingestor};
+use crate::core::parser::AircraftParser;
 use crate::core::thread_manager::{TaskID, ThreadManager};
 
 pub struct Pipeline {
