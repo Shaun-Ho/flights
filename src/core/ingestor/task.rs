@@ -1,32 +1,20 @@
-pub mod config;
-pub mod error;
-
-use std::io::Write;
-
-use crossbeam_channel;
 use prost::Message;
-use prost_types;
 
 use crate::core::ingestor::config::GliderNetConfig;
-use crate::core::ingestor::pb::PbAprsPacket;
+use crate::core::ingestor::disk::write_pb_aprs_packet_to_disk;
+use crate::core::ingestor::error;
+use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::thread_manager::SteppableTask;
-
-pub mod pb {
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/protobuf.ingestor.v0.ingestor.rs"
-    ));
-}
 
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
-    sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
+    sender: crossbeam_channel::Sender<AprsPacket>,
     writer: Option<std::io::BufWriter<std::fs::File>>,
 }
 impl Ingestor {
     pub fn new<C: APRSDataSource + 'static>(
         source: C,
-        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
+        sender: crossbeam_channel::Sender<AprsPacket>,
         writer: Option<std::io::BufWriter<std::fs::File>>,
     ) -> Self {
         Self {
@@ -38,7 +26,7 @@ impl Ingestor {
 
     pub fn read_data_from_file(
         read_path: &std::path::Path,
-        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
+        sender: crossbeam_channel::Sender<AprsPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!(
@@ -52,7 +40,7 @@ impl Ingestor {
 
     pub fn connect_glidernet(
         config: &GliderNetConfig,
-        sender: crossbeam_channel::Sender<pb::PbAprsPacket>,
+        sender: crossbeam_channel::Sender<AprsPacket>,
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
@@ -76,7 +64,8 @@ impl SteppableTask for Ingestor {
                 if let Some(aprs_packet) = packet_packet_opt {
                     // write to disk
                     if let Some(writer) = self.writer.as_mut() {
-                        let _ = write_pb_aprs_packet_to_disk(writer, &aprs_packet)
+                        let pb_aprs_packet = PbAprsPacket::from(aprs_packet.clone());
+                        let _ = write_pb_aprs_packet_to_disk(writer, &pb_aprs_packet)
                             .map_err(|error| log::error!("Failed to log to disk: {error}"));
                     }
 
@@ -95,17 +84,14 @@ impl SteppableTask for Ingestor {
         }
     }
 }
-
-pub fn write_pb_aprs_packet_to_disk(
-    writer: &mut std::io::BufWriter<std::fs::File>,
-    aprs_packet: &PbAprsPacket,
-) -> Result<(), std::io::Error> {
-    let mut buf = Vec::new();
-    let () = aprs_packet.encode_length_delimited(&mut buf)?;
-    writer.write_all(&buf)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AprsPacket {
+    pub timestamp: std::time::SystemTime,
+    pub message: bytes::Bytes,
 }
+
 pub trait APRSDataSource: Send {
-    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error>;
+    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, error::PacketError>;
 }
 
 struct LiveSource<R: std::io::Read> {
@@ -119,26 +105,27 @@ impl<R: std::io::Read> LiveSource<R> {
     }
 }
 impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
-    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error> {
-        let mut line_buffer = String::new();
-        match std::io::BufRead::read_line(&mut self.reader, &mut line_buffer) {
+    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, error::PacketError> {
+        let mut buffer = Vec::new();
+        match std::io::BufRead::read_until(&mut self.reader, b'\n', &mut buffer) {
             Ok(bytes_read) => {
                 if bytes_read == 0 {
                     log::error!("End of TCP stream");
                     return Ok(None);
                 }
 
-                let now = std::time::SystemTime::now();
-                let timestamp = prost_types::Timestamp::from(now);
-                let packet = pb::PbAprsPacket {
-                    timestamp: Some(timestamp),
-                    payload: line_buffer,
+                let timestamp = std::time::SystemTime::now();
+
+                let packet = AprsPacket {
+                    timestamp,
+                    message: buffer.into(),
                 };
                 Ok(Some(packet))
             }
             Err(error) => {
-                log::error!("Failed to read line from source: {error}");
-                Err(error)
+                let packet_error = error::PacketError::StreamReadError(error);
+                log::error!("{packet_error}");
+                Err(packet_error)
             }
         }
     }
@@ -161,7 +148,7 @@ impl ReplaySource {
     }
 }
 impl APRSDataSource for ReplaySource {
-    fn create_aprs_packet(&mut self) -> Result<Option<pb::PbAprsPacket>, std::io::Error> {
+    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, error::PacketError> {
         let position = usize::try_from(self.cursor.position())
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?;
 
@@ -169,9 +156,9 @@ impl APRSDataSource for ReplaySource {
             return Ok(None);
         }
 
-        match pb::PbAprsPacket::decode_length_delimited(&mut self.cursor) {
-            Ok(packet) => {
-                if let Some(packet_timestamp) = packet.timestamp
+        match PbAprsPacket::decode_length_delimited(&mut self.cursor) {
+            Ok(pb_aprs_packet) => {
+                if let Some(packet_timestamp) = pb_aprs_packet.timestamp
                     && let Ok(packet_system_time) =
                         std::time::SystemTime::try_from(packet_timestamp)
                 {
@@ -192,11 +179,12 @@ impl APRSDataSource for ReplaySource {
                         }
                     }
                 }
-                Ok(Some(packet))
+                Ok(Some(pb_aprs_packet.try_into().unwrap()))
             }
             Err(error) => {
-                log::error!("Failed to decode protobuf message from file: {error}");
-                Err(std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+                let decode_error = error::PacketError::DecodeReadError(error);
+                log::error!("{decode_error}");
+                Err(decode_error)
             }
         }
     }
@@ -232,11 +220,11 @@ mod test {
     use prost::Message;
     use rstest;
 
-    use crate::core::ingestor::pb::PbAprsPacket;
-    use crate::core::ingestor::{
+    use crate::core::ingestor::task::{
         APRSDataSource, Ingestor, LiveSource, ReplaySource, create_writer,
         write_pb_aprs_packet_to_disk,
     };
+    use crate::core::ingestor::task::{AprsPacket, PbAprsPacket};
     use crate::core::thread_manager::SteppableTask;
     use crate::test_utilities::{TestPath, test_path};
 
@@ -283,7 +271,7 @@ mod test {
         let keep_running = ingestor.step();
 
         assert!(keep_running);
-        assert_eq!(receiver.recv().unwrap().payload, data);
+        assert_eq!(receiver.recv().unwrap().message, data);
     }
 
     #[test]
@@ -321,8 +309,8 @@ mod test {
         let cursor = std::io::Cursor::new(bytes);
         let packet = PbAprsPacket::decode_length_delimited(cursor).unwrap();
 
-        assert_eq!(packet.payload, payload);
-        assert_eq!(receiver.recv().unwrap().payload, payload);
+        assert_eq!(packet.message, payload);
+        assert_eq!(receiver.recv().unwrap().message, payload);
     }
     #[rstest::rstest]
     #[test_log::test]
@@ -335,7 +323,7 @@ mod test {
         let timestamp = prost_types::Timestamp::from(now);
         let expected_aprs_packet = PbAprsPacket {
             timestamp: Some(timestamp),
-            payload: "aprs".to_string(),
+            message: "aprs\n".into(),
         };
 
         {
@@ -357,9 +345,12 @@ mod test {
         // drop ingestor to flush writer
         drop(ingestor);
 
-        let vec: Vec<PbAprsPacket> = receiver.iter().collect();
+        let vec: Vec<AprsPacket> = receiver.iter().collect();
         assert!(vec.len() == 1);
-        assert_eq!(*vec.first().unwrap(), expected_aprs_packet);
+        assert_eq!(
+            *vec.first().unwrap(),
+            expected_aprs_packet.try_into().unwrap()
+        );
     }
 
     #[rstest::rstest]
@@ -373,15 +364,15 @@ mod test {
 
         let packet1 = PbAprsPacket {
             timestamp: Some(prost_types::Timestamp::from(time_p1)),
-            payload: "packet 1".to_string(),
+            message: "packet 1\n".into(),
         };
         let packet2 = PbAprsPacket {
             timestamp: Some(prost_types::Timestamp::from(time_p2)),
-            payload: "packet 2".to_string(),
+            message: "packet 2\n".into(),
         };
         let packet3 = PbAprsPacket {
             timestamp: Some(prost_types::Timestamp::from(time_p3)),
-            payload: "packet 3".to_string(),
+            message: "packet 3\n".into(),
         };
 
         // Write the packets to the mock log file
@@ -398,18 +389,18 @@ mod test {
         let start = std::time::Instant::now();
 
         let p1 = source.create_aprs_packet().unwrap().unwrap();
-        assert_eq!(p1.payload, "packet 1");
+        assert_eq!(p1.message, "packet 1\n");
         let elapsed_p1 = start.elapsed().as_millis();
         assert!(elapsed_p1.abs_diff(0) <= 5);
 
         let p2 = source.create_aprs_packet().unwrap().unwrap();
-        assert_eq!(p2.payload, "packet 2");
+        assert_eq!(p2.message, "packet 2\n");
         let elapsed_p2 = start.elapsed().as_millis();
         assert!(elapsed_p2 >= 50);
         assert!(elapsed_p2.abs_diff(50) <= 5);
 
         let p3 = source.create_aprs_packet().unwrap().unwrap();
-        assert_eq!(p3.payload, "packet 3");
+        assert_eq!(p3.message, "packet 3\n");
         let elapsed_p3 = start.elapsed().as_millis();
         assert!(elapsed_p3 >= 100);
         assert!(elapsed_p3.abs_diff(100) <= 5);

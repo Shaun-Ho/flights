@@ -7,9 +7,9 @@ pub mod logging;
 pub mod test_utilities;
 
 use crate::core::airspace::{AirspaceStore, AirspaceViewer};
+use crate::core::ingestor::AprsPacket;
 use crate::core::ingestor::Ingestor;
 use crate::core::ingestor::config::IngestorConfig;
-use crate::core::ingestor::pb::PbAprsPacket;
 use crate::core::parser::AircraftParser;
 use crate::core::thread_manager::{TaskID, ThreadManager};
 use crate::core::types::Aircraft;
@@ -36,8 +36,8 @@ impl Drop for Pipeline {
 #[must_use]
 pub fn setup_pipeline(ingestor_config: IngestorConfig) -> Pipeline {
     let (messages_sender, messages_receiver): (
-        crossbeam_channel::Sender<PbAprsPacket>,
-        crossbeam_channel::Receiver<PbAprsPacket>,
+        crossbeam_channel::Sender<AprsPacket>,
+        crossbeam_channel::Receiver<AprsPacket>,
     ) = crossbeam_channel::unbounded();
 
     let (aircraft_data_sender, aircraft_data_receiver): (
@@ -81,8 +81,8 @@ pub fn setup_pipeline(ingestor_config: IngestorConfig) -> Pipeline {
 }
 #[cfg(test)]
 mod test {
+    use crate::core::ingestor::PbAprsPacket;
     use crate::core::ingestor::config::{AirspaceConfig, GliderNetConfig};
-    use crate::core::ingestor::pb::PbAprsPacket;
     use crate::core::ingestor::write_pb_aprs_packet_to_disk;
     use crate::test_utilities::{TestPath, test_path};
     use crate::{core::ingestor::config::IngestorConfig, setup_pipeline};
@@ -94,10 +94,10 @@ mod test {
     ) {
         let now = std::time::SystemTime::now();
         let timestamp = prost_types::Timestamp::from(now);
-        let payload = "ICA020113>OGADSB,qAS,AVX1081:/190558h5050.73N/00413.19E^222/262/A=007246 !W06! id25020113 +2880fpm FL079.69 A3:RAM831F Sq7122";
+        let message = "ICA020113>OGADSB,qAS,AVX1081:/190558h5050.73N/00413.19E^222/262/A=007246 !W06! id25020113 +2880fpm FL079.69 A3:RAM831F Sq7122".into();
         let packet = PbAprsPacket {
             timestamp: Some(timestamp),
-            payload: payload.to_owned(),
+            message,
         };
         let read_path = test_path.path.join("test_ingestor_log.pb");
         let mut writer = std::io::BufWriter::new(std::fs::File::create(&read_path).unwrap());
