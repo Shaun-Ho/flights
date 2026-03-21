@@ -244,16 +244,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aprs_rs"
-version = "0.0.0"
-dependencies = [
- "approx",
- "chrono",
- "nom",
- "rstest",
-]
-
-[[package]]
 name = "arboard"
 version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1389,7 +1379,6 @@ name = "flights"
 version = "0.0.0"
 dependencies = [
  "approx",
- "aprs_rs",
  "bytes",
  "chrono",
  "clap",
@@ -1398,6 +1387,7 @@ dependencies = [
  "env_logger",
  "glob",
  "log",
+ "ogn_aprs_parser",
  "prost",
  "prost-build",
  "prost-types",
@@ -2916,6 +2906,16 @@ dependencies = [
  "objc2 0.5.2",
  "objc2-core-location",
  "objc2-foundation 0.2.2",
+]
+
+[[package]]
+name = "ogn_aprs_parser"
+version = "0.0.0"
+dependencies = [
+ "approx",
+ "chrono",
+ "nom",
+ "rstest",
 ]
 
 [[package]]
