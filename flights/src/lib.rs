@@ -6,7 +6,7 @@ pub mod logging;
 #[cfg(test)]
 pub mod test_utilities;
 
-use aprs_rs::Aircraft;
+use ogn_parser_rs::Aircraft;
 
 use crate::core::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::ingestor::config::IngestorConfig;

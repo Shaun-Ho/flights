@@ -1,4 +1,4 @@
-use aprs_rs::{Aircraft, ICAOAddress};
+use ogn_parser_rs::{Aircraft, ICAOAddress};
 
 use crate::core::thread_manager::SteppableTask;
 
@@ -147,7 +147,7 @@ impl AirspaceViewer {
 #[cfg(test)]
 mod tests {
 
-    use aprs_rs::{Aircraft, ICAOAddress};
+    use ogn_parser_rs::{Aircraft, ICAOAddress};
 
     use crate::core::airspace::Airspace;
 

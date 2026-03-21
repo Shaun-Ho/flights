@@ -4,7 +4,7 @@ rust-version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
-aprs_rs = { path = "../aprs_rs" }
+ogn_parser_rs = { path = "../ogn_parser_rs" }
 bytes = "1.11.1"
 chrono = { workspace = true }
 clap = { version = "4.5.53", features = ["derive"] }
