@@ -1,11 +1,7 @@
-pub mod builder;
-pub mod errors;
-pub mod types;
-
 use crate::core::ingestor::AprsPacket;
+use crate::core::parser::Aircraft;
 use crate::core::parser::builder::build_aircraft_from_string;
 use crate::core::thread_manager::SteppableTask;
-use crate::core::types::Aircraft;
 
 pub struct AircraftParser {
     receiver: crossbeam_channel::Receiver<AprsPacket>,

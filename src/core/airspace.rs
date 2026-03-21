@@ -1,5 +1,5 @@
+use crate::core::parser::{Aircraft, ICAOAddress};
 use crate::core::thread_manager::SteppableTask;
-use crate::core::types::{Aircraft, ICAOAddress};
 
 #[derive(Debug)]
 pub struct Airspace {
@@ -148,7 +148,7 @@ mod tests {
 
     use crate::{
         core::airspace::Airspace,
-        core::types::{Aircraft, ICAOAddress},
+        core::parser::{Aircraft, ICAOAddress},
     };
 
     fn create_dummy_aircraft_at_time(
