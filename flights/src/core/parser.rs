@@ -1,4 +1,4 @@
-use ogn_parser_rs::{Aircraft, parse_aircraft};
+use ogn_aprs_parser::{Aircraft, parse_aircraft};
 
 use crate::core::ingestor::AprsPacket;
 use crate::core::thread_manager::SteppableTask;

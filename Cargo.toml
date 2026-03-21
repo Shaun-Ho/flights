@@ -1,5 +1,5 @@
 [workspace]
-members = ["flights", "ogn_parser_rs"]
+members = ["flights", "ogn_aprs_parser"]
 
 [workspace.package]
 edition = "2024"

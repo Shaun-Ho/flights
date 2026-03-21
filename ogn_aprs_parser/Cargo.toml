@@ -1,5 +1,5 @@
 [package]
-name = "ogn_parser_rs"
+name = "ogn_aprs_parser"
 rust-version = { workspace = true }
 edition = { workspace = true }
 

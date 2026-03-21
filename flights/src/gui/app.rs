@@ -1,7 +1,7 @@
 use eframe::{egui, epaint};
 use walkers;
 
-use ogn_parser_rs::Aircraft;
+use ogn_aprs_parser::Aircraft;
 
 use crate::core::airspace::AirspaceViewer;
 use crate::gui::constants::AIRCRAFT_REFERENCE_SHAPE;

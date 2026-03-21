@@ -1387,7 +1387,7 @@ dependencies = [
  "env_logger",
  "glob",
  "log",
- "ogn_parser_rs",
+ "ogn_aprs_parser",
  "prost",
  "prost-build",
  "prost-types",
@@ -2909,7 +2909,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ogn_parser_rs"
+name = "ogn_aprs_parser"
 version = "0.0.0"
 dependencies = [
  "approx",
