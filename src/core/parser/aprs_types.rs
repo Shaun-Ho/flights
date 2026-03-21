@@ -1,5 +1,5 @@
-use crate::core::parser::builder::{ICAOAddress, ICAOAddressError};
 use crate::core::parser::errors::{APRSParseContext, AircraftParseError};
+use crate::core::parser::parse::{ICAOAddress, ICAOAddressError};
 
 #[allow(clippy::upper_case_acronyms)]
 pub enum APRSSignalType {

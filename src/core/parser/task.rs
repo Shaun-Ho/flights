@@ -1,6 +1,6 @@
 use crate::core::ingestor::AprsPacket;
 use crate::core::parser::Aircraft;
-use crate::core::parser::builder::build_aircraft_from_string;
+use crate::core::parser::parse::parse_aircraft;
 use crate::core::thread_manager::SteppableTask;
 
 pub struct AircraftParser {
@@ -26,8 +26,8 @@ impl SteppableTask for AircraftParser {
             log::error!("AircraftParser upstream disconnected");
             return false;
         };
-        let message_string = String::from_utf8_lossy(&aprs_packet.message).to_string();
-        match build_aircraft_from_string(&message_string) {
+
+        match parse_aircraft(&aprs_packet.message) {
             Ok(aircraft) => {
                 if let Err(err) = self.sender.send(aircraft) {
                     log::error!("Failed to forward aircraft: {err}");
