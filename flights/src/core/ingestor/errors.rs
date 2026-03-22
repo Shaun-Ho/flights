@@ -1,51 +1,15 @@
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum IngestorConfigError {
+    #[error("Failed to read config file '{0}': {1}", path.display(), source)]
     Parse {
         source: toml::de::Error,
         path: std::path::PathBuf,
     },
+    #[error("Failed to read config file '{0}': {1}", path.display(), source)]
     Io {
         source: std::io::Error,
         path: std::path::PathBuf,
     },
-}
-
-impl std::fmt::Display for IngestorConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            IngestorConfigError::Io {
-                source: error,
-                path,
-            } => {
-                write!(
-                    f,
-                    "Failed to read config file '{}': {}",
-                    path.display(),
-                    error
-                )
-            }
-            IngestorConfigError::Parse {
-                source: error,
-                path,
-            } => {
-                write!(
-                    f,
-                    "Failed to parse config file '{}': {}",
-                    path.display(),
-                    error
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for IngestorConfigError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            IngestorConfigError::Io { source: error, .. } => Some(error),
-            IngestorConfigError::Parse { source: error, .. } => Some(error),
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
