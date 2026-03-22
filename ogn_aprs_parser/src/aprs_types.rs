@@ -4,24 +4,21 @@ use crate::errors::{
 };
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, strum_macros::EnumString)]
 pub enum OgnAprsProtocol {
     OGADSB,
+    OGFLR,
+    OGNSKY,
 }
 
-impl std::str::FromStr for OgnAprsProtocol {
-    type Err = APRSMessageParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "OGADSB" => Ok(OgnAprsProtocol::OGADSB),
-            _ => Err(APRSMessageParseError::InvalidOGNAprsProtocol(
-                APRSParseContext {
-                    input: s.to_owned(),
-                    message: "Unsupported OGN APRS Protocol".to_owned(),
-                },
-            )),
-        }
+impl OgnAprsProtocol {
+    pub fn parse_protocol(s: &str) -> Result<Self, APRSMessageParseError> {
+        s.parse::<Self>().map_err(|_| {
+            APRSMessageParseError::InvalidOGNAprsProtocol(APRSParseContext {
+                input: s.to_owned(),
+                message: "Unsupported OGN APRS Protocol".to_owned(),
+            })
+        })
     }
 }
 

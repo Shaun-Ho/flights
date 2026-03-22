@@ -182,7 +182,7 @@ fn parse_naive_time(input: &[u8]) -> nom::IResult<&[u8], chrono::NaiveTime, APRS
     };
 
     nom::combinator::map_res(
-        nom::sequence::terminated(take(6usize), tag(b"h".as_slice())),
+        nom::sequence::terminated(take(6usize), take(1usize)),
         parse_to_datetime,
     )
     .parse(input)
@@ -248,9 +248,7 @@ fn parse_aprs_signal_type(
     input: &[u8],
 ) -> nom::IResult<&[u8], OgnAprsProtocol, APRSMessageParseError> {
     let parse_to_aprs_signal_type = |s: &[u8]| -> Result<OgnAprsProtocol, APRSMessageParseError> {
-        std::str::from_utf8(s)
-            .unwrap_or("")
-            .parse::<OgnAprsProtocol>()
+        OgnAprsProtocol::parse_protocol(std::str::from_utf8(s).unwrap_or(""))
     };
     nom::combinator::map_res(
         nom::sequence::terminated(take_until(b",".as_slice()), tag(b",".as_slice())),
@@ -732,5 +730,19 @@ mod tests {
         let result = parse_ogn_aprs_aircraft_beacon(raw_input).unwrap();
 
         assert_eq!(result, expected);
+    }
+
+    mod ogn_aprs_protocol {
+        use super::*;
+
+        #[rstest::rstest]
+        #[case(br"ICA4CA1FF>OGADSB,qAS,LEMDadsb:/140833h4044.38N\00356.29W^024/426/A=040000 id254CA1FF +000fpm  fnRYR6ZM".as_slice())]
+        #[case(br"ICA4CA4EB>OGADSB,qAS,LEMDadsb:/142346h4034.03N\00315.64W^008/370/A=038000 id254CA4EB +000fpm  0.0rot fnRYR4057  regEI-DPG modelB738".as_slice())]
+        #[case(br"ICAA8CBA8>OGFLR,qAS,MontCAIO:/231150z4512.12N\01059.03E^192/106/A=009519 !W20! id21A8CBA8 -039fpm +0.0rot 3.5dB 2e -8.7kHz gps1x2 s6.09 h43 rDF0267".as_slice())]
+        #[case(br"FLR200295>OGFLR,qAS,TT:/071005h4613.92N/01427.53Eg000/000/A=001313 !W00! id1E200295 +000fpm +0.0rot 37.0dB -1.8kHz gps3x5".as_slice())]
+        #[case(br"SKY3E5906>OGNSKY,qAS,SafeSky:/072449h5103.95N/00524.50E'193/034/A=001250 !W65! id1C3E5906 +000fpm gps4x1".as_slice())]
+        fn test_support_for_different_aprs_protocol_types(#[case] input: &[u8]) {
+            parse_ogn_aprs_aircraft_beacon(input).unwrap();
+        }
     }
 }
