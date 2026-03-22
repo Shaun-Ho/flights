@@ -2,4 +2,5 @@ mod aprs_types;
 mod errors;
 mod parse;
 
-pub use parse::{Aircraft, ICAOAddress, parse_aircraft};
+pub use aprs_types::{ICAOAddress, OGNBeaconID};
+pub use parse::{AircraftBeacon, parse_ogn_aprs_aircraft_beacon};

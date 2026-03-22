@@ -1,6 +1,8 @@
-use ogn_aprs_parser::{Aircraft, parse_aircraft};
+use ogn_aprs_parser::parse_ogn_aprs_aircraft_beacon;
 
 use crate::core::ingestor::AprsPacket;
+use crate::core::parser::Aircraft;
+use crate::core::parser::conversion::convert_ogn_aprs_beacon_to_aircraft;
 use crate::core::thread_manager::SteppableTask;
 
 pub struct AircraftParser {
@@ -27,8 +29,9 @@ impl SteppableTask for AircraftParser {
             return false;
         };
 
-        match parse_aircraft(&aprs_packet.message) {
-            Ok(aircraft) => {
+        match parse_ogn_aprs_aircraft_beacon(&aprs_packet.message) {
+            Ok(aircraft_beacon) => {
+                let aircraft = convert_ogn_aprs_beacon_to_aircraft(aircraft_beacon);
                 if let Err(err) = self.sender.send(aircraft) {
                     log::error!("Failed to forward aircraft: {err}");
                 }

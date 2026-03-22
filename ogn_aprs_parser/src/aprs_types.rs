@@ -1,28 +1,76 @@
-use crate::errors::{APRSParseContext, AircraftParseError};
-use crate::parse::{ICAOAddress, ICAOAddressError};
+use crate::errors::{APRSMessageParseError, APRSParseContext};
 
 #[allow(clippy::upper_case_acronyms)]
-pub enum APRSSignalType {
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum OgnAprsProtocol {
     OGADSB,
 }
 
-impl std::str::FromStr for APRSSignalType {
-    type Err = AircraftParseError;
+impl std::str::FromStr for OgnAprsProtocol {
+    type Err = APRSMessageParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "OGADSB" => Ok(APRSSignalType::OGADSB),
-            _ => Err(AircraftParseError::InvalidAPRSSignalType(
+            "OGADSB" => Ok(OgnAprsProtocol::OGADSB),
+            _ => Err(APRSMessageParseError::InvalidOGNAprsProtocol(
                 APRSParseContext {
                     input: s.to_owned(),
-                    message: "Invalid APRS Signal Type".to_owned(),
+                    message: "Unsupported OGN APRS Protocol".to_owned(),
                 },
             )),
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
+pub struct ICAOAddress(u32);
+
+impl ICAOAddress {
+    pub const MAX_VALUE: u32 = 0x00FF_FFFF;
+
+    pub fn new(value: u32) -> Result<Self, ICAOAddressError> {
+        if value <= Self::MAX_VALUE {
+            Ok(ICAOAddress(value))
+        } else {
+            Err(ICAOAddressError::InvalidAddress(value))
+        }
+    }
+
+    #[must_use]
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for ICAOAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:08X}", self.0)
+    }
+}
+
+#[derive(Debug)]
+pub enum ICAOAddressError {
+    InvalidHexFormat,
+    InvalidAddress(u32),
+}
+impl std::fmt::Display for ICAOAddressError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ICAOAddressError::InvalidHexFormat => write!(f, "Invalid hexadecimal format"),
+            ICAOAddressError::InvalidAddress(val) => {
+                write!(
+                    f,
+                    "Value 0x{:X} ({}) exceeds 24-bit ICAO address limit (0x{:X})",
+                    val,
+                    val,
+                    ICAOAddress::MAX_VALUE
+                )
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct OGNBeaconID {
     pub prefix: OGNIDPrefix,
     pub icao_address: ICAOAddress,
@@ -60,6 +108,7 @@ impl std::str::FromStr for OGNBeaconID {
     }
 }
 
+#[derive(Debug)]
 pub enum OGNBeaconIDError {
     OGNIDPrefixError(OGNIDPrefixError),
     ICAOAddressError(ICAOAddressError),
