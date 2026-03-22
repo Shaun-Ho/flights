@@ -2,20 +2,20 @@ use crate::errors::{APRSParseContext, AircraftParseError};
 use crate::parse::{ICAOAddress, ICAOAddressError};
 
 #[allow(clippy::upper_case_acronyms)]
-pub enum APRSSignalType {
+pub enum OgnAprsProtocol {
     OGADSB,
 }
 
-impl std::str::FromStr for APRSSignalType {
+impl std::str::FromStr for OgnAprsProtocol {
     type Err = AircraftParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "OGADSB" => Ok(APRSSignalType::OGADSB),
-            _ => Err(AircraftParseError::InvalidAPRSSignalType(
+            "OGADSB" => Ok(OgnAprsProtocol::OGADSB),
+            _ => Err(AircraftParseError::InvalidOGNAprsProtocol(
                 APRSParseContext {
                     input: s.to_owned(),
-                    message: "Invalid APRS Signal Type".to_owned(),
+                    message: "Unsupported OGN APRS Protocol".to_owned(),
                 },
             )),
         }

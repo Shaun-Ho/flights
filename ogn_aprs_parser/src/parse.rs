@@ -1,5 +1,5 @@
 use super::errors::{APRSParseContext, AircraftParseError};
-use crate::aprs_types::{APRSSignalType, OGNBeaconID};
+use crate::aprs_types::{OGNBeaconID, OgnAprsProtocol};
 
 use nom::{
     Parser,
@@ -71,7 +71,7 @@ pub fn parse_aircraft(input: &[u8]) -> Result<Aircraft, AircraftParseError> {
 
     let (input, callsign) = parse_callsign(input).finish()?;
 
-    let (input, _aprs_packet_type) = parse_aprs_signal_type(input).finish()?;
+    let (input, _ogn_aprs_protocol) = parse_aprs_signal_type(input).finish()?;
 
     let (input, _) = (take_until(b":/".as_slice()), tag(b":/".as_slice()))
         .parse(input)
@@ -251,11 +251,13 @@ fn parse_coordinate(
     }
 }
 
-fn parse_aprs_signal_type(input: &[u8]) -> nom::IResult<&[u8], APRSSignalType, AircraftParseError> {
-    let parse_to_aprs_signal_type = |s: &[u8]| -> Result<APRSSignalType, AircraftParseError> {
+fn parse_aprs_signal_type(
+    input: &[u8],
+) -> nom::IResult<&[u8], OgnAprsProtocol, AircraftParseError> {
+    let parse_to_aprs_signal_type = |s: &[u8]| -> Result<OgnAprsProtocol, AircraftParseError> {
         std::str::from_utf8(s)
             .unwrap_or("")
-            .parse::<APRSSignalType>()
+            .parse::<OgnAprsProtocol>()
     };
     nom::combinator::map_res(
         nom::sequence::terminated(take_until(b",".as_slice()), tag(b",".as_slice())),

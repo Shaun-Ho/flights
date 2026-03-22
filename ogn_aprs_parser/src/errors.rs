@@ -3,7 +3,7 @@ pub enum AircraftParseError {
     UnknownError(String),
     IncorrectSeparator(APRSParseContext),
     InvalidCallsign(APRSParseContext),
-    InvalidAPRSSignalType(APRSParseContext),
+    InvalidOGNAprsProtocol(APRSParseContext),
     InvalidTimestamp(APRSParseContext),
     InvalidLatitude(APRSParseContext),
     InvalidLongitude(APRSParseContext),
@@ -19,7 +19,7 @@ impl std::fmt::Display for AircraftParseError {
             AircraftParseError::UnknownError(e) => write!(f, "Failed to parse: {e}"),
             AircraftParseError::IncorrectSeparator(e)
             | AircraftParseError::InvalidCallsign(e)
-            | AircraftParseError::InvalidAPRSSignalType(e)
+            | AircraftParseError::InvalidOGNAprsProtocol(e)
             | AircraftParseError::InvalidTimestamp(e)
             | AircraftParseError::InvalidLatitude(e)
             | AircraftParseError::InvalidLongitude(e)
