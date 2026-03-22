@@ -2,7 +2,7 @@ use std::io::Write;
 
 use prost::Message;
 
-use crate::core::ingestor::error::PacketConversionError;
+use crate::core::ingestor::errors::PacketConversionError;
 use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::ingestor::task::AprsPacket;
 

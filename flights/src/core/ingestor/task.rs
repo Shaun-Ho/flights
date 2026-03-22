@@ -2,7 +2,7 @@ use prost::Message;
 
 use crate::core::ingestor::config::GliderNetConfig;
 use crate::core::ingestor::disk::write_pb_aprs_packet_to_disk;
-use crate::core::ingestor::error;
+use crate::core::ingestor::errors;
 use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::thread_manager::SteppableTask;
 
@@ -91,7 +91,7 @@ pub struct AprsPacket {
 }
 
 pub trait APRSDataSource: Send {
-    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, error::PacketError>;
+    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, errors::PacketError>;
 }
 
 struct LiveSource<R: std::io::Read> {
@@ -105,7 +105,7 @@ impl<R: std::io::Read> LiveSource<R> {
     }
 }
 impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
-    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, error::PacketError> {
+    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, errors::PacketError> {
         let mut buffer = Vec::new();
         match std::io::BufRead::read_until(&mut self.reader, b'\n', &mut buffer) {
             Ok(bytes_read) => {
@@ -123,7 +123,7 @@ impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
                 Ok(Some(packet))
             }
             Err(error) => {
-                let packet_error = error::PacketError::StreamReadError(error);
+                let packet_error = errors::PacketError::StreamReadError(error);
                 log::error!("{packet_error}");
                 Err(packet_error)
             }
@@ -148,7 +148,7 @@ impl ReplaySource {
     }
 }
 impl APRSDataSource for ReplaySource {
-    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, error::PacketError> {
+    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, errors::PacketError> {
         let position = usize::try_from(self.cursor.position())
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?;
 
@@ -182,7 +182,7 @@ impl APRSDataSource for ReplaySource {
                 Ok(Some(pb_aprs_packet.try_into().unwrap()))
             }
             Err(error) => {
-                let decode_error = error::PacketError::DecodeReadError(error);
+                let decode_error = errors::PacketError::DecodeReadError(error);
                 log::error!("{decode_error}");
                 Err(decode_error)
             }
