@@ -11,6 +11,8 @@ pub enum APRSMessageParseError {
     UnknownError(String),
     UnexpectedEndOfMessage(APRSParseContext),
     MissingSeparator(APRSParseContext),
+    InvalidQConstruct(APRSParseContext),
+    InvalidReceiver(APRSParseContext),
     InvalidCallsign(APRSParseContext),
     InvalidOGNAprsProtocol(APRSParseContext),
     InvalidTimestamp(APRSParseContext),
@@ -29,6 +31,8 @@ impl std::fmt::Display for APRSMessageParseError {
             APRSMessageParseError::MissingSeparator(e)
             | APRSMessageParseError::UnexpectedEndOfMessage(e)
             | APRSMessageParseError::InvalidCallsign(e)
+            | APRSMessageParseError::InvalidReceiver(e)
+            | APRSMessageParseError::InvalidQConstruct(e)
             | APRSMessageParseError::InvalidOGNAprsProtocol(e)
             | APRSMessageParseError::InvalidTimestamp(e)
             | APRSMessageParseError::InvalidLatitude(e)

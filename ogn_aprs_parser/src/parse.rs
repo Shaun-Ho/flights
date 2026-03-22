@@ -31,13 +31,11 @@ pub fn parse_ogn_aprs_aircraft_beacon(input: &[u8]) -> Result<AircraftBeacon, Ai
 
     let (input, ogn_aprs_protocol) = parse_aprs_signal_type(input).finish()?;
 
-    let (input, _) = (take_until(b":".as_slice()), tag(b":".as_slice()))
-        .parse(input)
-        .finish()
-        .map_err(APRSMessageParseError::MissingSeparator)?;
+    let (input, q_construct) = parse_q_construct(input).finish()?;
+
+    let (input, receiver) = parse_receiver(input).finish()?;
 
     // Following fields are from the position 'block'
-
     let (input, _) = take(1usize)
         .parse(input)
         .finish()
@@ -94,8 +92,8 @@ pub fn parse_ogn_aprs_aircraft_beacon(input: &[u8]) -> Result<AircraftBeacon, Ai
 
     Ok(AircraftBeacon {
         callsign: callsign.to_string(),
-        q_construct: "".to_string(),
-        receiver: "".to_string(),
+        q_construct: q_construct.to_string(),
+        receiver: receiver.to_string(),
         ogn_aprs_protocol,
         time,
         latitude,
@@ -104,6 +102,38 @@ pub fn parse_ogn_aprs_aircraft_beacon(input: &[u8]) -> Result<AircraftBeacon, Ai
         ground_speed,
         gps_altitude,
         ogn_beacon_id,
+    })
+}
+
+fn parse_q_construct(input: &[u8]) -> nom::IResult<&[u8], &str, APRSMessageParseError> {
+    nom::combinator::map_res(
+        nom::sequence::terminated(take_until(b",".as_slice()), tag(b",".as_slice())),
+        std::str::from_utf8,
+    )
+    .parse(input)
+    .map_err(|e| {
+        e.map(|_e: nom::error::Error<&[u8]>| {
+            APRSMessageParseError::InvalidQConstruct(APRSParseContext {
+                input: String::from_utf8_lossy(input).to_string(),
+                message: "invalid q construct".to_string(),
+            })
+        })
+    })
+}
+
+fn parse_receiver(input: &[u8]) -> nom::IResult<&[u8], &str, APRSMessageParseError> {
+    nom::combinator::map_res(
+        nom::sequence::terminated(take_until(b":".as_slice()), tag(b":".as_slice())),
+        std::str::from_utf8,
+    )
+    .parse(input)
+    .map_err(|e| {
+        e.map(|_e: nom::error::Error<&[u8]>| {
+            APRSMessageParseError::InvalidReceiver(APRSParseContext {
+                input: String::from_utf8_lossy(input).to_string(),
+                message: "invalid receiver".to_string(),
+            })
+        })
     })
 }
 
@@ -306,12 +336,12 @@ mod tests {
     use std::str::FromStr;
 
     use crate::aprs_types::{OGNBeaconID, OgnAprsProtocol};
-    use crate::parse::parse_ogn_aprs_aircraft_beacon;
     use crate::parse::{APRSMessageParseError, AircraftBeacon};
     use crate::parse::{
         Coordinate, parse_aprs_signal_type, parse_callsign, parse_coordinate, parse_gps_altitude,
         parse_ground_speed, parse_ground_track, parse_naive_time, parse_ogn_beacon_id,
     };
+    use crate::parse::{parse_ogn_aprs_aircraft_beacon, parse_q_construct, parse_receiver};
     use approx::relative_eq;
     use nom::Finish;
 
@@ -324,6 +354,7 @@ mod tests {
             Err(err) => panic!("Expected no errors. {err}"),
         }
     }
+
     #[test]
     fn when_packet_contains_invalid_callsign_identifier_then_correct_error_is_returned() {
         let input = b"HEADER:/2a0600h".as_slice();
@@ -337,6 +368,59 @@ mod tests {
             }
 
             Err(other) => panic!("Expected InvalidCallsign, got: {other}"),
+        }
+    }
+
+    #[test]
+    fn when_packet_contains_valid_q_construct_identifier_is_correct_then_parsed_q_construct_is_correct()
+     {
+        let input = b"qAS,".as_slice();
+        let expected_q_construct = "qAS";
+        match parse_q_construct(input).finish() {
+            Ok((_, callsign)) => assert_eq!(callsign, expected_q_construct),
+            Err(err) => panic!("Expected no errors. {err}"),
+        }
+    }
+
+    #[test]
+    fn when_packet_contains_invalid_q_construct_identifier_then_correct_error_is_returned() {
+        let input = b"qAS.".as_slice();
+
+        match parse_q_construct(input).finish() {
+            Ok(_) => panic!("Expected an error, but got an Aircraft"),
+
+            Err(APRSMessageParseError::InvalidQConstruct(info)) => {
+                assert_eq!(info.input, "qAS.");
+                assert_eq!(info.message, "invalid q construct");
+            }
+
+            Err(other) => panic!("Expected InvalidQConstruct, got: {other}"),
+        }
+    }
+
+    #[test]
+    fn when_packet_contains_valid_receiver_identifier_is_correct_then_parsed_receiver_is_correct() {
+        let input = b"ABC:".as_slice();
+        let expected_callsign = "ABC";
+        match parse_receiver(input).finish() {
+            Ok((_, callsign)) => assert_eq!(callsign, expected_callsign),
+            Err(err) => panic!("Expected no errors. {err}"),
+        }
+    }
+
+    #[test]
+    fn when_packet_contains_invalid_receiver_identifier_then_correct_error_is_returned() {
+        let input = b"ABC.".as_slice();
+
+        match parse_receiver(input).finish() {
+            Ok(_) => panic!("Expected an error, but got an Aircraft"),
+
+            Err(APRSMessageParseError::InvalidReceiver(info)) => {
+                assert_eq!(info.input, "ABC.");
+                assert_eq!(info.message, "invalid receiver");
+            }
+
+            Err(other) => panic!("Expected InvalidReceiver, got: {other}"),
         }
     }
 
