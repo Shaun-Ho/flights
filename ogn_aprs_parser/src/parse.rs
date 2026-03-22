@@ -43,11 +43,6 @@ pub fn parse_ogn_aprs_aircraft_beacon(input: &[u8]) -> Result<AircraftBeacon, Ai
 
     let (input, time) = parse_naive_time(input).finish()?;
 
-    let (input, _) = (take_until(b"h".as_slice()), tag(b"h".as_slice()))
-        .parse(input)
-        .finish()
-        .map_err(APRSMessageParseError::UnexpectedEndOfMessage)?;
-
     let parse_specific_coordinate = |input, coord| parse_coordinate(input, coord);
 
     let (input, latitude) = parse_specific_coordinate(input, Coordinate::Latitude).finish()?;
@@ -186,9 +181,12 @@ fn parse_naive_time(input: &[u8]) -> nom::IResult<&[u8], chrono::NaiveTime, APRS
         Ok(naive_time)
     };
 
-    nom::combinator::map_res(take(6usize), parse_to_datetime)
-        .parse(input)
-        .map_err(|err| err.map(APRSMessageParseError::InvalidTimestamp))
+    nom::combinator::map_res(
+        nom::sequence::terminated(take(6usize), tag(b"h".as_slice())),
+        parse_to_datetime,
+    )
+    .parse(input)
+    .map_err(|err| err.map(APRSMessageParseError::InvalidTimestamp))
 }
 
 #[allow(clippy::needless_pass_by_value)]
