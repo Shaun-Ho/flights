@@ -1,3 +1,5 @@
+use crate::aprs_types::ICAOAddress;
+
 #[derive(Debug, thiserror::Error)]
 pub enum AircraftParseError {
     #[error("{0}")]
@@ -8,42 +10,36 @@ pub enum AircraftParseError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum APRSMessageParseError {
+    #[error("{0}")]
     UnknownError(String),
+    #[error("{0}")]
     UnexpectedEndOfMessage(APRSParseContext),
+    #[error("{0}")]
     MissingSeparator(APRSParseContext),
+    #[error("{0}")]
     InvalidQConstruct(APRSParseContext),
+    #[error("{0}")]
     InvalidReceiver(APRSParseContext),
+    #[error("{0}")]
     InvalidCallsign(APRSParseContext),
+    #[error("{0}")]
     InvalidOGNAprsProtocol(APRSParseContext),
+    #[error("{0}")]
     InvalidTimestamp(APRSParseContext),
+    #[error("{0}")]
     InvalidLatitude(APRSParseContext),
+    #[error("{0}")]
     InvalidLongitude(APRSParseContext),
+    #[error("{0}")]
     InvalidGroundTrack(APRSParseContext),
+    #[error("{0}")]
     InvalidGroundSpeed(APRSParseContext),
+    #[error("{0}")]
     InvalidGPSAltitude(APRSParseContext),
+    #[error("{0}")]
     InvalidOGNBeaconId(APRSParseContext),
 }
 
-impl std::fmt::Display for APRSMessageParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            APRSMessageParseError::UnknownError(e) => write!(f, "Failed to parse: {e}"),
-            APRSMessageParseError::MissingSeparator(e)
-            | APRSMessageParseError::UnexpectedEndOfMessage(e)
-            | APRSMessageParseError::InvalidCallsign(e)
-            | APRSMessageParseError::InvalidReceiver(e)
-            | APRSMessageParseError::InvalidQConstruct(e)
-            | APRSMessageParseError::InvalidOGNAprsProtocol(e)
-            | APRSMessageParseError::InvalidTimestamp(e)
-            | APRSMessageParseError::InvalidLatitude(e)
-            | APRSMessageParseError::InvalidLongitude(e)
-            | APRSMessageParseError::InvalidGroundTrack(e)
-            | APRSMessageParseError::InvalidGPSAltitude(e)
-            | APRSMessageParseError::InvalidGroundSpeed(e)
-            | APRSMessageParseError::InvalidOGNBeaconId(e) => write!(f, "{e}"),
-        }
-    }
-}
 impl nom::error::ParseError<&[u8]> for APRSMessageParseError {
     fn from_error_kind(input: &[u8], _kind: nom::error::ErrorKind) -> Self {
         APRSMessageParseError::UnknownError(String::from_utf8_lossy(input).to_string())
@@ -63,7 +59,8 @@ impl nom::error::FromExternalError<&[u8], APRSMessageParseError> for APRSMessage
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to parse: {input}, message: {message}")]
 pub struct APRSParseContext {
     pub input: String,
     pub message: String,
@@ -89,8 +86,42 @@ impl nom::error::FromExternalError<&[u8], String> for APRSParseContext {
         }
     }
 }
-impl std::fmt::Display for APRSParseContext {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{0}, {1}", self.input, self.message)
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum OGNAircraftTypeError {
+    #[error("Invalid value: {0}")]
+    InvalidEnum(u8),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ICAOAddressError {
+    #[error("Invalid hexadecimal format")]
+    InvalidHexFormat,
+    #[error("Value 0x{0:X} ({0}) exceeds 24-bit ICAO address limit (0x{max:X})", max = ICAOAddress::MAX_VALUE)]
+    InvalidAddress(u32),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OGNBeaconIDError {
+    #[error("{0}")]
+    OGNIDPrefixError(OGNIDPrefixError),
+    #[error("{0}")]
+    ICAOAddressError(ICAOAddressError),
+    #[error("Invalid beacon format: {0}")]
+    InvalidOGNBeaconFormat(String),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OGNAddressTypeError {
+    #[error("Invalid address format: {0}")]
+    InvalidAddressType(u8),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OGNIDPrefixError {
+    #[error("Invalid hexadecimal format")]
+    HexFormat,
+    #[error("{0}")]
+    AircraftType(OGNAircraftTypeError),
+    #[error("{0}")]
+    AddressType(OGNAddressTypeError),
 }

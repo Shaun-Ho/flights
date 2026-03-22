@@ -1,6 +1,6 @@
 pub mod config;
 pub mod disk;
-pub mod error;
+pub mod errors;
 pub mod protobuf;
 pub mod task;
 

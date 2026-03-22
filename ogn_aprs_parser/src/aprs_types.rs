@@ -1,4 +1,7 @@
-use crate::errors::{APRSMessageParseError, APRSParseContext};
+use crate::errors::{
+    APRSMessageParseError, APRSParseContext, ICAOAddressError, OGNAddressTypeError,
+    OGNAircraftTypeError, OGNBeaconIDError, OGNIDPrefixError,
+};
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -48,28 +51,6 @@ impl std::fmt::Display for ICAOAddress {
     }
 }
 
-#[derive(Debug)]
-pub enum ICAOAddressError {
-    InvalidHexFormat,
-    InvalidAddress(u32),
-}
-impl std::fmt::Display for ICAOAddressError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ICAOAddressError::InvalidHexFormat => write!(f, "Invalid hexadecimal format"),
-            ICAOAddressError::InvalidAddress(val) => {
-                write!(
-                    f,
-                    "Value 0x{:X} ({}) exceeds 24-bit ICAO address limit (0x{:X})",
-                    val,
-                    val,
-                    ICAOAddress::MAX_VALUE
-                )
-            }
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct OGNBeaconID {
     pub prefix: OGNIDPrefix,
@@ -108,24 +89,6 @@ impl std::str::FromStr for OGNBeaconID {
     }
 }
 
-#[derive(Debug)]
-pub enum OGNBeaconIDError {
-    OGNIDPrefixError(OGNIDPrefixError),
-    ICAOAddressError(ICAOAddressError),
-    InvalidOGNBeaconFormat(String),
-}
-impl std::fmt::Display for OGNBeaconIDError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OGNBeaconIDError::OGNIDPrefixError(e) => write!(f, "{e}"),
-            OGNBeaconIDError::ICAOAddressError(e) => write!(f, "{e}"),
-            OGNBeaconIDError::InvalidOGNBeaconFormat(string) => {
-                write!(f, "Invalid beacon format: {string}")
-            }
-        }
-    }
-}
-
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OGNAddressType {
@@ -142,20 +105,6 @@ impl OGNAddressType {
             2 => Ok(OGNAddressType::FLARM),
             3 => Ok(OGNAddressType::OGNTracker),
             other => Err(OGNAddressTypeError::InvalidAddressType(other)),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum OGNAddressTypeError {
-    InvalidAddressType(u8),
-}
-impl std::fmt::Display for OGNAddressTypeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OGNAddressTypeError::InvalidAddressType(address) => {
-                write!(f, "Invalid address format {address}")
-            }
         }
     }
 }
@@ -197,21 +146,6 @@ impl OGNIDPrefix {
         OGNIDPrefix::new(parsed_value)
     }
 }
-#[derive(Debug)]
-pub enum OGNIDPrefixError {
-    HexFormat,
-    AircraftType(OGNAircraftTypeError),
-    AddressType(OGNAddressTypeError),
-}
-impl std::fmt::Display for OGNIDPrefixError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OGNIDPrefixError::HexFormat => write!(f, "Invalid hexadecimal format"),
-            OGNIDPrefixError::AircraftType(e) => write!(f, "{e}"),
-            OGNIDPrefixError::AddressType(e) => write!(f, "{e}"),
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OGNAircraftType {
@@ -251,18 +185,6 @@ impl OGNAircraftType {
             13 => Ok(OGNAircraftType::UAVs),
             15 => Ok(OGNAircraftType::StaticObstacle),
             other => Err(OGNAircraftTypeError::InvalidEnum(other)),
-        }
-    }
-}
-#[derive(Debug)]
-pub enum OGNAircraftTypeError {
-    InvalidEnum(u8),
-}
-
-impl std::fmt::Display for OGNAircraftTypeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OGNAircraftTypeError::InvalidEnum(value) => write!(f, "Invalid value: {value}"),
         }
     }
 }
