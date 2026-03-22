@@ -1,7 +1,16 @@
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AircraftParseError {
+    #[error("{0}")]
+    ParseError(#[from] APRSMessageParseError),
+    #[error("Missing OGN Beacon ID in APRS message")]
+    MissingOgnBeaconID,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum APRSMessageParseError {
     UnknownError(String),
-    IncorrectSeparator(APRSParseContext),
+    UnexpectedEndOfMessage(APRSParseContext),
+    MissingSeparator(APRSParseContext),
     InvalidCallsign(APRSParseContext),
     InvalidOGNAprsProtocol(APRSParseContext),
     InvalidTimestamp(APRSParseContext),
@@ -13,37 +22,38 @@ pub enum AircraftParseError {
     InvalidOGNBeaconId(APRSParseContext),
 }
 
-impl std::fmt::Display for AircraftParseError {
+impl std::fmt::Display for APRSMessageParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AircraftParseError::UnknownError(e) => write!(f, "Failed to parse: {e}"),
-            AircraftParseError::IncorrectSeparator(e)
-            | AircraftParseError::InvalidCallsign(e)
-            | AircraftParseError::InvalidOGNAprsProtocol(e)
-            | AircraftParseError::InvalidTimestamp(e)
-            | AircraftParseError::InvalidLatitude(e)
-            | AircraftParseError::InvalidLongitude(e)
-            | AircraftParseError::InvalidGroundTrack(e)
-            | AircraftParseError::InvalidGPSAltitude(e)
-            | AircraftParseError::InvalidGroundSpeed(e)
-            | AircraftParseError::InvalidOGNBeaconId(e) => write!(f, "{e}"),
+            APRSMessageParseError::UnknownError(e) => write!(f, "Failed to parse: {e}"),
+            APRSMessageParseError::MissingSeparator(e)
+            | APRSMessageParseError::UnexpectedEndOfMessage(e)
+            | APRSMessageParseError::InvalidCallsign(e)
+            | APRSMessageParseError::InvalidOGNAprsProtocol(e)
+            | APRSMessageParseError::InvalidTimestamp(e)
+            | APRSMessageParseError::InvalidLatitude(e)
+            | APRSMessageParseError::InvalidLongitude(e)
+            | APRSMessageParseError::InvalidGroundTrack(e)
+            | APRSMessageParseError::InvalidGPSAltitude(e)
+            | APRSMessageParseError::InvalidGroundSpeed(e)
+            | APRSMessageParseError::InvalidOGNBeaconId(e) => write!(f, "{e}"),
         }
     }
 }
-impl nom::error::ParseError<&[u8]> for AircraftParseError {
+impl nom::error::ParseError<&[u8]> for APRSMessageParseError {
     fn from_error_kind(input: &[u8], _kind: nom::error::ErrorKind) -> Self {
-        AircraftParseError::UnknownError(String::from_utf8_lossy(input).to_string())
+        APRSMessageParseError::UnknownError(String::from_utf8_lossy(input).to_string())
     }
 
     fn append(_: &[u8], _: nom::error::ErrorKind, other: Self) -> Self {
         other
     }
 }
-impl nom::error::FromExternalError<&[u8], AircraftParseError> for AircraftParseError {
+impl nom::error::FromExternalError<&[u8], APRSMessageParseError> for APRSMessageParseError {
     fn from_external_error(
         _input: &[u8],
         _kind: nom::error::ErrorKind,
-        e: AircraftParseError,
+        e: APRSMessageParseError,
     ) -> Self {
         e
     }

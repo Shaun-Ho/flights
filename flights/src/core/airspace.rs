@@ -1,5 +1,6 @@
-use ogn_aprs_parser::{Aircraft, ICAOAddress};
+use ogn_aprs_parser::ICAOAddress;
 
+use crate::core::parser::Aircraft;
 use crate::core::thread_manager::SteppableTask;
 
 #[derive(Debug)]
@@ -147,9 +148,10 @@ impl AirspaceViewer {
 #[cfg(test)]
 mod tests {
 
-    use ogn_aprs_parser::{Aircraft, ICAOAddress};
+    use ogn_aprs_parser::ICAOAddress;
 
     use crate::core::airspace::Airspace;
+    use crate::core::parser::Aircraft;
 
     fn create_dummy_aircraft_at_time(
         datetime: chrono::DateTime<chrono::Utc>,
