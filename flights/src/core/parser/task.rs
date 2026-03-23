@@ -31,7 +31,8 @@ impl SteppableTask for AircraftParser {
 
         match parse_ogn_aprs_aircraft_beacon(&aprs_packet.message) {
             Ok(aircraft_beacon) => {
-                let aircraft = convert_ogn_aprs_beacon_to_aircraft(aircraft_beacon);
+                let aircraft =
+                    convert_ogn_aprs_beacon_to_aircraft(aircraft_beacon, aprs_packet.timestamp);
                 if let Err(err) = self.sender.send(aircraft) {
                     log::error!("Failed to forward aircraft: {err}");
                 }

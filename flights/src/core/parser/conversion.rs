@@ -12,8 +12,11 @@ pub struct Aircraft {
     pub gps_altitude: f64,
 }
 
-pub fn convert_ogn_aprs_beacon_to_aircraft(aircraft_beacon: AircraftBeacon) -> Aircraft {
-    let now = chrono::Utc::now();
+pub fn convert_ogn_aprs_beacon_to_aircraft(
+    aircraft_beacon: AircraftBeacon,
+    timestamp: std::time::SystemTime,
+) -> Aircraft {
+    let now: chrono::DateTime<chrono::Utc> = timestamp.into();
 
     let datetime = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
         now.date_naive().and_time(aircraft_beacon.time),

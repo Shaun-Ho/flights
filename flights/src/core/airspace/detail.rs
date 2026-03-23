@@ -14,16 +14,20 @@ impl Airspace {
     pub fn new(buffer_duration: chrono::Duration) -> Self {
         Airspace {
             buffer_duration,
-            datetime: chrono::Utc::now(),
+            datetime: chrono::DateTime::<chrono::Utc>::MIN_UTC,
             icao_to_aircraft_map: std::collections::HashMap::new(),
         }
     }
 
     pub fn update(&mut self, aircrafts: Vec<Aircraft>) {
         let mut aircrafts = aircrafts;
-        self.update_datetime_and_prune();
 
         while let Some(aircraft) = aircrafts.pop() {
+            // find latest aircraft datetime and set as current datetime.
+            if aircraft.datetime > self.datetime {
+                self.datetime = aircraft.datetime;
+            }
+
             // check that aircraft is within buffer window
             let cutoff_time = self.datetime - self.buffer_duration;
             if aircraft.datetime < cutoff_time {
@@ -53,6 +57,7 @@ impl Airspace {
             let idx = history.partition_point(|x| x.datetime < aircraft.datetime);
             history.insert(idx, aircraft);
         }
+        self.prune();
     }
 
     #[must_use]
@@ -75,9 +80,12 @@ impl Airspace {
         &self.icao_to_aircraft_map
     }
 
-    fn update_datetime_and_prune(&mut self) {
-        self.datetime = chrono::Utc::now();
-        let cutoff_time = self.datetime - self.buffer_duration;
+    fn prune(&mut self) {
+        let cutoff_time = self
+            .datetime
+            .checked_sub_signed(self.buffer_duration)
+            .unwrap_or(chrono::DateTime::<chrono::Utc>::MIN_UTC);
+
         for aircraft_history in self.icao_to_aircraft_map.values_mut() {
             while let Some(aircraft) = aircraft_history.front() {
                 if aircraft.datetime < cutoff_time {
