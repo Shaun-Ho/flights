@@ -177,6 +177,26 @@ mod tests {
         assert_eq!(aircraft_2_history.len(), 1);
         assert_eq!(aircraft_2_history[0].datetime, expected_aircraft_2_datetime);
     }
+    #[test]
+    fn when_adding_aircrafts_to_empty_entries_then_airspace_datetime_is_correctly_updated() {
+        let mut airspace = Airspace::new(chrono::TimeDelta::seconds(5));
+        let now_datetime = chrono::Utc::now();
+
+        let expected_aircraft_1_icao_address = ICAOAddress::new(0).unwrap();
+        let expected_aircraft_1_datetime = now_datetime;
+
+        let expected_aircraft_2_icao_address = ICAOAddress::new(1).unwrap();
+        let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
+
+        #[rustfmt::skip]
+        let aircrafts = vec![
+            create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
+            create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
+        ];
+
+        airspace.update(aircrafts);
+        assert_eq!(airspace.datetime, now_datetime);
+    }
 
     #[cfg(test)]
     mod when_adding_aircrafts_to_existing_entries {
