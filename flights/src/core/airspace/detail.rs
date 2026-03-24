@@ -1,7 +1,6 @@
 use ogn_aprs_parser::ICAOAddress;
 
 use crate::core::parser::Aircraft;
-use crate::core::thread_manager::SteppableTask;
 
 #[derive(Debug)]
 pub struct Airspace {
@@ -15,16 +14,20 @@ impl Airspace {
     pub fn new(buffer_duration: chrono::Duration) -> Self {
         Airspace {
             buffer_duration,
-            datetime: chrono::Utc::now(),
+            datetime: chrono::DateTime::<chrono::Utc>::MIN_UTC,
             icao_to_aircraft_map: std::collections::HashMap::new(),
         }
     }
 
     pub fn update(&mut self, aircrafts: Vec<Aircraft>) {
         let mut aircrafts = aircrafts;
-        self.update_datetime_and_prune();
 
         while let Some(aircraft) = aircrafts.pop() {
+            // find latest aircraft datetime and set as current datetime.
+            if aircraft.datetime > self.datetime {
+                self.datetime = aircraft.datetime;
+            }
+
             // check that aircraft is within buffer window
             let cutoff_time = self.datetime - self.buffer_duration;
             if aircraft.datetime < cutoff_time {
@@ -54,6 +57,7 @@ impl Airspace {
             let idx = history.partition_point(|x| x.datetime < aircraft.datetime);
             history.insert(idx, aircraft);
         }
+        self.prune();
     }
 
     #[must_use]
@@ -76,9 +80,12 @@ impl Airspace {
         &self.icao_to_aircraft_map
     }
 
-    fn update_datetime_and_prune(&mut self) {
-        self.datetime = chrono::Utc::now();
-        let cutoff_time = self.datetime - self.buffer_duration;
+    fn prune(&mut self) {
+        let cutoff_time = self
+            .datetime
+            .checked_sub_signed(self.buffer_duration)
+            .unwrap_or(chrono::DateTime::<chrono::Utc>::MIN_UTC);
+
         for aircraft_history in self.icao_to_aircraft_map.values_mut() {
             while let Some(aircraft) = aircraft_history.front() {
                 if aircraft.datetime < cutoff_time {
@@ -99,58 +106,12 @@ impl Airspace {
     }
 }
 
-pub struct AirspaceStore {
-    inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
-    aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
-}
-impl AirspaceStore {
-    #[must_use]
-    pub fn new(
-        aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
-        airspace_time_buffer: chrono::TimeDelta,
-    ) -> Self {
-        let empty_airspace = Airspace::new(airspace_time_buffer);
-        AirspaceStore {
-            inner: std::sync::Arc::new(std::sync::RwLock::new(empty_airspace)),
-            aircraft_receiver,
-        }
-    }
-    #[must_use]
-    pub fn get_airspace_viewer(&self) -> AirspaceViewer {
-        AirspaceViewer {
-            inner: self.inner.clone(),
-        }
-    }
-}
-
-impl SteppableTask for AirspaceStore {
-    fn step(&mut self) -> bool {
-        let aircrafts: Vec<Aircraft> = self.aircraft_receiver.try_iter().collect();
-
-        if let Ok(mut airspace) = self.inner.write() {
-            airspace.update(aircrafts);
-            return true;
-        }
-        false
-    }
-}
-#[derive(Clone)]
-pub struct AirspaceViewer {
-    inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
-}
-impl AirspaceViewer {
-    #[allow(clippy::missing_panics_doc)]
-    pub fn read(&self) -> std::sync::RwLockReadGuard<'_, Airspace> {
-        self.inner.read().expect("Read lock poisoned")
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
     use ogn_aprs_parser::ICAOAddress;
 
-    use crate::core::airspace::Airspace;
+    use crate::core::airspace::detail::Airspace;
     use crate::core::parser::Aircraft;
 
     fn create_dummy_aircraft_at_time(
@@ -215,6 +176,26 @@ mod tests {
             .expect("expected a VecDeque for aircraft 1");
         assert_eq!(aircraft_2_history.len(), 1);
         assert_eq!(aircraft_2_history[0].datetime, expected_aircraft_2_datetime);
+    }
+    #[test]
+    fn when_adding_aircrafts_to_empty_entries_then_airspace_datetime_is_correctly_updated() {
+        let mut airspace = Airspace::new(chrono::TimeDelta::seconds(5));
+        let now_datetime = chrono::Utc::now();
+
+        let expected_aircraft_1_icao_address = ICAOAddress::new(0).unwrap();
+        let expected_aircraft_1_datetime = now_datetime;
+
+        let expected_aircraft_2_icao_address = ICAOAddress::new(1).unwrap();
+        let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
+
+        #[rustfmt::skip]
+        let aircrafts = vec![
+            create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
+            create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
+        ];
+
+        airspace.update(aircrafts);
+        assert_eq!(airspace.datetime, now_datetime);
     }
 
     #[cfg(test)]
