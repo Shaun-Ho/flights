@@ -17,7 +17,7 @@ fn main() {
     setup_logging(cli.logging_level);
     log::info!("Main: Application started.");
 
-    let pipeline = setup_pipeline(ingestor_config);
+    let mut pipeline = setup_pipeline(ingestor_config);
 
     let run_duration = cli.duration.map(std::time::Duration::from_secs);
 
@@ -44,6 +44,8 @@ fn main() {
         .unwrap();
     } else if let Some(duration) = run_duration {
         std::thread::sleep(duration);
+    } else {
+        pipeline.wait_on_all_tasks_finish();
     }
     log::info!("Shutting down application.");
 }

@@ -22,6 +22,11 @@ impl Pipeline {
     pub fn get_airspace_viewer(&self) -> AirspaceViewer {
         self.renderer_viewer.clone()
     }
+
+    pub fn wait_on_all_tasks_finish(&mut self) {
+        self.threadmanager
+            .wait_on_task_finish(self.end_chain_task_id);
+    }
 }
 impl Drop for Pipeline {
     fn drop(&mut self) {

@@ -28,10 +28,27 @@ impl AirspaceStore {
 
 impl SteppableTask for AirspaceStore {
     fn step(&mut self) -> bool {
-        let aircrafts: Vec<Aircraft> = self.aircraft_receiver.try_iter().collect();
+        let mut aircrafts = Vec::new();
+        let mut disconnected_channel = false;
+        loop {
+            match self.aircraft_receiver.try_recv() {
+                Ok(aircraft) => {
+                    aircrafts.push(aircraft);
+                }
+                Err(crossbeam_channel::TryRecvError::Empty) => break,
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    log::error!("Upstream disconnected");
+                    disconnected_channel = true;
+                    break;
+                }
+            }
+        }
 
         if let Ok(mut airspace) = self.inner.write() {
             airspace.update(aircrafts);
+            if disconnected_channel {
+                return false;
+            }
             return true;
         }
         false
@@ -45,5 +62,48 @@ impl AirspaceViewer {
     #[allow(clippy::missing_panics_doc)]
     pub fn read(&self) -> std::sync::RwLockReadGuard<'_, Airspace> {
         self.inner.read().expect("Read lock poisoned")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ogn_aprs_parser::ICAOAddress;
+
+    use super::*;
+    use crate::test_utilities::create_dummy_aircraft_at_time;
+
+    fn setup_store() -> (crossbeam_channel::Sender<Aircraft>, AirspaceStore) {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let store = AirspaceStore::new(receiver, chrono::TimeDelta::seconds(60));
+        (sender, store)
+    }
+
+    #[test]
+    fn test_step_active_channel_returns_true() {
+        let (_sender, mut store) = setup_store();
+
+        assert!(store.step());
+    }
+
+    #[test]
+    fn test_step_disconnected_empty_channel_returns_false() {
+        let (sender, mut store) = setup_store();
+
+        drop(sender);
+
+        assert!(!store.step());
+    }
+
+    #[test]
+    fn test_when_step_sender_is_dropped_then_store_stops_stepping() {
+        let (sender, mut store) = setup_store();
+
+        let dummy_aircraft =
+            create_dummy_aircraft_at_time(chrono::Utc::now(), ICAOAddress::new(0).unwrap());
+
+        sender.send(dummy_aircraft).unwrap();
+        drop(sender);
+
+        assert!(!store.step());
     }
 }
