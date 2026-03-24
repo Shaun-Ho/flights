@@ -112,23 +112,8 @@ mod tests {
     use ogn_aprs_parser::ICAOAddress;
 
     use crate::core::airspace::detail::Airspace;
-    use crate::core::parser::Aircraft;
+    use crate::test_utilities::create_dummy_aircraft_at_time;
 
-    fn create_dummy_aircraft_at_time(
-        datetime: chrono::DateTime<chrono::Utc>,
-        icao_address: ICAOAddress,
-    ) -> Aircraft {
-        Aircraft {
-            callsign: String::from("dummy"),
-            icao_address,
-            datetime,
-            latitude: 0.0,
-            longitude: 0.0,
-            ground_track: 0.0,
-            ground_speed: 0.0,
-            gps_altitude: 0.0,
-        }
-    }
     fn to_datetime(time_string: &str) -> chrono::DateTime<chrono::Utc> {
         let today = chrono::Local::now().date_naive();
         let time = chrono::NaiveTime::parse_from_str(time_string, "%H:%M:%S")
