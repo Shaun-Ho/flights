@@ -1,21 +1,37 @@
-[workspace]
-members = ["flights", "ogn_aprs_parser"]
-resolver = "3"
-
-[workspace.package]
+[package]
+name = "flights"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"
 
-[workspace.dependencies]
-approx = "0.5.1"
+
+[dependencies]
+bytes = "1.11.1"
 chrono = "0.4.42"
-glob = "0.3.3"
+clap = { version = "4.5.53", features = ["derive"] }
+crossbeam-channel = "0.5"
+eframe = "0.33.3"
+env_logger = "0.11"
 log = "0.4.29"
-prost-build = "0.14.3"
+prost = "0.14.3"
+prost-types = "0.14.3"
+serde = { version = "1.0.228", features = ["derive"] }
+thiserror = "2.0.18"
+toml = "0.9.8"
+walkers = "0.52.0"
+ogn-aprs-parser = "0.2.0"
+
+[dev-dependencies]
+approx = "0.5.1"
 rstest = "0.26.1"
 tempfile = "3.27.0"
 test-log = "0.2.19"
-thiserror = "2.0.18"
+
+
+[build-dependencies]
+glob = "0.3.3"
+prost-build = "0.14.3"
+
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }

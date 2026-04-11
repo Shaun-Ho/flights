@@ -1387,7 +1387,7 @@ dependencies = [
  "env_logger",
  "glob",
  "log",
- "ogn_aprs_parser",
+ "ogn-aprs-parser",
  "prost",
  "prost-build",
  "prost-types",
@@ -2909,13 +2909,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ogn_aprs_parser"
-version = "0.1.0"
+name = "ogn-aprs-parser"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a90e78fe46418b26f79557374a86ab1f9c2288f64fe8e2d3820001fd507932ec"
 dependencies = [
- "approx",
  "chrono",
  "nom",
- "rstest",
  "strum",
  "strum_macros",
  "thiserror 2.0.18",
