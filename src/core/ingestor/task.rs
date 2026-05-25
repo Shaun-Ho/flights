@@ -6,6 +6,8 @@ use crate::core::ingestor::errors;
 use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::thread_manager::SteppableTask;
 
+pub const DEFAULT_INGESTOR_TIMOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
     sender: crossbeam_channel::Sender<AprsPacket>,
@@ -44,8 +46,9 @@ impl Ingestor {
         write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
-        let mut stream =
-            std::net::TcpStream::connect(format!("{0}:{1}", config.host, config.port))?;
+
+        let address = std::net::SocketAddr::new(config.host.into(), config.port);
+        let mut stream = std::net::TcpStream::connect_timeout(&address, DEFAULT_INGESTOR_TIMOUT)?;
 
         authentication_handshake(&mut stream, &config.filter)?;
 
@@ -60,22 +63,20 @@ impl Ingestor {
 impl SteppableTask for Ingestor {
     fn step(&mut self) -> bool {
         match self.source.create_aprs_packet() {
-            Ok(packet_packet_opt) => {
-                if let Some(aprs_packet) = packet_packet_opt {
-                    // write to disk
-                    if let Some(writer) = self.writer.as_mut() {
-                        let pb_aprs_packet = PbAprsPacket::from(aprs_packet.clone());
-                        let _ = write_pb_aprs_packet_to_disk(writer, &pb_aprs_packet)
-                            .map_err(|error| log::error!("Failed to log to disk: {error}"));
-                    }
+            Ok(aprs_packet) => {
+                // write to disk
+                if let Some(writer) = self.writer.as_mut() {
+                    let pb_aprs_packet = PbAprsPacket::from(aprs_packet.clone());
+                    let _ = write_pb_aprs_packet_to_disk(writer, &pb_aprs_packet)
+                        .map_err(|error| log::error!("Failed to log to disk: {error}"));
+                }
 
-                    if let Err(err) = self.sender.send(aprs_packet) {
-                        log::error!("Ingestor: Failed to send to channel: {err}");
-                        return false;
-                    }
+                if let Err(err) = self.sender.send(aprs_packet) {
+                    log::error!("Ingestor: Failed to send to channel: {err}");
                     return true;
                 }
-                false
+
+                true
             }
             Err(err) => {
                 log::error!("{err}");
@@ -91,7 +92,7 @@ pub struct AprsPacket {
 }
 
 pub trait APRSDataSource: Send {
-    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, errors::PacketError>;
+    fn create_aprs_packet(&mut self) -> Result<AprsPacket, errors::PacketError>;
 }
 
 struct LiveSource<R: std::io::Read> {
@@ -105,13 +106,13 @@ impl<R: std::io::Read> LiveSource<R> {
     }
 }
 impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
-    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, errors::PacketError> {
+    fn create_aprs_packet(&mut self) -> Result<AprsPacket, errors::PacketError> {
         let mut buffer = Vec::new();
         match std::io::BufRead::read_until(&mut self.reader, b'\n', &mut buffer) {
             Ok(bytes_read) => {
                 if bytes_read == 0 {
-                    log::error!("End of TCP stream");
-                    return Ok(None);
+                    log::info!("End of TCP stream");
+                    return Err(errors::PacketError::Disconnected);
                 }
 
                 let timestamp = std::time::SystemTime::now();
@@ -120,9 +121,12 @@ impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
                     timestamp,
                     message: buffer.into(),
                 };
-                Ok(Some(packet))
+                Ok(packet)
             }
             Err(error) => {
+                if error.kind() == std::io::ErrorKind::TimedOut {
+                    log::error!("TCP stream timed out");
+                }
                 let packet_error = errors::PacketError::StreamReadError(error);
                 log::error!("{packet_error}");
                 Err(packet_error)
@@ -148,12 +152,12 @@ impl ReplaySource {
     }
 }
 impl APRSDataSource for ReplaySource {
-    fn create_aprs_packet(&mut self) -> Result<Option<AprsPacket>, errors::PacketError> {
+    fn create_aprs_packet(&mut self) -> Result<AprsPacket, errors::PacketError> {
         let position = usize::try_from(self.cursor.position())
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, err))?;
 
         if position >= self.cursor.get_ref().len() {
-            return Ok(None);
+            return Err(errors::PacketError::Disconnected);
         }
 
         match PbAprsPacket::decode_length_delimited(&mut self.cursor) {
@@ -179,7 +183,9 @@ impl APRSDataSource for ReplaySource {
                         }
                     }
                 }
-                Ok(Some(pb_aprs_packet.try_into().unwrap()))
+                pb_aprs_packet
+                    .try_into()
+                    .map_err(errors::PacketError::Conversion)
             }
             Err(error) => {
                 let decode_error = errors::PacketError::DecodeReadError(error);
@@ -388,24 +394,24 @@ mod test {
 
         let start = std::time::Instant::now();
 
-        let p1 = source.create_aprs_packet().unwrap().unwrap();
+        let p1 = source.create_aprs_packet().unwrap();
         assert_eq!(p1.message, "packet 1\n");
         let elapsed_p1 = start.elapsed().as_millis();
         assert!(elapsed_p1.abs_diff(0) <= 5);
 
-        let p2 = source.create_aprs_packet().unwrap().unwrap();
+        let p2 = source.create_aprs_packet().unwrap();
         assert_eq!(p2.message, "packet 2\n");
         let elapsed_p2 = start.elapsed().as_millis();
         assert!(elapsed_p2 >= 50);
         assert!(elapsed_p2.abs_diff(50) <= 5);
 
-        let p3 = source.create_aprs_packet().unwrap().unwrap();
+        let p3 = source.create_aprs_packet().unwrap();
         assert_eq!(p3.message, "packet 3\n");
         let elapsed_p3 = start.elapsed().as_millis();
         assert!(elapsed_p3 >= 100);
         assert!(elapsed_p3.abs_diff(100) <= 5);
 
-        let p4 = source.create_aprs_packet().unwrap();
-        assert!(p4.is_none());
+        let p4 = source.create_aprs_packet().is_err();
+        assert!(p4);
     }
 }

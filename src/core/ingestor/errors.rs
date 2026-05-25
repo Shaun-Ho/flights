@@ -28,4 +28,8 @@ pub enum PacketError {
     StreamReadError(#[from] std::io::Error),
     #[error("Failed to decode protobuf message from file: {0}")]
     DecodeReadError(#[from] prost::DecodeError),
+    #[error("Source disconnected or reached end of file")]
+    Disconnected,
+    #[error("Connection timed out")]
+    Timeout,
 }
