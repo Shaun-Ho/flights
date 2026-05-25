@@ -37,7 +37,7 @@ pub struct AirspaceConfig {
 
 #[derive(serde::Deserialize)]
 pub struct GliderNetConfig {
-    pub host: String,
-    pub port: u64,
+    pub host: std::net::Ipv4Addr,
+    pub port: u16,
     pub filter: String,
 }
