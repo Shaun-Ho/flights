@@ -39,7 +39,7 @@ impl SteppableTask for AirspaceStore {
             }
             Err(crossbeam_channel::TryRecvError::Disconnected) => {
                 log::error!("AirspaceStore upstream disconnected");
-                return TaskState::Errored("AirspaceStore upstream disconnected".to_string());
+                return TaskState::Completed;
             }
         }
 
@@ -89,10 +89,7 @@ mod tests {
 
         drop(sender);
 
-        assert_eq!(
-            store.step(),
-            TaskState::Errored("AirspaceStore upstream disconnected".to_owned())
-        );
+        assert_eq!(store.step(), TaskState::Completed);
     }
 
     #[test]
@@ -109,9 +106,6 @@ mod tests {
         assert_eq!(store.step(), TaskState::Running);
 
         // when queue is empty, and channel is disconnected, next step() should error
-        assert_eq!(
-            store.step(),
-            TaskState::Errored("AirspaceStore upstream disconnected".to_owned())
-        );
+        assert_eq!(store.step(), TaskState::Completed);
     }
 }

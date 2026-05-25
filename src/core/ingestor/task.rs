@@ -93,7 +93,7 @@ impl SteppableTask for Ingestor {
             // This is to handle disconnected channels - only case where we should terminate the task
             Err(errors::PacketError::Disconnected) => {
                 log::error!("Stream disconnected");
-                TaskState::Errored("TCP stream disconnected".to_string())
+                TaskState::Completed
             }
             Err(err) => {
                 log::error!("{err}");
@@ -351,11 +351,8 @@ mod test {
         assert_eq!(receiver.recv().unwrap().message, "PACKET_2\n");
 
         let keep_running = ingestor.step();
-        // Expected to stop task when connection drops completely
-        assert_eq!(
-            keep_running,
-            TaskState::Errored("TCP stream disconnected".to_string())
-        );
+        // Expected to stop task when TCP stream is disconnected.
+        assert_eq!(keep_running, TaskState::Completed);
     }
     #[test]
     fn given_connection_to_stream_when_end_of_stream_then_ingestor_stops_running() {
@@ -367,10 +364,7 @@ mod test {
 
         let keep_running = ingestor.step();
 
-        assert_eq!(
-            keep_running,
-            TaskState::Errored("TCP stream disconnected".to_string())
-        );
+        assert_eq!(keep_running, TaskState::Completed);
 
         assert!(receiver.try_recv().is_err(), "Channel should be empty");
     }
