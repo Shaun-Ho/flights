@@ -3,7 +3,7 @@ use ogn_aprs_parser::parse_ogn_aprs_aircraft_beacon;
 use crate::core::ingestor::AprsPacket;
 use crate::core::parser::Aircraft;
 use crate::core::parser::conversion::convert_ogn_aprs_beacon_to_aircraft;
-use crate::core::thread_manager::SteppableTask;
+use crate::core::thread_manager::{SteppableTask, TaskState};
 
 pub struct AircraftParser {
     receiver: crossbeam_channel::Receiver<AprsPacket>,
@@ -23,10 +23,10 @@ impl AircraftParser {
 }
 
 impl SteppableTask for AircraftParser {
-    fn step(&mut self) -> bool {
+    fn step(&mut self) -> TaskState {
         let Ok(aprs_packet) = self.receiver.recv() else {
             log::error!("AircraftParser upstream disconnected");
-            return false;
+            return TaskState::Errored("AircraftParser upstream disconnected".to_string());
         };
 
         match parse_ogn_aprs_aircraft_beacon(&aprs_packet.message) {
@@ -40,6 +40,6 @@ impl SteppableTask for AircraftParser {
             Err(err) => log::debug!("{err:?}"),
         }
 
-        true
+        TaskState::Running
     }
 }
