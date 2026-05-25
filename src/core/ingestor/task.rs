@@ -6,7 +6,7 @@ use crate::core::ingestor::errors;
 use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::thread_manager::SteppableTask;
 
-pub const DEFAULT_INGESTOR_TIMOUT: std::time::Duration = std::time::Duration::from_secs(5);
+pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
@@ -48,7 +48,10 @@ impl Ingestor {
         log::info!("Connecting to TCP stream.");
 
         let address = std::net::SocketAddr::new(config.host.into(), config.port);
-        let mut stream = std::net::TcpStream::connect_timeout(&address, DEFAULT_INGESTOR_TIMOUT)?;
+        let mut stream =
+            std::net::TcpStream::connect_timeout(&address, INGESTOR_CONNECTION_TIMEOUT)?;
+
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_micros(50)));
 
         authentication_handshake(&mut stream, &config.filter)?;
 
@@ -78,9 +81,14 @@ impl SteppableTask for Ingestor {
 
                 true
             }
+            // This is to handle disconnected channels - only case where we should terminate the task
+            Err(errors::PacketError::Disconnected) => {
+                log::error!("Stream disconnected");
+                false
+            }
             Err(err) => {
                 log::error!("{err}");
-                false
+                true
             }
         }
     }
@@ -124,10 +132,7 @@ impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
                 Ok(packet)
             }
             Err(error) => {
-                if error.kind() == std::io::ErrorKind::TimedOut {
-                    log::error!("TCP stream timed out");
-                }
-                let packet_error = errors::PacketError::StreamReadError(error);
+                let packet_error = errors::PacketError::IoError(error);
                 log::error!("{packet_error}");
                 Err(packet_error)
             }
@@ -264,6 +269,37 @@ mod test {
         }
     }
 
+    struct MockStatefulStream {
+        state: usize,
+    }
+
+    impl std::io::Read for MockStatefulStream {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            match self.state {
+                0 => {
+                    self.state = 1;
+                    let payload = b"PACKET_1\n";
+                    buf[..payload.len()].copy_from_slice(payload);
+                    Ok(payload.len())
+                }
+                1 => {
+                    self.state = 2;
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "simulated network silence",
+                    ))
+                }
+                2 => {
+                    self.state = 3;
+                    let payload = b"PACKET_2\n";
+                    buf[..payload.len()].copy_from_slice(payload);
+                    Ok(payload.len())
+                }
+                _ => Ok(0), // EOF (Disconnected)
+            }
+        }
+    }
+
     #[test]
     fn given_connection_to_stream_when_data_received_then_ingestor_sends_correct_data_and_keeps_running()
      {
@@ -280,6 +316,37 @@ mod test {
         assert_eq!(receiver.recv().unwrap().message, data);
     }
 
+    #[test]
+    fn given_stream_when_idle_timeout_occurs_then_ingestor_keeps_running_and_reads_next_packet() {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let mock_stream = MockStatefulStream { state: 0 };
+        let source = LiveSource::new(mock_stream);
+        let mut ingestor = Ingestor::new(source, sender, None);
+
+        let keep_running = ingestor.step();
+        assert!(keep_running, "Expected to keep running after valid packet");
+        assert_eq!(receiver.recv().unwrap().message, "PACKET_1\n");
+
+        let keep_running = ingestor.step();
+        assert!(keep_running, "Expected to keep running after idle timeout");
+        assert!(
+            receiver.try_recv().is_err(),
+            "No data should be sent on timeout"
+        );
+
+        let keep_running = ingestor.step();
+        assert!(
+            keep_running,
+            "Expected to keep running after recovering valid packet"
+        );
+        assert_eq!(receiver.recv().unwrap().message, "PACKET_2\n");
+
+        let keep_running = ingestor.step();
+        assert!(
+            !keep_running,
+            "Expected to stop task when connection drops completely"
+        );
+    }
     #[test]
     fn given_connection_to_stream_when_end_of_stream_then_ingestor_stops_running() {
         let (sender, receiver) = crossbeam_channel::unbounded();

@@ -24,12 +24,10 @@ pub enum PacketConversionError {
 pub enum PacketError {
     #[error("Packet Conversion Error: {0}")]
     Conversion(PacketConversionError),
-    #[error("Failed to read line from source: {0}")]
-    StreamReadError(#[from] std::io::Error),
     #[error("Failed to decode protobuf message from file: {0}")]
     DecodeReadError(#[from] prost::DecodeError),
+    #[error("Some IO error: {0}")]
+    IoError(#[from] std::io::Error),
     #[error("Source disconnected or reached end of file")]
     Disconnected,
-    #[error("Connection timed out")]
-    Timeout,
 }
