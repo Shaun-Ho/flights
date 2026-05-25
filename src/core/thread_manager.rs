@@ -3,8 +3,25 @@ use log;
 pub type ThreadID = i32;
 pub type TaskID = i32;
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum TaskState {
+    // Task is still running
+    Running,
+    // Task defines itself as completed
+    Completed,
+    // Task encountered an error, and had to terminate
+    Errored(String),
+}
+
 pub trait SteppableTask: Send + 'static {
-    fn step(&mut self) -> bool;
+    fn step(&mut self) -> TaskState;
+}
+
+#[derive(Debug)]
+enum InternalTaskStatus {
+    Pending,     // task created
+    Interrupted, // interrupted by a receiving a stop command
+    Downstream(TaskState),
 }
 
 pub struct ThreadManager {
@@ -48,15 +65,17 @@ impl ThreadManager {
     {
         let id = self.current_task_id;
 
+        let task_status = std::sync::Arc::new(std::sync::RwLock::new(InternalTaskStatus::Pending));
+        let worker_status = task_status.clone();
         let (stop_sender, stop_receiver) = crossbeam_channel::bounded::<()>(1);
 
         let thread_task: Box<dyn FnOnce() + Send> = if period.is_zero() {
             Box::new(move || {
-                run_task_continuously(task, &stop_receiver);
+                run_task_continuously(task, &stop_receiver, worker_status);
             })
         } else {
             Box::new(move || {
-                run_task_with_period(task, period, &stop_receiver);
+                run_task_with_period(task, period, &stop_receiver, worker_status);
             })
         };
 
@@ -69,8 +88,10 @@ impl ThreadManager {
         self.tasks.insert(
             id,
             ManagedTask {
+                task_id: id,
                 handle,
                 stop_sender,
+                status: task_status,
             },
         );
         self.current_task_id += 1;
@@ -108,15 +129,32 @@ impl Default for ThreadManager {
 fn run_task_continuously<T: SteppableTask>(
     mut task: T,
     stop_receiver: &crossbeam_channel::Receiver<()>,
+    task_status: std::sync::Arc<std::sync::RwLock<InternalTaskStatus>>,
 ) {
+    *task_status.write().unwrap() = InternalTaskStatus::Downstream(TaskState::Running);
+
     loop {
+        // Check if we are interrupted
         match stop_receiver.try_recv() {
-            Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => break,
+            Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                *task_status.write().unwrap() = InternalTaskStatus::Interrupted;
+                break;
+            }
             Err(crossbeam_channel::TryRecvError::Empty) => {}
         }
-
-        if !task.step() {
-            break;
+        // Check if we should still loop on the task
+        match task.step() {
+            TaskState::Running => {} // do nothing, task continuing
+            TaskState::Completed => {
+                *task_status.write().unwrap() =
+                    InternalTaskStatus::Downstream(TaskState::Completed);
+                break;
+            }
+            TaskState::Errored(error) => {
+                *task_status.write().unwrap() =
+                    InternalTaskStatus::Downstream(TaskState::Errored(error));
+                break;
+            }
         }
 
         std::thread::yield_now();
@@ -127,37 +165,60 @@ fn run_task_with_period<T: SteppableTask>(
     mut task: T,
     period: std::time::Duration,
     stop_receiver: &crossbeam_channel::Receiver<()>,
+    task_status: std::sync::Arc<std::sync::RwLock<InternalTaskStatus>>,
 ) {
-    let mut next_run = std::time::Instant::now();
+    let mut next_iteration_time = std::time::Instant::now();
     loop {
-        if !task.step() {
-            break;
-        }
-        next_run += period;
-        let now = std::time::Instant::now();
-
-        if next_run > now {
-            let sleep_dur = next_run - now;
-            match stop_receiver.recv_timeout(sleep_dur) {
-                Ok(()) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
-                Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+        // Check if we are interrupted
+        match stop_receiver.try_recv() {
+            Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                *task_status.write().unwrap() = InternalTaskStatus::Interrupted;
+                break;
             }
-        } else {
-            // Reset drift base if we are lagging badly
-            next_run = now;
+            Err(crossbeam_channel::TryRecvError::Empty) => {}
+        }
 
-            if let Ok(()) = stop_receiver.try_recv() {
+        // Find what is the time for next iteration
+        next_iteration_time += period;
+
+        // Run task & update the task status
+        match task.step() {
+            TaskState::Running => {} // do nothing here
+            TaskState::Completed => {
+                *task_status.write().unwrap() =
+                    InternalTaskStatus::Downstream(TaskState::Completed);
+                break;
+            }
+            TaskState::Errored(error) => {
+                *task_status.write().unwrap() =
+                    InternalTaskStatus::Downstream(TaskState::Errored(error));
                 break;
             }
         }
+
+        // Check if sleep is needed if task completed within the window
+        let now = std::time::Instant::now();
+
+        if next_iteration_time < now {
+            let sleep_duration = next_iteration_time - now;
+            std::thread::sleep(sleep_duration);
+        } else {
+            next_iteration_time = now;
+        }
     }
 }
+
 struct ManagedTask {
+    task_id: TaskID,
     handle: std::thread::JoinHandle<()>,
     stop_sender: crossbeam_channel::Sender<()>,
+    status: std::sync::Arc<std::sync::RwLock<InternalTaskStatus>>,
 }
+
 #[cfg(test)]
 mod tests {
+    use crate::core::thread_manager::TaskState;
+
     use super::{SteppableTask, ThreadManager};
 
     // A simple runnable task for counting and self-stopping
@@ -179,11 +240,15 @@ mod tests {
     }
 
     impl SteppableTask for CountingTask {
-        fn step(&mut self) -> bool {
+        fn step(&mut self) -> TaskState {
             let mut count = self.count.lock().unwrap();
             *count += 1;
             self.sender.send(*count).unwrap();
-            *count < self.limit
+            if *count < self.limit {
+                TaskState::Running
+            } else {
+                TaskState::Completed
+            }
         }
     }
 
@@ -204,11 +269,11 @@ mod tests {
     }
 
     impl SteppableTask for LoopingTask {
-        fn step(&mut self) -> bool {
+        fn step(&mut self) -> TaskState {
             let mut executions = self.executions.lock().unwrap();
             *executions += 1;
             self.sender.send(*executions).unwrap();
-            true // Always return true, so it must be stopped externally
+            TaskState::Running
         }
     }
 
