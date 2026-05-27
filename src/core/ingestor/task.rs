@@ -1,3 +1,5 @@
+use std::net::ToSocketAddrs;
+
 use prost::Message;
 
 use crate::core::ingestor::config::GliderNetConfig;
@@ -47,11 +49,18 @@ impl Ingestor {
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
 
-        let address = std::net::SocketAddr::new(config.host.into(), config.port);
+        let address_str = format!("{}:{}", config.host, config.port);
+
+        let mut resolved_address = address_str.to_socket_addrs()?;
+
+        let address = resolved_address.next().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "Could not resolve host")
+        })?;
+
         let mut stream =
             std::net::TcpStream::connect_timeout(&address, INGESTOR_CONNECTION_TIMEOUT)?;
 
-        let _ = stream.set_read_timeout(Some(std::time::Duration::from_micros(50)));
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
 
         authentication_handshake(&mut stream, &config.filter)?;
 

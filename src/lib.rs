@@ -110,7 +110,7 @@ mod test {
             read_path: Some(read_path),
             write_path: None,
             glidernet: GliderNetConfig {
-                host: std::net::Ipv4Addr::LOCALHOST,
+                host: "host".to_string(),
                 port: 0,
                 filter: String::new(),
             },
