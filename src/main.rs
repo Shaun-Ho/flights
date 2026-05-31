@@ -45,6 +45,7 @@ fn main() {
     } else if let Some(duration) = run_duration {
         std::thread::sleep(duration);
     } else {
+        // run indefinitely until something breaks the chain
         pipeline.wait_on_all_tasks_finish();
     }
     log::info!("Shutting down application.");

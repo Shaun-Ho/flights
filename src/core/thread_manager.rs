@@ -118,11 +118,80 @@ impl ThreadManager {
             let _ = task.handle.join();
         }
     }
+
+    pub fn wait_on_all_tasks(&mut self) {
+        if self.tasks.is_empty() {
+            return;
+        }
+        log::info!("Waiting for all {} tasks to finish", self.tasks.len());
+
+        for (id, task) in self.tasks.drain() {
+            match task.handle.join() {
+                Ok(_) => {
+                    log::debug!("Task {id} terminated gracefully");
+                }
+                Err(e) => {
+                    log::error!("Task {id} panicked: {e:?}");
+                }
+            }
+        }
+    }
 }
 
 impl Default for ThreadManager {
     fn default() -> Self {
         ThreadManager::new()
+    }
+}
+
+impl Drop for ThreadManager {
+    fn drop(&mut self) {
+        // If the developer used your API correctly (wait_on_all_tasks),
+        // this is empty and Drop does absolutely nothing.
+        if self.tasks.is_empty() {
+            return;
+        }
+
+        let remaining = self.tasks.len();
+        log::warn!(
+            "ThreadManager dropping with {remaining} tasks remaining. Enforcing bounded wait..."
+        );
+
+        let timeout_duration = std::time::Duration::from_secs(5);
+        let start_time = std::time::Instant::now();
+
+        let mut remaining_tasks: Vec<_> = self
+            .tasks
+            .drain()
+            .map(|(id, task)| (id, task.handle))
+            .collect();
+
+        // Loop until tasks finish OR we hit the timeout
+        while !remaining_tasks.is_empty() && start_time.elapsed() < timeout_duration {
+            let mut i = 0;
+            while i < remaining_tasks.len() {
+                if remaining_tasks[i].1.is_finished() {
+                    let (id, handle) = remaining_tasks.remove(i);
+                    match handle.join() {
+                        Ok(_) => log::debug!("Task {} completed during drop period.", id),
+                        Err(e) => log::error!("Task {id} panicked during drop: {e:?}"),
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+
+            if !remaining_tasks.is_empty() {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
+
+        if !remaining_tasks.is_empty() {
+            log::error!(
+                "Drop complete: {} tasks did not finish in time and have been detached.",
+                remaining_tasks.len()
+            );
+        }
     }
 }
 
