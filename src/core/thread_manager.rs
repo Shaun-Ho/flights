@@ -17,13 +17,6 @@ pub trait SteppableTask: Send + 'static {
     fn step(&mut self) -> TaskState;
 }
 
-#[derive(Debug)]
-enum InternalTaskStatus {
-    Pending,     // task created
-    Interrupted, // interrupted by a receiving a stop command
-    Downstream(TaskState),
-}
-
 pub struct ThreadManager {
     current_task_id: ThreadID,
     tasks: std::collections::HashMap<ThreadID, ManagedTask>,
@@ -65,7 +58,7 @@ impl ThreadManager {
     {
         let id = self.current_task_id;
 
-        let task_status = std::sync::Arc::new(std::sync::RwLock::new(InternalTaskStatus::Pending));
+        let task_status = std::sync::Arc::new(std::sync::RwLock::new(ThreadStatus::Active));
         let worker_status = task_status.clone();
         let (stop_sender, stop_receiver) = crossbeam_channel::bounded::<()>(1);
 
@@ -188,16 +181,31 @@ impl Drop for ThreadManager {
     }
 }
 
+#[derive(Debug)]
+enum ThreadStatus {
+    Active,
+    Interrupted, // interrupted by a receiving a stop command
+    Completed,
+    Errored(String),
+}
+
+struct ManagedTask {
+    task_id: TaskID,
+    handle: std::thread::JoinHandle<()>,
+    stop_sender: crossbeam_channel::Sender<()>,
+    status: std::sync::Arc<std::sync::RwLock<ThreadStatus>>,
+}
+
 fn run_task_continuously<T: SteppableTask>(
     mut task: T,
     stop_receiver: &crossbeam_channel::Receiver<()>,
-    task_status: std::sync::Arc<std::sync::RwLock<InternalTaskStatus>>,
+    task_status: std::sync::Arc<std::sync::RwLock<ThreadStatus>>,
 ) {
     loop {
         // Check if we are interrupted
         match stop_receiver.try_recv() {
             Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => {
-                *task_status.write().unwrap() = InternalTaskStatus::Interrupted;
+                *task_status.write().unwrap() = ThreadStatus::Interrupted;
                 break;
             }
             Err(crossbeam_channel::TryRecvError::Empty) => {}
@@ -206,13 +214,11 @@ fn run_task_continuously<T: SteppableTask>(
         match task.step() {
             TaskState::Running => {} // do nothing, task continuing
             TaskState::Completed => {
-                *task_status.write().unwrap() =
-                    InternalTaskStatus::Downstream(TaskState::Completed);
+                *task_status.write().unwrap() = ThreadStatus::Completed;
                 break;
             }
             TaskState::Errored(error) => {
-                *task_status.write().unwrap() =
-                    InternalTaskStatus::Downstream(TaskState::Errored(error));
+                *task_status.write().unwrap() = ThreadStatus::Errored(error);
                 break;
             }
         }
@@ -225,14 +231,14 @@ fn run_task_with_period<T: SteppableTask>(
     mut task: T,
     period: std::time::Duration,
     stop_receiver: &crossbeam_channel::Receiver<()>,
-    task_status: std::sync::Arc<std::sync::RwLock<InternalTaskStatus>>,
+    task_status: std::sync::Arc<std::sync::RwLock<ThreadStatus>>,
 ) {
     let mut next_iteration_time = std::time::Instant::now();
     loop {
         // Check if we are interrupted
         match stop_receiver.try_recv() {
             Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => {
-                *task_status.write().unwrap() = InternalTaskStatus::Interrupted;
+                *task_status.write().unwrap() = ThreadStatus::Interrupted;
                 break;
             }
             Err(crossbeam_channel::TryRecvError::Empty) => {}
@@ -245,13 +251,11 @@ fn run_task_with_period<T: SteppableTask>(
         match task.step() {
             TaskState::Running => {} // do nothing here
             TaskState::Completed => {
-                *task_status.write().unwrap() =
-                    InternalTaskStatus::Downstream(TaskState::Completed);
+                *task_status.write().unwrap() = ThreadStatus::Completed;
                 break;
             }
             TaskState::Errored(error) => {
-                *task_status.write().unwrap() =
-                    InternalTaskStatus::Downstream(TaskState::Errored(error));
+                *task_status.write().unwrap() = ThreadStatus::Errored(error);
                 break;
             }
         }
@@ -279,15 +283,16 @@ fn log_task_finished_status(task: ManagedTask) {
         Ok(_) => {
             let final_status = status.read().unwrap();
             match &*final_status {
-                InternalTaskStatus::Pending => log::error!("{task_id} did not start"),
-                InternalTaskStatus::Interrupted
-                | InternalTaskStatus::Downstream(TaskState::Running) => {
+                ThreadStatus::Active => {
+                    log::warn!("Task {task_id} exited abnormally without updating its status.")
+                }
+                ThreadStatus::Interrupted => {
                     log::info!("Task {task_id}: was interrupted.")
                 }
-                InternalTaskStatus::Downstream(TaskState::Completed) => {
+                ThreadStatus::Completed => {
                     log::info!("Task {task_id} completed successfully")
                 }
-                InternalTaskStatus::Downstream(TaskState::Errored(err)) => {
+                ThreadStatus::Errored(err) => {
                     log::error!("Task was interrupted due to error: {err}")
                 }
             }
@@ -296,13 +301,6 @@ fn log_task_finished_status(task: ManagedTask) {
             log::error!("Task {task_id} panicked: {e:?}");
         }
     }
-}
-
-struct ManagedTask {
-    task_id: TaskID,
-    handle: std::thread::JoinHandle<()>,
-    stop_sender: crossbeam_channel::Sender<()>,
-    status: std::sync::Arc<std::sync::RwLock<InternalTaskStatus>>,
 }
 
 #[cfg(test)]
