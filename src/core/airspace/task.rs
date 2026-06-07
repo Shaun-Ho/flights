@@ -80,7 +80,7 @@ mod tests {
             create_dummy_aircraft_at_time(chrono::Utc::now(), ICAOAddress::new(0).unwrap());
         sender.send(dummy_aircraft).unwrap();
 
-        assert_eq!(store.step(), TaskState::Running);
+        assert!(matches!(store.step(), TaskState::Running));
     }
 
     #[test]
@@ -89,7 +89,7 @@ mod tests {
 
         drop(sender);
 
-        assert_eq!(store.step(), TaskState::Completed);
+        assert!(matches!(store.step(), TaskState::Completed));
     }
 
     #[test]
@@ -103,9 +103,9 @@ mod tests {
         sender.send(dummy_aircraft).unwrap();
         drop(sender);
         // we still continue to finish processing the disconnected queue
-        assert_eq!(store.step(), TaskState::Running);
+        assert!(matches!(store.step(), TaskState::Running));
 
         // when queue is empty, and channel is disconnected, next step() should error
-        assert_eq!(store.step(), TaskState::Completed);
+        assert!(matches!(store.step(), TaskState::Completed));
     }
 }

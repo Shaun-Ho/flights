@@ -321,7 +321,7 @@ mod test {
 
         let keep_running = ingestor.step();
 
-        assert_eq!(keep_running, TaskState::Running);
+        assert!(matches!(keep_running, TaskState::Running));
         assert_eq!(receiver.recv().unwrap().message, data);
     }
 
@@ -334,12 +334,12 @@ mod test {
 
         let keep_running = ingestor.step();
         // Expected to keep running after valid packet
-        assert_eq!(keep_running, TaskState::Running);
+        assert!(matches!(keep_running, TaskState::Running));
         assert_eq!(receiver.recv().unwrap().message, "PACKET_1\n");
 
         let keep_running = ingestor.step();
         // Expected to keep running after idle timeout
-        assert_eq!(keep_running, TaskState::Running);
+        assert!(matches!(keep_running, TaskState::Running));
         assert!(
             receiver.try_recv().is_err(),
             "No data should be sent on timeout"
@@ -347,12 +347,12 @@ mod test {
 
         let keep_running = ingestor.step();
         // Expected to keep running after recovering valid packet
-        assert_eq!(keep_running, TaskState::Running);
+        assert!(matches!(keep_running, TaskState::Running));
         assert_eq!(receiver.recv().unwrap().message, "PACKET_2\n");
 
         let keep_running = ingestor.step();
         // Expected to stop task when TCP stream is disconnected.
-        assert_eq!(keep_running, TaskState::Completed);
+        assert!(matches!(keep_running, TaskState::Completed));
     }
     #[test]
     fn given_connection_to_stream_when_end_of_stream_then_ingestor_stops_running() {
@@ -364,7 +364,7 @@ mod test {
 
         let keep_running = ingestor.step();
 
-        assert_eq!(keep_running, TaskState::Completed);
+        assert!(matches!(keep_running, TaskState::Completed));
 
         assert!(receiver.try_recv().is_err(), "Channel should be empty");
     }
@@ -420,7 +420,7 @@ mod test {
         let mut ingestor = Ingestor::new(source, sender, None);
         let mut cont = true;
         while cont {
-            cont = ingestor.step() == TaskState::Running;
+            cont = matches!(ingestor.step(), TaskState::Running);
         }
 
         // drop ingestor to flush writer

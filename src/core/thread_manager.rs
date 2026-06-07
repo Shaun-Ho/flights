@@ -3,14 +3,14 @@ use log;
 pub type ThreadID = i32;
 pub type TaskID = i32;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum TaskState {
     // Task is still running
     Running,
     // Task defines itself as completed
     Completed,
     // Task encountered an error, and had to terminate
-    Errored(String),
+    Errored(Box<dyn std::error::Error + Send + Sync>),
 }
 
 pub trait SteppableTask: Send + 'static {
@@ -183,10 +183,10 @@ impl Drop for ThreadManager {
 
 #[derive(Debug)]
 enum ThreadStatus {
-    Active,          // Task has been submitted to an active thread
-    Interrupted,     // interrupted by a receiving a stop command
-    Completed,       // Task completed successfully - mapped from `TaskState::Completed`
-    Errored(String), // Task encountered an error - mapped from `TaskState::Errored`
+    Active,      // Task has been submitted to an active thread
+    Interrupted, // interrupted by a receiving a stop command
+    Completed,   // Task completed successfully - mapped from `TaskState::Completed`
+    Errored(Box<dyn std::error::Error + Send + Sync>), // Task encountered an error - mapped from `TaskState::Errored`
 }
 
 struct ManagedTask {

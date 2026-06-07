@@ -25,8 +25,8 @@ impl AircraftParser {
 impl SteppableTask for AircraftParser {
     fn step(&mut self) -> TaskState {
         let Ok(aprs_packet) = self.receiver.recv() else {
-            log::error!("AircraftParser upstream disconnected");
-            return TaskState::Errored("AircraftParser upstream disconnected".to_string());
+            log::info!("AircraftParser upstream disconnected. Task complete");
+            return TaskState::Completed;
         };
 
         match parse_ogn_aprs_aircraft_beacon(&aprs_packet.message) {
