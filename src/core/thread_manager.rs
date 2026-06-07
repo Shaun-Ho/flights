@@ -3,8 +3,18 @@ use log;
 pub type ThreadID = i32;
 pub type TaskID = i32;
 
+#[derive(Debug)]
+pub enum TaskState {
+    // Task is still running
+    Running,
+    // Task defines itself as completed
+    Completed,
+    // Task encountered an error, and had to terminate
+    Errored(Box<dyn std::error::Error + Send + Sync>),
+}
+
 pub trait SteppableTask: Send + 'static {
-    fn step(&mut self) -> bool;
+    fn step(&mut self) -> TaskState;
 }
 
 pub struct ThreadManager {
@@ -48,15 +58,17 @@ impl ThreadManager {
     {
         let id = self.current_task_id;
 
+        let task_status = std::sync::Arc::new(std::sync::RwLock::new(ThreadStatus::Active));
+        let worker_status = task_status.clone();
         let (stop_sender, stop_receiver) = crossbeam_channel::bounded::<()>(1);
 
         let thread_task: Box<dyn FnOnce() + Send> = if period.is_zero() {
             Box::new(move || {
-                run_task_continuously(task, &stop_receiver);
+                run_task_continuously(task, &stop_receiver, worker_status);
             })
         } else {
             Box::new(move || {
-                run_task_with_period(task, period, &stop_receiver);
+                run_task_with_period(task, period, &stop_receiver, worker_status);
             })
         };
 
@@ -69,8 +81,10 @@ impl ThreadManager {
         self.tasks.insert(
             id,
             ManagedTask {
+                task_id: id,
                 handle,
                 stop_sender,
+                status: task_status,
             },
         );
         self.current_task_id += 1;
@@ -94,7 +108,18 @@ impl ThreadManager {
 
     pub fn wait_on_task_finish(&mut self, task_id: TaskID) {
         if let Some(task) = self.tasks.remove(&task_id) {
-            let _ = task.handle.join();
+            log_task_finished_status(task);
+        }
+    }
+
+    pub fn wait_on_all_tasks(&mut self) {
+        if self.tasks.is_empty() {
+            return;
+        }
+        log::info!("Waiting for all {} tasks to finish", self.tasks.len());
+
+        for (_id, task) in self.tasks.drain() {
+            log_task_finished_status(task);
         }
     }
 }
@@ -105,18 +130,97 @@ impl Default for ThreadManager {
     }
 }
 
+impl Drop for ThreadManager {
+    fn drop(&mut self) {
+        // If the developer used your API correctly (wait_on_all_tasks),
+        // this is empty and Drop does absolutely nothing.
+        if self.tasks.is_empty() {
+            return;
+        }
+
+        let remaining = self.tasks.len();
+        log::warn!(
+            "ThreadManager dropping with {remaining} tasks remaining. Enforcing bounded wait..."
+        );
+
+        let timeout_duration = std::time::Duration::from_secs(5);
+        let start_time = std::time::Instant::now();
+
+        let mut remaining_tasks: Vec<_> = self
+            .tasks
+            .drain()
+            .map(|(id, task)| (id, task.handle))
+            .collect();
+
+        // Loop until tasks finish OR we hit the timeout
+        while !remaining_tasks.is_empty() && start_time.elapsed() < timeout_duration {
+            let mut i = 0;
+            while i < remaining_tasks.len() {
+                if remaining_tasks[i].1.is_finished() {
+                    let (id, handle) = remaining_tasks.remove(i);
+                    match handle.join() {
+                        Ok(_) => log::debug!("Task {} completed during drop period.", id),
+                        Err(e) => log::error!("Task {id} panicked during drop: {e:?}"),
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+
+            if !remaining_tasks.is_empty() {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
+
+        if !remaining_tasks.is_empty() {
+            log::error!(
+                "Drop complete: {} tasks did not finish in time and have been detached.",
+                remaining_tasks.len()
+            );
+        }
+    }
+}
+
+#[derive(Debug)]
+enum ThreadStatus {
+    Active,      // Task has been submitted to an active thread
+    Interrupted, // interrupted by a receiving a stop command
+    Completed,   // Task completed successfully - mapped from `TaskState::Completed`
+    Errored(Box<dyn std::error::Error + Send + Sync>), // Task encountered an error - mapped from `TaskState::Errored`
+}
+
+struct ManagedTask {
+    task_id: TaskID,
+    handle: std::thread::JoinHandle<()>,
+    stop_sender: crossbeam_channel::Sender<()>,
+    status: std::sync::Arc<std::sync::RwLock<ThreadStatus>>,
+}
+
 fn run_task_continuously<T: SteppableTask>(
     mut task: T,
     stop_receiver: &crossbeam_channel::Receiver<()>,
+    task_status: std::sync::Arc<std::sync::RwLock<ThreadStatus>>,
 ) {
     loop {
+        // Check if we are interrupted
         match stop_receiver.try_recv() {
-            Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => break,
+            Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                *task_status.write().unwrap() = ThreadStatus::Interrupted;
+                break;
+            }
             Err(crossbeam_channel::TryRecvError::Empty) => {}
         }
-
-        if !task.step() {
-            break;
+        // Check if we should still loop on the task
+        match task.step() {
+            TaskState::Running => {} // do nothing, task continuing
+            TaskState::Completed => {
+                *task_status.write().unwrap() = ThreadStatus::Completed;
+                break;
+            }
+            TaskState::Errored(error) => {
+                *task_status.write().unwrap() = ThreadStatus::Errored(error);
+                break;
+            }
         }
 
         std::thread::yield_now();
@@ -127,37 +231,82 @@ fn run_task_with_period<T: SteppableTask>(
     mut task: T,
     period: std::time::Duration,
     stop_receiver: &crossbeam_channel::Receiver<()>,
+    task_status: std::sync::Arc<std::sync::RwLock<ThreadStatus>>,
 ) {
-    let mut next_run = std::time::Instant::now();
+    let mut next_iteration_time = std::time::Instant::now();
     loop {
-        if !task.step() {
-            break;
-        }
-        next_run += period;
-        let now = std::time::Instant::now();
-
-        if next_run > now {
-            let sleep_dur = next_run - now;
-            match stop_receiver.recv_timeout(sleep_dur) {
-                Ok(()) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
-                Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+        // Check if we are interrupted
+        match stop_receiver.try_recv() {
+            Ok(()) | Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                *task_status.write().unwrap() = ThreadStatus::Interrupted;
+                break;
             }
-        } else {
-            // Reset drift base if we are lagging badly
-            next_run = now;
+            Err(crossbeam_channel::TryRecvError::Empty) => {}
+        }
 
-            if let Ok(()) = stop_receiver.try_recv() {
+        // Find what is the time for next iteration
+        next_iteration_time += period;
+
+        // Run task & update the task status
+        match task.step() {
+            TaskState::Running => {} // do nothing here
+            TaskState::Completed => {
+                *task_status.write().unwrap() = ThreadStatus::Completed;
+                break;
+            }
+            TaskState::Errored(error) => {
+                *task_status.write().unwrap() = ThreadStatus::Errored(error);
                 break;
             }
         }
+
+        // Check if sleep is needed if task completed within the window
+        let now = std::time::Instant::now();
+
+        if next_iteration_time < now {
+            let sleep_duration = next_iteration_time - now;
+            std::thread::sleep(sleep_duration);
+        } else {
+            next_iteration_time = now;
+        }
     }
 }
-struct ManagedTask {
-    handle: std::thread::JoinHandle<()>,
-    stop_sender: crossbeam_channel::Sender<()>,
+
+fn log_task_finished_status(task: ManagedTask) {
+    let ManagedTask {
+        task_id,
+        handle,
+        status,
+        ..
+    } = task;
+    match handle.join() {
+        Ok(_) => {
+            let final_status = status.read().unwrap();
+            match &*final_status {
+                ThreadStatus::Active => {
+                    log::warn!("Task {task_id} exited abnormally without updating its status.")
+                }
+                ThreadStatus::Interrupted => {
+                    log::info!("Task {task_id}: was interrupted.")
+                }
+                ThreadStatus::Completed => {
+                    log::info!("Task {task_id} completed successfully")
+                }
+                ThreadStatus::Errored(err) => {
+                    log::error!("Task was interrupted due to error: {err}")
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Task {task_id} panicked: {e:?}");
+        }
+    }
 }
+
 #[cfg(test)]
 mod tests {
+    use crate::core::thread_manager::TaskState;
+
     use super::{SteppableTask, ThreadManager};
 
     // A simple runnable task for counting and self-stopping
@@ -179,11 +328,15 @@ mod tests {
     }
 
     impl SteppableTask for CountingTask {
-        fn step(&mut self) -> bool {
+        fn step(&mut self) -> TaskState {
             let mut count = self.count.lock().unwrap();
             *count += 1;
             self.sender.send(*count).unwrap();
-            *count < self.limit
+            if *count < self.limit {
+                TaskState::Running
+            } else {
+                TaskState::Completed
+            }
         }
     }
 
@@ -204,11 +357,11 @@ mod tests {
     }
 
     impl SteppableTask for LoopingTask {
-        fn step(&mut self) -> bool {
+        fn step(&mut self) -> TaskState {
             let mut executions = self.executions.lock().unwrap();
             *executions += 1;
             self.sender.send(*executions).unwrap();
-            true // Always return true, so it must be stopped externally
+            TaskState::Running
         }
     }
 

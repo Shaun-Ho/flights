@@ -1,6 +1,6 @@
 use crate::core::airspace::detail::Airspace;
 use crate::core::parser::Aircraft;
-use crate::core::thread_manager::SteppableTask;
+use crate::core::thread_manager::{SteppableTask, TaskState};
 
 pub struct AirspaceStore {
     inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
@@ -27,31 +27,26 @@ impl AirspaceStore {
 }
 
 impl SteppableTask for AirspaceStore {
-    fn step(&mut self) -> bool {
+    fn step(&mut self) -> TaskState {
         let mut aircrafts = Vec::new();
-        let mut disconnected_channel = false;
-        loop {
-            match self.aircraft_receiver.try_recv() {
-                Ok(aircraft) => {
-                    aircrafts.push(aircraft);
-                }
-                Err(crossbeam_channel::TryRecvError::Empty) => break,
-                Err(crossbeam_channel::TryRecvError::Disconnected) => {
-                    log::error!("Upstream disconnected");
-                    disconnected_channel = true;
-                    break;
-                }
+
+        match self.aircraft_receiver.try_recv() {
+            Ok(aircraft) => {
+                aircrafts.push(aircraft);
+            }
+            Err(crossbeam_channel::TryRecvError::Empty) => {
+                return TaskState::Running;
+            }
+            Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                log::error!("AirspaceStore upstream disconnected");
+                return TaskState::Completed;
             }
         }
 
         if let Ok(mut airspace) = self.inner.write() {
             airspace.update(aircrafts);
-            if disconnected_channel {
-                return false;
-            }
-            return true;
         }
-        false
+        TaskState::Running
     }
 }
 #[derive(Clone)]
@@ -79,23 +74,27 @@ mod tests {
     }
 
     #[test]
-    fn test_step_active_channel_returns_true() {
-        let (_sender, mut store) = setup_store();
+    fn when_upstream_channel_is_non_empty_and_connected_then_step_returns_running_state() {
+        let (sender, mut store) = setup_store();
+        let dummy_aircraft =
+            create_dummy_aircraft_at_time(chrono::Utc::now(), ICAOAddress::new(0).unwrap());
+        sender.send(dummy_aircraft).unwrap();
 
-        assert!(store.step());
+        assert!(matches!(store.step(), TaskState::Running));
     }
 
     #[test]
-    fn test_step_disconnected_empty_channel_returns_false() {
+    fn when_upstream_channel_is_empty_and_disconnected_then_step_returns_errored_state() {
         let (sender, mut store) = setup_store();
 
         drop(sender);
 
-        assert!(!store.step());
+        assert!(matches!(store.step(), TaskState::Completed));
     }
 
     #[test]
-    fn test_when_step_sender_is_dropped_then_store_stops_stepping() {
+    fn when_upstream_channel_is_non_empty_and_disconnected_then_step_returns_running_state_then_errors_on_next()
+     {
         let (sender, mut store) = setup_store();
 
         let dummy_aircraft =
@@ -103,7 +102,10 @@ mod tests {
 
         sender.send(dummy_aircraft).unwrap();
         drop(sender);
+        // we still continue to finish processing the disconnected queue
+        assert!(matches!(store.step(), TaskState::Running));
 
-        assert!(!store.step());
+        // when queue is empty, and channel is disconnected, next step() should error
+        assert!(matches!(store.step(), TaskState::Completed));
     }
 }

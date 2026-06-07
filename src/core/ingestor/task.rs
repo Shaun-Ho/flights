@@ -6,7 +6,7 @@ use crate::core::ingestor::config::GliderNetConfig;
 use crate::core::ingestor::disk::write_pb_aprs_packet_to_disk;
 use crate::core::ingestor::errors;
 use crate::core::ingestor::protobuf::PbAprsPacket;
-use crate::core::thread_manager::SteppableTask;
+use crate::core::thread_manager::{SteppableTask, TaskState};
 
 pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -73,7 +73,7 @@ impl Ingestor {
 }
 
 impl SteppableTask for Ingestor {
-    fn step(&mut self) -> bool {
+    fn step(&mut self) -> TaskState {
         match self.source.create_aprs_packet() {
             Ok(aprs_packet) => {
                 // write to disk
@@ -85,19 +85,19 @@ impl SteppableTask for Ingestor {
 
                 if let Err(err) = self.sender.send(aprs_packet) {
                     log::error!("Ingestor: Failed to send to channel: {err}");
-                    return true;
+                    return TaskState::Running;
                 }
 
-                true
+                TaskState::Running
             }
             // This is to handle disconnected channels - only case where we should terminate the task
             Err(errors::PacketError::Disconnected) => {
                 log::error!("Stream disconnected");
-                false
+                TaskState::Completed
             }
             Err(err) => {
                 log::error!("{err}");
-                true
+                TaskState::Running
             }
         }
     }
@@ -245,7 +245,7 @@ mod test {
         write_pb_aprs_packet_to_disk,
     };
     use crate::core::ingestor::task::{AprsPacket, PbAprsPacket};
-    use crate::core::thread_manager::SteppableTask;
+    use crate::core::thread_manager::{SteppableTask, TaskState};
     use crate::test_utilities::{TestPath, test_path};
 
     struct MockStream {
@@ -321,7 +321,7 @@ mod test {
 
         let keep_running = ingestor.step();
 
-        assert!(keep_running);
+        assert!(matches!(keep_running, TaskState::Running));
         assert_eq!(receiver.recv().unwrap().message, data);
     }
 
@@ -333,28 +333,26 @@ mod test {
         let mut ingestor = Ingestor::new(source, sender, None);
 
         let keep_running = ingestor.step();
-        assert!(keep_running, "Expected to keep running after valid packet");
+        // Expected to keep running after valid packet
+        assert!(matches!(keep_running, TaskState::Running));
         assert_eq!(receiver.recv().unwrap().message, "PACKET_1\n");
 
         let keep_running = ingestor.step();
-        assert!(keep_running, "Expected to keep running after idle timeout");
+        // Expected to keep running after idle timeout
+        assert!(matches!(keep_running, TaskState::Running));
         assert!(
             receiver.try_recv().is_err(),
             "No data should be sent on timeout"
         );
 
         let keep_running = ingestor.step();
-        assert!(
-            keep_running,
-            "Expected to keep running after recovering valid packet"
-        );
+        // Expected to keep running after recovering valid packet
+        assert!(matches!(keep_running, TaskState::Running));
         assert_eq!(receiver.recv().unwrap().message, "PACKET_2\n");
 
         let keep_running = ingestor.step();
-        assert!(
-            !keep_running,
-            "Expected to stop task when connection drops completely"
-        );
+        // Expected to stop task when TCP stream is disconnected.
+        assert!(matches!(keep_running, TaskState::Completed));
     }
     #[test]
     fn given_connection_to_stream_when_end_of_stream_then_ingestor_stops_running() {
@@ -366,7 +364,8 @@ mod test {
 
         let keep_running = ingestor.step();
 
-        assert!(!keep_running);
+        assert!(matches!(keep_running, TaskState::Completed));
+
         assert!(receiver.try_recv().is_err(), "Channel should be empty");
     }
 
@@ -421,7 +420,7 @@ mod test {
         let mut ingestor = Ingestor::new(source, sender, None);
         let mut cont = true;
         while cont {
-            cont = ingestor.step();
+            cont = matches!(ingestor.step(), TaskState::Running);
         }
 
         // drop ingestor to flush writer
