@@ -183,10 +183,10 @@ impl Drop for ThreadManager {
 
 #[derive(Debug)]
 enum ThreadStatus {
-    Active,
-    Interrupted, // interrupted by a receiving a stop command
-    Completed,
-    Errored(String),
+    Active,          // Task has been submitted to an active thread
+    Interrupted,     // interrupted by a receiving a stop command
+    Completed,       // Task completed successfully - mapped from `TaskState::Completed`
+    Errored(String), // Task encountered an error - mapped from `TaskState::Errored`
 }
 
 struct ManagedTask {
