@@ -115,7 +115,7 @@ impl ThreadManager {
 
     pub fn wait_on_task_finish(&mut self, task_id: TaskID) {
         if let Some(task) = self.tasks.remove(&task_id) {
-            let _ = task.handle.join();
+            log_task_finished_status(task);
         }
     }
 
@@ -125,15 +125,8 @@ impl ThreadManager {
         }
         log::info!("Waiting for all {} tasks to finish", self.tasks.len());
 
-        for (id, task) in self.tasks.drain() {
-            match task.handle.join() {
-                Ok(_) => {
-                    log::debug!("Task {id} terminated gracefully");
-                }
-                Err(e) => {
-                    log::error!("Task {id} panicked: {e:?}");
-                }
-            }
+        for (_id, task) in self.tasks.drain() {
+            log_task_finished_status(task);
         }
     }
 }
@@ -200,8 +193,6 @@ fn run_task_continuously<T: SteppableTask>(
     stop_receiver: &crossbeam_channel::Receiver<()>,
     task_status: std::sync::Arc<std::sync::RwLock<InternalTaskStatus>>,
 ) {
-    *task_status.write().unwrap() = InternalTaskStatus::Downstream(TaskState::Running);
-
     loop {
         // Check if we are interrupted
         match stop_receiver.try_recv() {
@@ -273,6 +264,36 @@ fn run_task_with_period<T: SteppableTask>(
             std::thread::sleep(sleep_duration);
         } else {
             next_iteration_time = now;
+        }
+    }
+}
+
+fn log_task_finished_status(task: ManagedTask) {
+    let ManagedTask {
+        task_id,
+        handle,
+        status,
+        ..
+    } = task;
+    match handle.join() {
+        Ok(_) => {
+            let final_status = status.read().unwrap();
+            match &*final_status {
+                InternalTaskStatus::Pending => log::error!("{task_id} did not start"),
+                InternalTaskStatus::Interrupted
+                | InternalTaskStatus::Downstream(TaskState::Running) => {
+                    log::info!("Task {task_id}: was interrupted.")
+                }
+                InternalTaskStatus::Downstream(TaskState::Completed) => {
+                    log::info!("Task {task_id} completed successfully")
+                }
+                InternalTaskStatus::Downstream(TaskState::Errored(err)) => {
+                    log::error!("Task was interrupted due to error: {err}")
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Task {task_id} panicked: {e:?}");
         }
     }
 }
