@@ -46,7 +46,8 @@ fn main() {
         std::thread::sleep(duration);
     } else {
         // run indefinitely until something breaks the chain
-        pipeline.wait_on_all_tasks_finish();
+        std::thread::park();
     }
+    pipeline.shutdown();
     log::info!("Shutting down application.");
 }

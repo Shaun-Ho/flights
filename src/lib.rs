@@ -23,13 +23,7 @@ impl Pipeline {
         self.renderer_viewer.clone()
     }
 
-    pub fn wait_on_all_tasks_finish(&mut self) {
-        self.threadmanager
-            .wait_on_task_finish(self.end_chain_task_id);
-    }
-}
-impl Drop for Pipeline {
-    fn drop(&mut self) {
+    pub fn shutdown(&mut self) {
         self.threadmanager.stop_all_tasks();
         self.threadmanager
             .wait_on_task_finish(self.end_chain_task_id);
