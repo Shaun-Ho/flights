@@ -12,12 +12,58 @@ use crate::core::ingestor::{AprsPacket, Ingestor};
 use crate::core::parser::{Aircraft, AircraftParser};
 use crate::core::thread_manager::{TaskID, ThreadManager};
 
-pub struct Pipeline {
+pub struct DataPipeline {
     threadmanager: ThreadManager,
     end_chain_task_id: TaskID,
     renderer_viewer: AirspaceViewer,
 }
-impl Pipeline {
+impl DataPipeline {
+    #[must_use]
+    pub fn create(ingestor_config: IngestorConfig) -> DataPipeline {
+        let (messages_sender, messages_receiver): (
+            crossbeam_channel::Sender<AprsPacket>,
+            crossbeam_channel::Receiver<AprsPacket>,
+        ) = crossbeam_channel::unbounded();
+
+        let (aircraft_data_sender, aircraft_data_receiver): (
+            crossbeam_channel::Sender<Aircraft>,
+            crossbeam_channel::Receiver<Aircraft>,
+        ) = crossbeam_channel::unbounded();
+        let ingestor = match ingestor_config.read_path {
+            Some(read_path) => Ingestor::read_data_from_file(
+                &read_path,
+                messages_sender,
+                ingestor_config.write_path.as_deref(),
+            ),
+            None => Ingestor::connect_glidernet(
+                &ingestor_config.glidernet,
+                messages_sender,
+                ingestor_config.write_path.as_deref(),
+            ),
+        }
+        .map_err(|e| log::error!("Error constructing ingestor: {e}"))
+        .unwrap();
+
+        let parser = AircraftParser::new(messages_receiver, aircraft_data_sender);
+
+        let airspace_store = AirspaceStore::new(
+            aircraft_data_receiver,
+            chrono::TimeDelta::seconds(ingestor_config.airspace.time_buffer_seconds.into()),
+        );
+        let renderer_viewer = airspace_store.get_airspace_viewer();
+
+        let mut thread_manager = ThreadManager::new();
+        thread_manager.add_task(ingestor, std::time::Duration::ZERO);
+        thread_manager.add_task(parser, std::time::Duration::ZERO);
+        let airspace_task_id =
+            thread_manager.add_task(airspace_store, std::time::Duration::from_micros(16667));
+
+        DataPipeline {
+            threadmanager: thread_manager,
+            end_chain_task_id: airspace_task_id,
+            renderer_viewer,
+        }
+    }
     #[must_use]
     pub fn get_airspace_viewer(&self) -> AirspaceViewer {
         self.renderer_viewer.clone()
@@ -30,59 +76,14 @@ impl Pipeline {
     }
 }
 
-#[must_use]
-pub fn setup_pipeline(ingestor_config: IngestorConfig) -> Pipeline {
-    let (messages_sender, messages_receiver): (
-        crossbeam_channel::Sender<AprsPacket>,
-        crossbeam_channel::Receiver<AprsPacket>,
-    ) = crossbeam_channel::unbounded();
-
-    let (aircraft_data_sender, aircraft_data_receiver): (
-        crossbeam_channel::Sender<Aircraft>,
-        crossbeam_channel::Receiver<Aircraft>,
-    ) = crossbeam_channel::unbounded();
-    let ingestor = match ingestor_config.read_path {
-        Some(read_path) => Ingestor::read_data_from_file(
-            &read_path,
-            messages_sender,
-            ingestor_config.write_path.as_deref(),
-        ),
-        None => Ingestor::connect_glidernet(
-            &ingestor_config.glidernet,
-            messages_sender,
-            ingestor_config.write_path.as_deref(),
-        ),
-    }
-    .map_err(|e| log::error!("Error constructing ingestor: {e}"))
-    .unwrap();
-
-    let parser = AircraftParser::new(messages_receiver, aircraft_data_sender);
-
-    let airspace_store = AirspaceStore::new(
-        aircraft_data_receiver,
-        chrono::TimeDelta::seconds(ingestor_config.airspace.time_buffer_seconds.into()),
-    );
-    let renderer_viewer = airspace_store.get_airspace_viewer();
-
-    let mut thread_manager = ThreadManager::new();
-    thread_manager.add_task(ingestor, std::time::Duration::ZERO);
-    thread_manager.add_task(parser, std::time::Duration::ZERO);
-    let airspace_task_id =
-        thread_manager.add_task(airspace_store, std::time::Duration::from_micros(16667));
-
-    Pipeline {
-        threadmanager: thread_manager,
-        end_chain_task_id: airspace_task_id,
-        renderer_viewer,
-    }
-}
 #[cfg(test)]
 mod test {
+    use crate::DataPipeline;
     use crate::core::ingestor::PbAprsPacket;
+    use crate::core::ingestor::config::IngestorConfig;
     use crate::core::ingestor::config::{AirspaceConfig, GliderNetConfig};
     use crate::core::ingestor::write_pb_aprs_packet_to_disk;
     use crate::test_utilities::{TestPath, test_path};
-    use crate::{core::ingestor::config::IngestorConfig, setup_pipeline};
 
     #[rstest::rstest]
     #[test_log::test]
@@ -112,7 +113,7 @@ mod test {
                 time_buffer_seconds: 1,
             },
         };
-        let pipeline = setup_pipeline(ingestor_config);
+        let pipeline = DataPipeline::create(ingestor_config);
         drop(pipeline);
     }
 }
