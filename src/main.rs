@@ -1,9 +1,9 @@
 use clap::Parser;
 
 use flights::AirspaceDataPipeline;
-use flights::cli::Cli;
-use flights::core::ingestor::config::IngestorConfig;
-use flights::gui::RadarApp;
+use flights::Cli;
+use flights::IngestorConfig;
+use flights::RadarApp;
 use flights::logging::setup_logging;
 
 fn main() {
