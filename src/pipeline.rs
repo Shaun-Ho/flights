@@ -86,11 +86,11 @@ impl AirspaceDataPipeline {
 
 #[cfg(test)]
 mod test {
-    use crate::pipeline::AirspaceDataPipeline;
     use crate::core::ingestor::PbAprsPacket;
     use crate::core::ingestor::config::IngestorConfig;
     use crate::core::ingestor::config::{AirspaceConfig, GliderNetConfig};
     use crate::core::ingestor::write_pb_aprs_packet_to_disk;
+    use crate::pipeline::AirspaceDataPipeline;
     use crate::test_utilities::{TestPath, test_path};
 
     #[rstest::rstest]
