@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use flights::DataPipeline;
+use flights::AirspaceDataPipeline;
 use flights::cli::Cli;
 use flights::core::ingestor::config::IngestorConfig;
 use flights::gui::RadarApp;
@@ -17,7 +17,7 @@ fn main() {
     setup_logging(cli.logging_level);
     log::info!("Main: Application started.");
 
-    let mut data_pipeline = DataPipeline::create(ingestor_config);
+    let mut data_pipeline = AirspaceDataPipeline::connect_glidernet(ingestor_config);
 
     let run_duration = cli.duration.map(std::time::Duration::from_secs);
 

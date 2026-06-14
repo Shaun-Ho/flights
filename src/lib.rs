@@ -10,16 +10,36 @@ use crate::core::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::ingestor::config::IngestorConfig;
 use crate::core::ingestor::{AprsPacket, Ingestor};
 use crate::core::parser::{Aircraft, AircraftParser};
-use crate::core::thread_manager::{TaskID, ThreadManager};
+use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
 
-pub struct DataPipeline {
-    threadmanager: ThreadManager,
+pub struct AirspaceDataPipeline {
+    thread_manager: ThreadManager,
     end_chain_task_id: TaskID,
     renderer_viewer: AirspaceViewer,
 }
-impl DataPipeline {
+impl AirspaceDataPipeline {
     #[must_use]
-    pub fn create(ingestor_config: IngestorConfig) -> DataPipeline {
+    pub fn new(
+        task_order: Vec<(Box<dyn SteppableTask>, std::time::Duration)>,
+        airspace_store: AirspaceStore,
+        update_tick: std::time::Duration,
+    ) -> Self {
+        let mut thread_manager = ThreadManager::new();
+
+        for (task, duration) in task_order {
+            thread_manager.add_task(task, duration);
+        }
+        let renderer_viewer = airspace_store.get_airspace_viewer();
+        let end_chain_task_id = thread_manager.add_task(airspace_store, update_tick);
+        Self {
+            thread_manager,
+            end_chain_task_id,
+            renderer_viewer,
+        }
+    }
+
+    #[must_use]
+    pub fn connect_glidernet(ingestor_config: IngestorConfig) -> Self {
         let (messages_sender, messages_receiver): (
             crossbeam_channel::Sender<AprsPacket>,
             crossbeam_channel::Receiver<AprsPacket>,
@@ -50,19 +70,15 @@ impl DataPipeline {
             aircraft_data_receiver,
             chrono::TimeDelta::seconds(ingestor_config.airspace.time_buffer_seconds.into()),
         );
-        let renderer_viewer = airspace_store.get_airspace_viewer();
-
-        let mut thread_manager = ThreadManager::new();
-        thread_manager.add_task(ingestor, std::time::Duration::ZERO);
-        thread_manager.add_task(parser, std::time::Duration::ZERO);
-        let airspace_task_id =
-            thread_manager.add_task(airspace_store, std::time::Duration::from_micros(16667));
-
-        DataPipeline {
-            threadmanager: thread_manager,
-            end_chain_task_id: airspace_task_id,
-            renderer_viewer,
-        }
+        let task_order: Vec<(Box<dyn SteppableTask>, std::time::Duration)> = vec![
+            (Box::new(ingestor), std::time::Duration::ZERO),
+            (Box::new(parser), std::time::Duration::ZERO),
+        ];
+        Self::new(
+            task_order,
+            airspace_store,
+            std::time::Duration::from_micros(16667),
+        )
     }
     #[must_use]
     pub fn get_airspace_viewer(&self) -> AirspaceViewer {
@@ -70,15 +86,15 @@ impl DataPipeline {
     }
 
     pub fn shutdown(&mut self) {
-        self.threadmanager.stop_all_tasks();
-        self.threadmanager
+        self.thread_manager.stop_all_tasks();
+        self.thread_manager
             .wait_on_task_finish(self.end_chain_task_id);
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::DataPipeline;
+    use crate::AirspaceDataPipeline;
     use crate::core::ingestor::PbAprsPacket;
     use crate::core::ingestor::config::IngestorConfig;
     use crate::core::ingestor::config::{AirspaceConfig, GliderNetConfig};
@@ -113,7 +129,7 @@ mod test {
                 time_buffer_seconds: 1,
             },
         };
-        let pipeline = DataPipeline::create(ingestor_config);
+        let pipeline = AirspaceDataPipeline::connect_glidernet(ingestor_config);
         drop(pipeline);
     }
 }
