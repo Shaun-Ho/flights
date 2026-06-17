@@ -17,6 +17,11 @@ pub trait SteppableTask: Send + 'static {
     fn step(&mut self) -> TaskState;
 }
 
+impl<T: SteppableTask + ?Sized> SteppableTask for Box<T> {
+    fn step(&mut self) -> TaskState {
+        (**self).step()
+    }
+}
 pub struct ThreadManager {
     current_task_id: ThreadID,
     tasks: std::collections::HashMap<ThreadID, ManagedTask>,

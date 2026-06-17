@@ -1,10 +1,10 @@
 use clap::Parser;
 
-use flights::cli::Cli;
-use flights::core::ingestor::config::IngestorConfig;
-use flights::gui::RadarApp;
+use flights::AirspaceDataPipeline;
+use flights::Cli;
+use flights::IngestorConfig;
+use flights::RadarApp;
 use flights::logging::setup_logging;
-use flights::setup_pipeline;
 
 fn main() {
     let cli = Cli::parse();
@@ -17,7 +17,7 @@ fn main() {
     setup_logging(cli.logging_level);
     log::info!("Main: Application started.");
 
-    let mut pipeline = setup_pipeline(ingestor_config);
+    let mut data_pipeline = AirspaceDataPipeline::connect_glidernet(ingestor_config);
 
     let run_duration = cli.duration.map(std::time::Duration::from_secs);
 
@@ -37,7 +37,7 @@ fn main() {
                 }
                 Ok(Box::new(RadarApp::new(
                     cc.egui_ctx.clone(),
-                    pipeline.get_airspace_viewer(),
+                    data_pipeline.get_airspace_viewer(),
                 )))
             }),
         )
@@ -46,7 +46,8 @@ fn main() {
         std::thread::sleep(duration);
     } else {
         // run indefinitely until something breaks the chain
-        pipeline.wait_on_all_tasks_finish();
+        std::thread::park();
     }
+    data_pipeline.shutdown();
     log::info!("Shutting down application.");
 }

@@ -23,6 +23,7 @@ jobs:
               uses: arduino/setup-protoc@v3
               with:
                   version: '34.0'
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
             - name: cargo build
               run: cargo b --workspace --all-targets --all-features
     cargo-fmt:
@@ -39,6 +40,7 @@ jobs:
               uses: arduino/setup-protoc@v3
               with:
                   version: '34.0'
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
             - name: Rustfmt Check
               run: cargo fmt --all --check
     cargo-clippy:
@@ -55,6 +57,7 @@ jobs:
               uses: arduino/setup-protoc@v3
               with:
                   version: '34.0'
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
             - name: Clippy Check
               run: cargo clippy --all-targets
     cargo-doc:
@@ -69,6 +72,7 @@ jobs:
               uses: arduino/setup-protoc@v3
               with:
                   version: '34.0'
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
             - name: Cargo doc test
               run: cargo doc --workspace --all-features --no-deps
     cargo-next-test:
@@ -87,6 +91,7 @@ jobs:
               uses: arduino/setup-protoc@v3
               with:
                   version: '34.0'
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
             - name: Cargo test
               run: >-
                   cargo nextest run --workspace --all-targets

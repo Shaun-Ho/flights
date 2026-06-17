@@ -60,7 +60,7 @@ impl Ingestor {
         let mut stream =
             std::net::TcpStream::connect_timeout(&address, INGESTOR_CONNECTION_TIMEOUT)?;
 
-        let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
 
         authentication_handshake(&mut stream, &config.filter)?;
 
