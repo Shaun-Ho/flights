@@ -118,9 +118,11 @@ impl SteppableTask for CentralDiskLogger {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     mod disk_logger_registry {
         use super::*;
         use std::fs;
+
         #[test]
         fn given_valid_paths_when_creating_logger_then_files_are_created() {
             let temp_dir = tempfile::tempdir().unwrap();
@@ -148,6 +150,7 @@ mod tests {
     mod central_disk_logger {
         use super::*;
         use std::fs;
+
         #[test]
         fn given_valid_message_when_stepped_then_writes_payload_to_file() {
             let temp_dir = tempfile::tempdir().unwrap();
