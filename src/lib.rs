@@ -8,6 +8,5 @@ pub mod pipeline;
 pub mod test_utilities;
 
 pub use cli::Cli;
-pub use core::ingestor::IngestorConfig;
 pub use gui::RadarApp;
 pub use pipeline::AirspaceDataPipeline;

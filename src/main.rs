@@ -2,22 +2,22 @@ use clap::Parser;
 
 use flights::AirspaceDataPipeline;
 use flights::Cli;
-use flights::IngestorConfig;
 use flights::RadarApp;
 use flights::logging::setup_logging;
+use flights::pipeline::config::PipelineConfig;
 
 fn main() {
     let cli = Cli::parse();
-    let ingestor_config =
-        IngestorConfig::construct_from_path(&cli.config_file).unwrap_or_else(|e| {
+    setup_logging(cli.logging_level);
+    let pipeline_config =
+        PipelineConfig::construct_from_path(&cli.config_file).unwrap_or_else(|e| {
             log::error!("{e}");
             panic!("Config error. Exiting.")
         });
 
-    setup_logging(cli.logging_level);
     log::info!("Main: Application started.");
 
-    let mut data_pipeline = AirspaceDataPipeline::connect_glidernet(ingestor_config);
+    let mut data_pipeline = AirspaceDataPipeline::setup_pipeline(pipeline_config);
 
     let run_duration = cli.duration.map(std::time::Duration::from_secs);
 

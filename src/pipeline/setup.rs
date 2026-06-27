@@ -1,8 +1,8 @@
 use crate::core::airspace::{AirspaceStore, AirspaceViewer};
-use crate::core::ingestor::config::IngestorConfig;
 use crate::core::ingestor::{AprsPacket, Ingestor};
 use crate::core::parser::{Aircraft, AircraftParser};
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
+use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 
 pub struct AirspaceDataPipeline {
     thread_manager: ThreadManager,
@@ -31,7 +31,7 @@ impl AirspaceDataPipeline {
     }
 
     #[must_use]
-    pub fn connect_glidernet(ingestor_config: IngestorConfig) -> Self {
+    pub fn setup_pipeline(pipeline_config: PipelineConfig) -> Self {
         let (messages_sender, messages_receiver): (
             crossbeam_channel::Sender<AprsPacket>,
             crossbeam_channel::Receiver<AprsPacket>,
@@ -41,16 +41,18 @@ impl AirspaceDataPipeline {
             crossbeam_channel::Sender<Aircraft>,
             crossbeam_channel::Receiver<Aircraft>,
         ) = crossbeam_channel::unbounded();
-        let ingestor = match ingestor_config.read_path {
-            Some(read_path) => Ingestor::read_data_from_file(
-                &read_path,
+        let ingestor = match pipeline_config.ingestor.source {
+            IngestorSource::FilePath(FilePathConfig { read_path }) => {
+                Ingestor::read_data_from_file(
+                    &read_path,
+                    messages_sender,
+                    pipeline_config.ingestor.write_path.as_deref(),
+                )
+            }
+            IngestorSource::GliderNet(config) => Ingestor::connect_glidernet(
+                &config,
                 messages_sender,
-                ingestor_config.write_path.as_deref(),
-            ),
-            None => Ingestor::connect_glidernet(
-                &ingestor_config.glidernet,
-                messages_sender,
-                ingestor_config.write_path.as_deref(),
+                pipeline_config.ingestor.write_path.as_deref(),
             ),
         }
         .map_err(|e| log::error!("Error constructing ingestor: {e}"))
@@ -60,7 +62,7 @@ impl AirspaceDataPipeline {
 
         let airspace_store = AirspaceStore::new(
             aircraft_data_receiver,
-            chrono::TimeDelta::seconds(ingestor_config.airspace.time_buffer_seconds.into()),
+            chrono::TimeDelta::seconds(pipeline_config.airspace.time_buffer_seconds.into()),
         );
         let task_order: Vec<(Box<dyn SteppableTask>, std::time::Duration)> = vec![
             (Box::new(ingestor), std::time::Duration::ZERO),
@@ -86,11 +88,11 @@ impl AirspaceDataPipeline {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::core::ingestor::PbAprsPacket;
-    use crate::core::ingestor::config::IngestorConfig;
-    use crate::core::ingestor::config::{AirspaceConfig, GliderNetConfig};
     use crate::core::ingestor::write_pb_aprs_packet_to_disk;
     use crate::pipeline::AirspaceDataPipeline;
+    use crate::pipeline::config::{AirspaceConfig, IngestorConfig};
     use crate::test_utilities::{TestPath, test_path};
 
     #[rstest::rstest]
@@ -108,20 +110,18 @@ mod test {
         let read_path = test_path.path.join("test_ingestor_log.pb");
         let mut writer = std::io::BufWriter::new(std::fs::File::create(&read_path).unwrap());
         let _ = write_pb_aprs_packet_to_disk(&mut writer, &packet);
-
         let ingestor_config = IngestorConfig {
-            read_path: Some(read_path),
+            source: IngestorSource::FilePath(FilePathConfig { read_path }),
             write_path: None,
-            glidernet: GliderNetConfig {
-                host: "host".to_string(),
-                port: 0,
-                filter: String::new(),
-            },
-            airspace: AirspaceConfig {
-                time_buffer_seconds: 1,
-            },
         };
-        let pipeline = AirspaceDataPipeline::connect_glidernet(ingestor_config);
+        let airspace_config = AirspaceConfig {
+            time_buffer_seconds: 1,
+        };
+        let pipeline_config = PipelineConfig {
+            ingestor: ingestor_config,
+            airspace: airspace_config,
+        };
+        let pipeline = AirspaceDataPipeline::setup_pipeline(pipeline_config);
         drop(pipeline);
     }
 }

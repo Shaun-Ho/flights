@@ -1,0 +1,15 @@
+[ingestor]
+# write_path = "./data/ingestor.pb" # optional for writing to disk
+
+[ingestor.source]
+host = "aprs.glidernet.org"
+port = 14580
+filter = "r/0/0/250000000000"
+
+# or
+
+# read_path = "./data/ingestor.pb"
+
+
+[airspace]
+time_buffer_seconds = 60
