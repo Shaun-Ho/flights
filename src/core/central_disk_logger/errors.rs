@@ -1,7 +1,15 @@
 use std::io;
 use std::path::PathBuf;
 
-use crate::core::central_disk_logger::task::LoggerTaskID;
+use crate::core::central_disk_logger::task::{DiskLoggerMessage, LoggerTaskID};
+
+#[derive(Debug, thiserror::Error)]
+pub enum LoggingError<T> {
+    #[error("Packet Conversion Error: {0}")]
+    Conversion(T),
+    #[error("Failed to send: {0}")]
+    SendError(#[from] crossbeam_channel::SendError<DiskLoggerMessage>),
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum DiskloggerRegistryError {

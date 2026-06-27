@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use crate::core::central_disk_logger::errors;
@@ -16,11 +17,33 @@ pub struct DiskLoggerMessage {
 }
 
 #[derive(Debug)]
-pub struct LoggerHandle {
-    #[allow(unused)]
+pub struct LoggerHandle<M> {
     logger_id: LoggerTaskID,
-    #[allow(unused)]
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
+    _marker: PhantomData<M>,
+}
+
+impl<M> LoggerHandle<M> {
+    pub fn logger_id(&self) -> LoggerTaskID {
+        self.logger_id
+    }
+
+    pub fn send<T, E>(&self, message: T) -> Result<(), errors::LoggingError<E>>
+    where
+        T: TryInto<M, Error = E>,
+        M: prost::Message,
+    {
+        let proto_message: M = message
+            .try_into()
+            .map_err(errors::LoggingError::Conversion)?;
+
+        let payload = proto_message.encode_length_delimited_to_vec();
+
+        Ok(self.sender.send(DiskLoggerMessage {
+            logger_id: self.logger_id,
+            payload,
+        })?)
+    }
 }
 
 #[derive(Debug)]
@@ -41,10 +64,10 @@ impl DiskLoggerRegistry {
         }
     }
 
-    pub fn register(
+    pub fn register<M>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle, errors::DiskloggerRegistryError> {
+    ) -> Result<LoggerHandle<M>, errors::DiskloggerRegistryError> {
         let file = match File::create_new(&path) {
             Ok(f) => f,
             Err(err) => {
@@ -66,6 +89,7 @@ impl DiskLoggerRegistry {
         let handle = LoggerHandle {
             logger_id,
             sender: self.sender.clone(),
+            _marker: PhantomData,
         };
         self.current_logger_id += 1;
 
@@ -79,7 +103,11 @@ impl DiskLoggerRegistry {
         }
     }
 }
-
+impl Default for DiskLoggerRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 #[derive(Debug)]
 pub struct CentralDiskLogger {
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
@@ -118,6 +146,93 @@ impl SteppableTask for CentralDiskLogger {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use prost::Message;
+    use std::fs;
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct MockTaskStruct {
+        pub larger_than_zero: i32,
+    }
+    #[derive(Debug, PartialEq)]
+    pub struct MockConversionError;
+
+    #[derive(Clone, PartialEq, prost::Message)]
+    pub struct MockTaskProto {
+        #[prost(int32, tag = "1")]
+        pub larger_than_zero: i32,
+    }
+
+    impl TryFrom<MockTaskStruct> for MockTaskProto {
+        type Error = MockConversionError;
+
+        fn try_from(task_struct: MockTaskStruct) -> Result<Self, Self::Error> {
+            if task_struct.larger_than_zero <= 0 {
+                Err(MockConversionError)
+            } else {
+                Ok(MockTaskProto {
+                    larger_than_zero: task_struct.larger_than_zero,
+                })
+            }
+        }
+    }
+
+    mod logger_handle {
+        use super::*;
+        use std::marker::PhantomData;
+
+        #[test]
+        fn given_valid_conversion_from_rust_to_proto_struct_then_send_is_ok() {
+            let message = MockTaskStruct {
+                larger_than_zero: 1,
+            };
+            let (sender, receiver) = crossbeam_channel::unbounded();
+            let handler = LoggerHandle::<MockTaskProto> {
+                logger_id: 1,
+                sender,
+                _marker: PhantomData,
+            };
+            let res = handler.send(message);
+            assert!(receiver.try_recv().is_ok());
+            assert!(res.is_ok());
+        }
+
+        #[test]
+        fn given_invalid_conversion_from_rust_to_proto_struct_then_send_returns_correct_error() {
+            let message = MockTaskStruct {
+                larger_than_zero: 0,
+            };
+            let (sender, receiver) = crossbeam_channel::unbounded();
+            let handler = LoggerHandle::<MockTaskProto> {
+                logger_id: 1,
+                sender,
+                _marker: PhantomData,
+            };
+            let res = handler.send(message);
+            assert!(matches!(
+                res.err().unwrap(),
+                errors::LoggingError::Conversion(MockConversionError)
+            ));
+            assert!(receiver.try_recv().is_err());
+        }
+        #[test]
+        fn given_valid_conversion_when_channel_dropped_then_send_return_correct_error() {
+            let message = MockTaskStruct {
+                larger_than_zero: 1,
+            };
+            let (sender, receiver) = crossbeam_channel::unbounded();
+            let handler = LoggerHandle::<MockTaskProto> {
+                logger_id: 1,
+                sender,
+                _marker: PhantomData,
+            };
+            drop(receiver);
+            let res = handler.send(message);
+            assert!(matches!(
+                res.unwrap_err(),
+                errors::LoggingError::SendError(_)
+            ));
+        }
+    }
 
     mod disk_logger_registry {
         use super::*;
@@ -129,7 +244,7 @@ mod tests {
             let file_path = temp_dir.path().join("test_log_1.bin");
 
             let mut registry = DiskLoggerRegistry::new();
-            let handle = registry.register(file_path.clone());
+            let handle = registry.register::<MockTaskProto>(file_path.clone());
             assert!(handle.is_ok());
             assert!(file_path.exists());
         }
@@ -141,7 +256,7 @@ mod tests {
             fs::File::create(&file_path).unwrap();
 
             let mut register = DiskLoggerRegistry::new();
-            let handle = register.register(file_path.clone());
+            let handle = register.register::<MockTaskProto>(file_path.clone());
 
             assert!(handle.is_err());
         }
@@ -272,5 +387,90 @@ mod tests {
 
             assert!(matches!(state, TaskState::Running));
         }
+    }
+
+    #[test]
+    fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_disk() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("system_log.bin");
+
+        let mut registry = DiskLoggerRegistry::new();
+        let handle = registry
+            .register::<MockTaskProto>(file_path.clone())
+            .expect("Failed to register logger");
+        let mut central_logger = registry.build();
+
+        let domain_message = MockTaskStruct {
+            larger_than_zero: 5,
+        };
+        handle
+            .send(domain_message.clone())
+            .expect("Failed to send message");
+
+        let state = central_logger.step();
+        assert!(matches!(state, TaskState::Running));
+
+        drop(central_logger);
+
+        let expected_proto = MockTaskProto {
+            larger_than_zero: 5,
+        };
+        let expected_bytes = expected_proto.encode_length_delimited_to_vec();
+
+        let disk_contents = fs::read(&file_path).unwrap();
+        assert_eq!(disk_contents, expected_bytes);
+    }
+
+    #[test]
+    fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_correctly() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path_1 = temp_dir.path().join("flight_data.bin");
+        let file_path_2 = temp_dir.path().join("engine_data.bin");
+
+        let mut registry = DiskLoggerRegistry::new();
+
+        let log_handle_1 = registry
+            .register::<MockTaskProto>(file_path_1.clone())
+            .unwrap();
+        let log_handle_2 = registry
+            .register::<MockTaskProto>(file_path_2.clone())
+            .unwrap();
+
+        let mut central_logger = registry.build();
+
+        let handle_1 = std::thread::spawn(move || {
+            log_handle_1
+                .send(MockTaskStruct {
+                    larger_than_zero: 111,
+                })
+                .unwrap();
+        });
+        let handle_2 = std::thread::spawn(move || {
+            log_handle_2
+                .send(MockTaskStruct {
+                    larger_than_zero: 222,
+                })
+                .unwrap();
+        });
+
+        let _ = handle_1.join();
+        let _ = handle_2.join();
+
+        central_logger.step();
+        central_logger.step();
+
+        drop(central_logger);
+
+        let expected_1 = MockTaskProto {
+            larger_than_zero: 111,
+        }
+        .encode_length_delimited_to_vec();
+        let expected_2 = MockTaskProto {
+            larger_than_zero: 222,
+        }
+        .encode_length_delimited_to_vec();
+
+        assert_eq!(fs::read(&file_path_1).unwrap(), expected_1);
+        assert_eq!(fs::read(&file_path_2).unwrap(), expected_2);
     }
 }
