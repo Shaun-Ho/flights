@@ -43,13 +43,13 @@ pub struct AirspaceConfig {
 pub mod errors {
     #[derive(Debug, thiserror::Error)]
     pub enum PipelineConfigError {
-        #[error("Failed to parse config file: {path}")]
+        #[error("Failed to parse config file: {path}\n {source}")]
         Parse {
             #[source]
             source: toml::de::Error,
             path: std::path::PathBuf,
         },
-        #[error("Failed to open config file: {path}")]
+        #[error("Failed to open config file: {path}\n {source}")]
         Io {
             #[source]
             source: std::io::Error,

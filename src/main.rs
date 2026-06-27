@@ -8,13 +8,13 @@ use flights::pipeline::config::PipelineConfig;
 
 fn main() {
     let cli = Cli::parse();
+    setup_logging(cli.logging_level);
     let pipeline_config =
         PipelineConfig::construct_from_path(&cli.config_file).unwrap_or_else(|e| {
             log::error!("{e}");
             panic!("Config error. Exiting.")
         });
 
-    setup_logging(cli.logging_level);
     log::info!("Main: Application started.");
 
     let mut data_pipeline = AirspaceDataPipeline::setup_pipeline(pipeline_config);
