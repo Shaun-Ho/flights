@@ -2,7 +2,7 @@ use crate::core::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::ingestor::{AprsPacket, Ingestor};
 use crate::core::parser::{Aircraft, AircraftParser};
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
-use crate::pipeline::config::{IngestorSource, PipelineConfig};
+use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 
 pub struct AirspaceDataPipeline {
     thread_manager: ThreadManager,
@@ -42,11 +42,13 @@ impl AirspaceDataPipeline {
             crossbeam_channel::Receiver<Aircraft>,
         ) = crossbeam_channel::unbounded();
         let ingestor = match pipeline_config.ingestor.source {
-            IngestorSource::FilePath(read_path) => Ingestor::read_data_from_file(
-                &read_path,
-                messages_sender,
-                pipeline_config.ingestor.write_path.as_deref(),
-            ),
+            IngestorSource::FilePath(FilePathConfig { read_path }) => {
+                Ingestor::read_data_from_file(
+                    &read_path,
+                    messages_sender,
+                    pipeline_config.ingestor.write_path.as_deref(),
+                )
+            }
             IngestorSource::GliderNet(config) => Ingestor::connect_glidernet(
                 &config,
                 messages_sender,
@@ -86,11 +88,10 @@ impl AirspaceDataPipeline {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::core::ingestor::PbAprsPacket;
     use crate::core::ingestor::write_pb_aprs_packet_to_disk;
     use crate::pipeline::AirspaceDataPipeline;
-    use crate::pipeline::config::IngestorSource;
-    use crate::pipeline::config::PipelineConfig;
     use crate::pipeline::config::{AirspaceConfig, IngestorConfig};
     use crate::test_utilities::{TestPath, test_path};
 
@@ -110,7 +111,7 @@ mod test {
         let mut writer = std::io::BufWriter::new(std::fs::File::create(&read_path).unwrap());
         let _ = write_pb_aprs_packet_to_disk(&mut writer, &packet);
         let ingestor_config = IngestorConfig {
-            source: IngestorSource::FilePath(read_path),
+            source: IngestorSource::FilePath(FilePathConfig { read_path }),
             write_path: None,
         };
         let airspace_config = AirspaceConfig {

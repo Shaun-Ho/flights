@@ -59,7 +59,14 @@ pub mod errors {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(untagged)]
 pub enum IngestorSource {
     GliderNet(GliderNetConfig),
-    FilePath(PathBuf),
+    FilePath(FilePathConfig),
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FilePathConfig {
+    pub read_path: PathBuf,
 }
