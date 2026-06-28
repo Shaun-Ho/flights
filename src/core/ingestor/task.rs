@@ -3,7 +3,6 @@ use std::net::ToSocketAddrs;
 use prost::Message;
 
 use crate::core::ingestor::config::GliderNetConfig;
-use crate::core::ingestor::disk::write_pb_aprs_packet_to_disk;
 use crate::core::ingestor::errors;
 use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::thread_manager::{SteppableTask, TaskState};
@@ -13,39 +12,33 @@ pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
     sender: crossbeam_channel::Sender<AprsPacket>,
-    writer: Option<std::io::BufWriter<std::fs::File>>,
 }
 impl Ingestor {
     pub fn new<C: APRSDataSource + 'static>(
         source: C,
         sender: crossbeam_channel::Sender<AprsPacket>,
-        writer: Option<std::io::BufWriter<std::fs::File>>,
     ) -> Self {
         Self {
             source: Box::new(source),
             sender,
-            writer,
         }
     }
 
     pub fn read_data_from_file(
         read_path: &std::path::Path,
         sender: crossbeam_channel::Sender<AprsPacket>,
-        write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!(
             "Reading APRS data from file: {}",
             read_path.to_string_lossy()
         );
         let source = ReplaySource::new(read_path)?;
-        let writer = write_path.map(create_writer).transpose()?;
-        Ok(Self::new(source, sender, writer))
+        Ok(Self::new(source, sender))
     }
 
     pub fn connect_glidernet(
         config: &GliderNetConfig,
         sender: crossbeam_channel::Sender<AprsPacket>,
-        write_path: Option<&std::path::Path>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
 
@@ -64,11 +57,9 @@ impl Ingestor {
 
         authentication_handshake(&mut stream, &config.filter)?;
 
-        let writer = write_path.map(create_writer).transpose()?;
-
         let source = LiveSource::new(stream);
 
-        Ok(Self::new(source, sender, writer))
+        Ok(Self::new(source, sender))
     }
 }
 
@@ -76,13 +67,6 @@ impl SteppableTask for Ingestor {
     fn step(&mut self) -> TaskState {
         match self.source.create_aprs_packet() {
             Ok(aprs_packet) => {
-                // write to disk
-                if let Some(writer) = self.writer.as_mut() {
-                    let pb_aprs_packet = PbAprsPacket::from(aprs_packet.clone());
-                    let _ = write_pb_aprs_packet_to_disk(writer, &pb_aprs_packet)
-                        .map_err(|error| log::error!("Failed to log to disk: {error}"));
-                }
-
                 if let Err(err) = self.sender.send(aprs_packet) {
                     log::error!("Ingestor: Failed to send to channel: {err}");
                     return TaskState::Running;
@@ -220,33 +204,16 @@ fn authentication_handshake<W: std::io::Write>(
     Ok(())
 }
 
-fn create_writer(
-    output_path: &std::path::Path,
-) -> Result<std::io::BufWriter<std::fs::File>, std::io::Error> {
-    if output_path.exists() {
-        std::fs::File::options()
-            .append(true)
-            .open(output_path)
-            .map(std::io::BufWriter::new)
-    } else {
-        std::fs::File::create(output_path).map(std::io::BufWriter::new)
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::io::Write;
 
-    use prost::Message;
     use rstest;
 
-    use crate::core::ingestor::task::{
-        APRSDataSource, Ingestor, LiveSource, ReplaySource, create_writer,
-        write_pb_aprs_packet_to_disk,
-    };
+    use crate::core::ingestor::task::{APRSDataSource, Ingestor, LiveSource, ReplaySource};
     use crate::core::ingestor::task::{AprsPacket, PbAprsPacket};
     use crate::core::thread_manager::{SteppableTask, TaskState};
-    use crate::test_utilities::{TestPath, test_path};
+    use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
 
     struct MockStream {
         incoming_data: std::io::Cursor<Vec<u8>>,
@@ -309,6 +276,11 @@ mod test {
         }
     }
 
+    fn create_writer(
+        output_path: &std::path::Path,
+    ) -> Result<std::io::BufWriter<std::fs::File>, std::io::Error> {
+        std::fs::File::create_new(output_path).map(std::io::BufWriter::new)
+    }
     #[test]
     fn given_connection_to_stream_when_data_received_then_ingestor_sends_correct_data_and_keeps_running()
      {
@@ -317,7 +289,7 @@ mod test {
         let mock_stream = MockStream::new(data);
         let source = LiveSource::new(mock_stream);
 
-        let mut ingestor = Ingestor::new(source, sender, None);
+        let mut ingestor = Ingestor::new(source, sender);
 
         let keep_running = ingestor.step();
 
@@ -330,7 +302,7 @@ mod test {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mock_stream = MockStatefulStream { state: 0 };
         let source = LiveSource::new(mock_stream);
-        let mut ingestor = Ingestor::new(source, sender, None);
+        let mut ingestor = Ingestor::new(source, sender);
 
         let keep_running = ingestor.step();
         // Expected to keep running after valid packet
@@ -360,7 +332,7 @@ mod test {
         let data = "";
         let mock_stream = MockStream::new(data);
         let source = LiveSource::new(mock_stream);
-        let mut ingestor = Ingestor::new(source, sender, None);
+        let mut ingestor = Ingestor::new(source, sender);
 
         let keep_running = ingestor.step();
 
@@ -369,30 +341,6 @@ mod test {
         assert!(receiver.try_recv().is_err(), "Channel should be empty");
     }
 
-    #[rstest::rstest]
-    fn given_connection_to_stream_and_write_path_is_some_then_ingestor_logs_all_messages_to_path(
-        test_path: TestPath,
-    ) {
-        let log_path = test_path.path.join("test_log.pb");
-        let (sender, receiver) = crossbeam_channel::unbounded();
-        let payload = "test";
-        let mock_stream = MockStream::new(payload);
-        let writer = create_writer(&log_path).expect("Failed to create writer");
-        let source = LiveSource::new(mock_stream);
-        let mut ingestor = Ingestor::new(source, sender, Some(writer));
-
-        ingestor.step();
-
-        // drop ingestor to flush writer
-        drop(ingestor);
-
-        let bytes = std::fs::read(log_path).unwrap();
-        let cursor = std::io::Cursor::new(bytes);
-        let packet = PbAprsPacket::decode_length_delimited(cursor).unwrap();
-
-        assert_eq!(packet.message, payload);
-        assert_eq!(receiver.recv().unwrap().message, payload);
-    }
     #[rstest::rstest]
     #[test_log::test]
     fn when_ingestor_reads_from_log_file_then_sender_receives_expected_aprs_packet(
@@ -410,14 +358,14 @@ mod test {
         {
             // explicitly flush writer and drop within closure
             let mut writer = create_writer(log_path).expect("Failed to create writer");
-            let _ = write_pb_aprs_packet_to_disk(&mut writer, &expected_aprs_packet);
+            let _ = write_pb_message_to_disk(&mut writer, &expected_aprs_packet);
             writer.flush().unwrap();
         }
 
         let (sender, receiver) = crossbeam_channel::unbounded();
         let source = ReplaySource::new(log_path).expect("Failed to create data source");
 
-        let mut ingestor = Ingestor::new(source, sender, None);
+        let mut ingestor = Ingestor::new(source, sender);
         let mut cont = true;
         while cont {
             cont = matches!(ingestor.step(), TaskState::Running);
@@ -459,9 +407,9 @@ mod test {
         // Write the packets to the mock log file
         {
             let mut writer = create_writer(&log_path).expect("Failed to create writer");
-            write_pb_aprs_packet_to_disk(&mut writer, &packet1).unwrap();
-            write_pb_aprs_packet_to_disk(&mut writer, &packet2).unwrap();
-            write_pb_aprs_packet_to_disk(&mut writer, &packet3).unwrap();
+            write_pb_message_to_disk(&mut writer, &packet1).unwrap();
+            write_pb_message_to_disk(&mut writer, &packet2).unwrap();
+            write_pb_message_to_disk(&mut writer, &packet3).unwrap();
             writer.flush().unwrap();
         }
 

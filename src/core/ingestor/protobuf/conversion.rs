@@ -1,7 +1,3 @@
-use std::io::Write;
-
-use prost::Message;
-
 use crate::core::ingestor::errors::PacketConversionError;
 use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::ingestor::task::AprsPacket;
@@ -30,13 +26,4 @@ impl From<AprsPacket> for PbAprsPacket {
             message: packet.message,
         }
     }
-}
-
-pub fn write_pb_aprs_packet_to_disk(
-    writer: &mut std::io::BufWriter<std::fs::File>,
-    aprs_packet: &PbAprsPacket,
-) -> Result<(), std::io::Error> {
-    let mut buf = Vec::new();
-    let () = aprs_packet.encode_length_delimited(&mut buf)?;
-    writer.write_all(&buf)
 }

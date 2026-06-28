@@ -43,17 +43,11 @@ impl AirspaceDataPipeline {
         ) = crossbeam_channel::unbounded();
         let ingestor = match pipeline_config.ingestor.source {
             IngestorSource::FilePath(FilePathConfig { read_path }) => {
-                Ingestor::read_data_from_file(
-                    &read_path,
-                    messages_sender,
-                    pipeline_config.ingestor.write_path.as_deref(),
-                )
+                Ingestor::read_data_from_file(&read_path, messages_sender)
             }
-            IngestorSource::GliderNet(config) => Ingestor::connect_glidernet(
-                &config,
-                messages_sender,
-                pipeline_config.ingestor.write_path.as_deref(),
-            ),
+            IngestorSource::GliderNet(config) => {
+                Ingestor::connect_glidernet(&config, messages_sender)
+            }
         }
         .map_err(|e| log::error!("Error constructing ingestor: {e}"))
         .unwrap();
@@ -90,10 +84,9 @@ impl AirspaceDataPipeline {
 mod test {
     use super::*;
     use crate::core::ingestor::PbAprsPacket;
-    use crate::core::ingestor::write_pb_aprs_packet_to_disk;
     use crate::pipeline::AirspaceDataPipeline;
     use crate::pipeline::config::{AirspaceConfig, IngestorConfig};
-    use crate::test_utilities::{TestPath, test_path};
+    use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
 
     #[rstest::rstest]
     #[test_log::test]
@@ -109,7 +102,7 @@ mod test {
         };
         let read_path = test_path.path.join("test_ingestor_log.pb");
         let mut writer = std::io::BufWriter::new(std::fs::File::create(&read_path).unwrap());
-        let _ = write_pb_aprs_packet_to_disk(&mut writer, &packet);
+        let _ = write_pb_message_to_disk(&mut writer, &packet);
         let ingestor_config = IngestorConfig {
             source: IngestorSource::FilePath(FilePathConfig { read_path }),
             write_path: None,

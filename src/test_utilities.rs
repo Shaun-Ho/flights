@@ -1,6 +1,9 @@
+use std::io::Write;
+
 use ogn_aprs_parser::ICAOAddress;
 
 use crate::core::parser::Aircraft;
+
 pub struct TestPath {
     _guard: tempfile::TempDir,
     pub path: std::path::PathBuf,
@@ -37,4 +40,13 @@ pub fn create_dummy_aircraft_at_time(
         ground_speed: 0.0,
         gps_altitude: 0.0,
     }
+}
+
+pub fn write_pb_message_to_disk<M: prost::Message>(
+    writer: &mut std::io::BufWriter<std::fs::File>,
+    pb_message: &M,
+) -> Result<(), std::io::Error> {
+    let mut buf = Vec::new();
+    let () = pb_message.encode_length_delimited(&mut buf)?;
+    writer.write_all(&buf)
 }
