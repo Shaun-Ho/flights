@@ -1,7 +1,7 @@
 use std::io;
 use std::path::PathBuf;
 
-use crate::core::central_disk_logger::task::{DiskLoggerMessage, LoggerTaskID};
+use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerTaskID};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoggingError<T> {

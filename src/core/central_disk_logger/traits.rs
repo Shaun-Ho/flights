@@ -1,4 +1,4 @@
-use crate::core::central_disk_logger::task::LoggerHandle;
+use crate::core::central_disk_logger::interface::LoggerHandle;
 
 pub trait MessageLogger<T> {
     type Error;
@@ -14,5 +14,14 @@ where
 
     fn log(&self, message: T) -> Result<(), Self::Error> {
         self.send(message)
+    }
+}
+
+pub struct NoOpLogger;
+impl<T> MessageLogger<T> for NoOpLogger {
+    type Error = std::convert::Infallible;
+
+    fn log(&self, _message: T) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
