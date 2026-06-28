@@ -5,3 +5,4 @@ pub mod traits;
 pub use task::{
     CentralDiskLogger, DiskLoggerMessage, DiskLoggerRegistry, LoggerHandle, LoggerTaskID,
 };
+pub use traits::MessageLogger;
