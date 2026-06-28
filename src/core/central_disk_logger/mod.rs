@@ -8,4 +8,4 @@ pub mod testing;
 
 pub use interface::{DiskLoggerMessage, DiskLoggerRegistry, LoggerHandle, LoggerTaskID};
 pub use task::CentralDiskLogger;
-pub use traits::MessageLogger;
+pub use traits::{MessageLogger, NoOpLogger};
