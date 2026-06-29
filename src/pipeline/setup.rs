@@ -2,6 +2,7 @@ use crate::core::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::central_disk_logger::DiskLoggerRegistry;
 use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
 use crate::core::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
+use crate::core::parser::protobuf::PbAircraft;
 use crate::core::parser::{Aircraft, AircraftParser};
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
@@ -66,7 +67,13 @@ impl AirspaceDataPipeline {
             crossbeam_channel::Receiver<Aircraft>,
         ) = crossbeam_channel::unbounded();
 
-        let parser = AircraftParser::new(ingestor_receiver, parser_sender);
+        let parser_logger_handle = pipeline_config
+            .parser
+            .write_path
+            .map(|path| disk_logger_registry.register::<PbAircraft>(path))
+            .transpose()?;
+
+        let parser = AircraftParser::new(ingestor_receiver, parser_sender, parser_logger_handle);
 
         let airspace_store = AirspaceStore::new(
             parser_receiver,
@@ -112,7 +119,7 @@ mod test {
     use super::*;
     use crate::core::ingestor::PbAprsPacket;
     use crate::pipeline::AirspaceDataPipeline;
-    use crate::pipeline::config::{AirspaceConfig, IngestorConfig};
+    use crate::pipeline::config::{AircraftParserConfig, AirspaceConfig, IngestorConfig};
     use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
 
     #[rstest::rstest]
@@ -134,12 +141,14 @@ mod test {
             source: IngestorSource::FilePath(FilePathConfig { read_path }),
             write_path: None,
         };
+        let parser_config = AircraftParserConfig { write_path: None };
         let airspace_config = AirspaceConfig {
             time_buffer_seconds: 1,
         };
         let pipeline_config = PipelineConfig {
             ingestor: ingestor_config,
             airspace: airspace_config,
+            parser: parser_config,
         };
         let pipeline = AirspaceDataPipeline::setup_pipeline(pipeline_config);
         drop(pipeline);

@@ -24,13 +24,13 @@ impl Airspace {
 
         while let Some(aircraft) = aircrafts.pop() {
             // find latest aircraft datetime and set as current datetime.
-            if aircraft.datetime > self.datetime {
-                self.datetime = aircraft.datetime;
+            if aircraft.recorded_datetime > self.datetime {
+                self.datetime = aircraft.recorded_datetime;
             }
 
             // check that aircraft is within buffer window
             let cutoff_time = self.datetime - self.buffer_duration;
-            if aircraft.datetime < cutoff_time {
+            if aircraft.recorded_datetime < cutoff_time {
                 continue;
             }
 
@@ -39,7 +39,7 @@ impl Airspace {
             // We expect that the new data is normally most recent data, so we check that we can push
             // back into the end of the VecDeque
             if let Some(last) = history.back()
-                && aircraft.datetime >= last.datetime
+                && aircraft.recorded_datetime >= last.recorded_datetime
             {
                 history.push_back(aircraft);
                 continue;
@@ -47,14 +47,14 @@ impl Airspace {
 
             // If it is not new data, try to see the data is old enough to be front of VecDeque
             if let Some(first) = history.front()
-                && aircraft.datetime <= first.datetime
+                && aircraft.recorded_datetime <= first.recorded_datetime
             {
                 history.push_front(aircraft);
                 continue;
             }
 
             // It is somewhere in between
-            let idx = history.partition_point(|x| x.datetime < aircraft.datetime);
+            let idx = history.partition_point(|x| x.recorded_datetime < aircraft.recorded_datetime);
             history.insert(idx, aircraft);
         }
         self.prune();
@@ -88,7 +88,7 @@ impl Airspace {
 
         for aircraft_history in self.icao_to_aircraft_map.values_mut() {
             while let Some(aircraft) = aircraft_history.front() {
-                if aircraft.datetime < cutoff_time {
+                if aircraft.recorded_datetime < cutoff_time {
                     aircraft_history.pop_front();
                 } else {
                     break;
@@ -152,7 +152,10 @@ mod tests {
             .get(&expected_aircraft_1_icao_address)
             .expect("expected a VecDeque for aircraft 1");
         assert_eq!(aircraft_1_history.len(), 1);
-        assert_eq!(aircraft_1_history[0].datetime, expected_aircraft_1_datetime);
+        assert_eq!(
+            aircraft_1_history[0].recorded_datetime,
+            expected_aircraft_1_datetime
+        );
 
         // check aircraft 2 inserted
         let aircraft_2_history = airspace
@@ -160,7 +163,10 @@ mod tests {
             .get(&expected_aircraft_2_icao_address)
             .expect("expected a VecDeque for aircraft 1");
         assert_eq!(aircraft_2_history.len(), 1);
-        assert_eq!(aircraft_2_history[0].datetime, expected_aircraft_2_datetime);
+        assert_eq!(
+            aircraft_2_history[0].recorded_datetime,
+            expected_aircraft_2_datetime
+        );
     }
     #[test]
     fn when_adding_aircrafts_to_empty_entries_then_airspace_datetime_is_correctly_updated() {
@@ -222,7 +228,7 @@ mod tests {
             dbg!(&airspace);
 
             assert_eq!(history.len(), 3);
-            assert_eq!(history[2].datetime, time_c);
+            assert_eq!(history[2].recorded_datetime, time_c);
         }
         #[test]
         fn and_aircraft_timestamp_is_oldest_then_correct_order_is_added() {
@@ -258,7 +264,7 @@ mod tests {
                 .expect("expected to have history");
 
             assert_eq!(history.len(), 3);
-            assert_eq!(history[2].datetime, time_c);
+            assert_eq!(history[2].recorded_datetime, time_c);
         }
         #[test]
         fn and_aircraft_timestamp_is_somewhere_in_between_then_correct_order_is_added() {
@@ -297,7 +303,7 @@ mod tests {
                 .expect("expected to have history");
 
             assert_eq!(history.len(), 4);
-            assert_eq!(history[2].datetime, time_c);
+            assert_eq!(history[2].recorded_datetime, time_c);
         }
     }
 }
