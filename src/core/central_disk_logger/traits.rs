@@ -1,12 +1,12 @@
 use crate::core::central_disk_logger::errors::LoggingError;
 use crate::core::central_disk_logger::interface::LoggerHandle;
 
-pub trait MessageLogger<T> {
+pub trait LogToDisk<T> {
     type Error;
 
     fn log(&self, message: T) -> Result<(), Self::Error>;
 }
-impl<T, M, E> MessageLogger<T> for LoggerHandle<M>
+impl<T, M, E> LogToDisk<T> for LoggerHandle<M>
 where
     T: TryInto<M, Error = E>,
     M: prost::Message,
