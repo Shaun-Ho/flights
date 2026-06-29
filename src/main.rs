@@ -17,7 +17,11 @@ fn main() {
 
     log::info!("Main: Application started.");
 
-    let mut data_pipeline = AirspaceDataPipeline::setup_pipeline(pipeline_config);
+    let mut data_pipeline =
+        AirspaceDataPipeline::setup_pipeline(pipeline_config).unwrap_or_else(|err| {
+            log::error!("{err}");
+            panic!("AircraftDataPipeline setup error. Exiting.")
+        });
 
     let run_duration = cli.duration.map(std::time::Duration::from_secs);
 
