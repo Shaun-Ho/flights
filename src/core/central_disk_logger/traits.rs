@@ -16,12 +16,3 @@ where
         self.send(message)
     }
 }
-
-pub struct NoOpLogger;
-impl<T> MessageLogger<T> for NoOpLogger {
-    type Error = std::convert::Infallible;
-
-    fn log(&self, _message: T) -> Result<(), Self::Error> {
-        Ok(())
-    }
-}
