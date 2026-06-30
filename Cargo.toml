@@ -20,6 +20,7 @@ thiserror = "2.0.18"
 toml = "0.9.8"
 walkers = "0.52.0"
 ogn-aprs-parser = "0.2.0"
+serde_json = "1.0.150"
 
 [dev-dependencies]
 approx = "0.5.1"
