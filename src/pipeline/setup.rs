@@ -1,5 +1,7 @@
 use crate::core::airspace::{AirspaceStore, AirspaceViewer};
-use crate::core::ingestor::{AprsPacket, Ingestor};
+use crate::core::central_disk_logger::DiskLoggerRegistry;
+use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
+use crate::core::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use crate::core::parser::{Aircraft, AircraftParser};
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
@@ -30,43 +32,55 @@ impl AirspaceDataPipeline {
         }
     }
 
-    #[must_use]
-    pub fn setup_pipeline(pipeline_config: PipelineConfig) -> Self {
-        let (messages_sender, messages_receiver): (
+    pub fn setup_pipeline(
+        pipeline_config: PipelineConfig,
+    ) -> Result<Self, AircraftDataPipelineError> {
+        let mut disk_logger_registry = DiskLoggerRegistry::new();
+
+        let (ingestor_sender, ingestor_receiver): (
             crossbeam_channel::Sender<AprsPacket>,
             crossbeam_channel::Receiver<AprsPacket>,
         ) = crossbeam_channel::unbounded();
 
-        let (aircraft_data_sender, aircraft_data_receiver): (
+        let ingestor_logger_handle = pipeline_config
+            .ingestor
+            .write_path
+            .map(|path| disk_logger_registry.register::<PbAprsPacket>(path))
+            .transpose()?;
+
+        let ingestor = match pipeline_config.ingestor.source {
+            IngestorSource::FilePath(FilePathConfig { read_path }) => {
+                Ingestor::read_data_from_file(&read_path, ingestor_sender, ingestor_logger_handle)
+            }
+            IngestorSource::GliderNet(config) => {
+                Ingestor::connect_glidernet(&config, ingestor_sender, ingestor_logger_handle)
+            }
+        }
+        .map_err(|err| AircraftDataPipelineError::PipelineComponentSetup {
+            struct_name: std::any::type_name::<Ingestor>(),
+            source: err,
+        })?;
+
+        let (parser_sender, parser_receiver): (
             crossbeam_channel::Sender<Aircraft>,
             crossbeam_channel::Receiver<Aircraft>,
         ) = crossbeam_channel::unbounded();
-        let ingestor = match pipeline_config.ingestor.source {
-            IngestorSource::FilePath(FilePathConfig { read_path }) => {
-                Ingestor::read_data_from_file(&read_path, messages_sender)
-            }
-            IngestorSource::GliderNet(config) => {
-                Ingestor::connect_glidernet(&config, messages_sender)
-            }
-        }
-        .map_err(|e| log::error!("Error constructing ingestor: {e}"))
-        .unwrap();
 
-        let parser = AircraftParser::new(messages_receiver, aircraft_data_sender);
+        let parser = AircraftParser::new(ingestor_receiver, parser_sender);
 
         let airspace_store = AirspaceStore::new(
-            aircraft_data_receiver,
+            parser_receiver,
             chrono::TimeDelta::seconds(pipeline_config.airspace.time_buffer_seconds.into()),
         );
         let task_order: Vec<(Box<dyn SteppableTask>, std::time::Duration)> = vec![
             (Box::new(ingestor), std::time::Duration::ZERO),
             (Box::new(parser), std::time::Duration::ZERO),
         ];
-        Self::new(
+        Ok(Self::new(
             task_order,
             airspace_store,
             std::time::Duration::from_micros(16667),
-        )
+        ))
     }
     #[must_use]
     pub fn get_airspace_viewer(&self) -> AirspaceViewer {
@@ -78,6 +92,19 @@ impl AirspaceDataPipeline {
         self.thread_manager
             .wait_on_task_finish(self.end_chain_task_id);
     }
+}
+#[derive(Debug, thiserror::Error)]
+pub enum AircraftDataPipelineError {
+    #[error(
+        "Failed to construct AircraftDataPipeline due to component initialization failure: {struct_name}. {source}"
+    )]
+    PipelineComponentSetup {
+        struct_name: &'static str,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("Failed to register to disk_logger : {0}")]
+    CentralDiskLogger(#[from] DiskloggerRegistryError),
 }
 
 #[cfg(test)]

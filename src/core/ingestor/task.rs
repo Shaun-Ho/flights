@@ -2,6 +2,7 @@ use std::net::ToSocketAddrs;
 
 use prost::Message;
 
+use crate::core::central_disk_logger::LoggerHandle;
 use crate::core::ingestor::config::GliderNetConfig;
 use crate::core::ingestor::errors;
 use crate::core::ingestor::protobuf::PbAprsPacket;
@@ -12,33 +13,38 @@ pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
     sender: crossbeam_channel::Sender<AprsPacket>,
+    logger: Option<LoggerHandle<PbAprsPacket>>,
 }
 impl Ingestor {
     pub fn new<C: APRSDataSource + 'static>(
         source: C,
         sender: crossbeam_channel::Sender<AprsPacket>,
+        logger: Option<LoggerHandle<PbAprsPacket>>,
     ) -> Self {
         Self {
             source: Box::new(source),
             sender,
+            logger,
         }
     }
 
     pub fn read_data_from_file(
         read_path: &std::path::Path,
         sender: crossbeam_channel::Sender<AprsPacket>,
+        logger: Option<LoggerHandle<PbAprsPacket>>,
     ) -> Result<Self, std::io::Error> {
         log::info!(
             "Reading APRS data from file: {}",
             read_path.to_string_lossy()
         );
         let source = ReplaySource::new(read_path)?;
-        Ok(Self::new(source, sender))
+        Ok(Self::new(source, sender, logger))
     }
 
     pub fn connect_glidernet(
         config: &GliderNetConfig,
         sender: crossbeam_channel::Sender<AprsPacket>,
+        logger: Option<LoggerHandle<PbAprsPacket>>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
 
@@ -59,7 +65,7 @@ impl Ingestor {
 
         let source = LiveSource::new(stream);
 
-        Ok(Self::new(source, sender))
+        Ok(Self::new(source, sender, logger))
     }
 }
 
@@ -67,6 +73,9 @@ impl SteppableTask for Ingestor {
     fn step(&mut self) -> TaskState {
         match self.source.create_aprs_packet() {
             Ok(aprs_packet) => {
+                if let Some(logger) = &self.logger {
+                    let _ = logger.send(aprs_packet.clone());
+                }
                 if let Err(err) = self.sender.send(aprs_packet) {
                     log::error!("Ingestor: Failed to send to channel: {err}");
                     return TaskState::Running;
@@ -289,7 +298,7 @@ mod test {
         let mock_stream = MockStream::new(data);
         let source = LiveSource::new(mock_stream);
 
-        let mut ingestor = Ingestor::new(source, sender);
+        let mut ingestor = Ingestor::new(source, sender, None);
 
         let keep_running = ingestor.step();
 
@@ -302,7 +311,7 @@ mod test {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mock_stream = MockStatefulStream { state: 0 };
         let source = LiveSource::new(mock_stream);
-        let mut ingestor = Ingestor::new(source, sender);
+        let mut ingestor = Ingestor::new(source, sender, None);
 
         let keep_running = ingestor.step();
         // Expected to keep running after valid packet
@@ -332,7 +341,7 @@ mod test {
         let data = "";
         let mock_stream = MockStream::new(data);
         let source = LiveSource::new(mock_stream);
-        let mut ingestor = Ingestor::new(source, sender);
+        let mut ingestor = Ingestor::new(source, sender, None);
 
         let keep_running = ingestor.step();
 
@@ -365,7 +374,7 @@ mod test {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let source = ReplaySource::new(log_path).expect("Failed to create data source");
 
-        let mut ingestor = Ingestor::new(source, sender);
+        let mut ingestor = Ingestor::new(source, sender, None);
         let mut cont = true;
         while cont {
             cont = matches!(ingestor.step(), TaskState::Running);
