@@ -10,6 +10,8 @@ use crate::ext::TryInsertExt;
 
 pub type LoggerTaskID = u8;
 
+const PROTO_FILE_FORMAT: &str = "pb";
+const JSONL_FILE_FORMAT: &str = "jsonl";
 #[derive(Debug)]
 pub struct DiskLoggerMessage {
     pub logger_id: LoggerTaskID,
@@ -17,13 +19,18 @@ pub struct DiskLoggerMessage {
 }
 
 #[derive(Debug)]
-pub struct LoggerHandle<M> {
+pub struct LoggerHandle<F, M: ?Sized> {
     logger_id: LoggerTaskID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
-    _marker: PhantomData<M>,
+    _marker: PhantomData<(F, M)>,
 }
 
-impl<M> LoggerHandle<M> {
+pub trait LogSender<Input> {
+    type Error;
+    fn send(&self, message: Input) -> Result<(), Self::Error>;
+}
+
+impl<F, M> LoggerHandle<F, M> {
     pub fn new(
         logger_id: LoggerTaskID,
         sender: crossbeam_channel::Sender<DiskLoggerMessage>,
@@ -38,12 +45,16 @@ impl<M> LoggerHandle<M> {
     pub fn logger_id(&self) -> LoggerTaskID {
         self.logger_id
     }
+}
 
-    pub fn send<T, E>(&self, message: T) -> Result<(), errors::LoggingError<E>>
-    where
-        T: TryInto<M, Error = E>,
-        M: prost::Message,
-    {
+impl<M, T, E> LogSender<T> for LoggerHandle<ProtoFormat, M>
+where
+    T: TryInto<M, Error = E>,
+    M: prost::Message,
+{
+    type Error = errors::LoggingError<E>;
+
+    fn send(&self, message: T) -> Result<(), Self::Error> {
         let proto_message: M = message
             .try_into()
             .map_err(errors::LoggingError::Conversion)?;
@@ -54,6 +65,28 @@ impl<M> LoggerHandle<M> {
             logger_id: self.logger_id,
             payload,
         })?)
+    }
+}
+
+impl<'a, M> LogSender<&'a M> for LoggerHandle<JsonlFormat, M>
+where
+    M: serde::Serialize + ?Sized,
+{
+    type Error = errors::LoggingError<serde_json::Error>;
+
+    fn send(&self, message: &'a M) -> Result<(), Self::Error> {
+        let mut payload = serde_json::to_vec(message).map_err(errors::LoggingError::Conversion)?;
+
+        payload.push(b'\n');
+
+        self.sender
+            .send(DiskLoggerMessage {
+                logger_id: self.logger_id,
+                payload,
+            })
+            .map_err(|e| errors::LoggingError::SendError(e))?;
+
+        Ok(())
     }
 }
 
@@ -75,10 +108,40 @@ impl DiskLoggerRegistry {
         }
     }
 
-    pub fn register<M>(
+    pub fn register_proto<M>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle<M>, errors::DiskloggerRegistryError> {
+    ) -> Result<LoggerHandle<ProtoFormat, M>, errors::DiskloggerRegistryError> {
+        if path
+            .extension()
+            .map_or(true, |ext| ext != PROTO_FILE_FORMAT)
+        {
+            return Err(errors::DiskloggerRegistryError::InvalidPath(path));
+        }
+        self.register::<ProtoFormat, M>(path)
+    }
+
+    pub fn register_jsonl<M>(
+        &mut self,
+        path: PathBuf,
+    ) -> Result<LoggerHandle<JsonlFormat, M>, errors::DiskloggerRegistryError> {
+        if path
+            .extension()
+            .map_or(true, |ext| ext != JSONL_FILE_FORMAT)
+        {
+            return Err(errors::DiskloggerRegistryError::InvalidPath(path));
+        }
+        self.register::<JsonlFormat, M>(path)
+    }
+
+    pub fn build(self) -> CentralDiskLogger {
+        CentralDiskLogger::new(self.receiver, self.task_to_path_mapping)
+    }
+
+    fn register<F, M>(
+        &mut self,
+        path: PathBuf,
+    ) -> Result<LoggerHandle<F, M>, errors::DiskloggerRegistryError> {
         let file = match File::create_new(&path) {
             Ok(f) => f,
             Err(err) => {
@@ -106,16 +169,18 @@ impl DiskLoggerRegistry {
 
         Ok(handle)
     }
-
-    pub fn build(self) -> CentralDiskLogger {
-        CentralDiskLogger::new(self.receiver, self.task_to_path_mapping)
-    }
 }
 impl Default for DiskLoggerRegistry {
     fn default() -> Self {
         Self::new()
     }
 }
+
+pub struct JsonlFormat {}
+pub struct ProtoFormat {}
+
+pub type ProtoLoggerHandle<M> = LoggerHandle<ProtoFormat, M>;
+pub type JsonlLoggerHandle<M> = LoggerHandle<JsonlFormat, M>;
 
 #[cfg(test)]
 mod tests {
@@ -133,7 +198,7 @@ mod tests {
                 larger_than_zero: 1,
             };
             let (sender, receiver) = crossbeam_channel::unbounded();
-            let handler = LoggerHandle::<MockTaskProto>::new(1, sender);
+            let handler = LoggerHandle::<ProtoFormat, MockTaskProto>::new(1, sender);
             let res = handler.send(message);
             assert!(receiver.try_recv().is_ok());
             assert!(res.is_ok());
@@ -145,7 +210,7 @@ mod tests {
                 larger_than_zero: 0,
             };
             let (sender, receiver) = crossbeam_channel::unbounded();
-            let handler = LoggerHandle::<MockTaskProto>::new(1, sender);
+            let handler = LoggerHandle::<ProtoFormat, MockTaskProto>::new(1, sender);
             let res = handler.send(message);
             assert!(matches!(
                 res.err().unwrap(),
@@ -159,7 +224,7 @@ mod tests {
                 larger_than_zero: 1,
             };
             let (sender, receiver) = crossbeam_channel::unbounded();
-            let handler = LoggerHandle::<MockTaskProto>::new(1, sender);
+            let handler = LoggerHandle::<ProtoFormat, MockTaskProto>::new(1, sender);
             drop(receiver);
             let res = handler.send(message);
             assert!(matches!(
@@ -178,7 +243,7 @@ mod tests {
             let file_path = temp_dir.path().join("test_log_1.bin");
 
             let mut registry = DiskLoggerRegistry::new();
-            let handle = registry.register::<MockTaskProto>(file_path.clone());
+            let handle = registry.register::<ProtoFormat, MockTaskProto>(file_path.clone());
             assert!(handle.is_ok());
             assert!(file_path.exists());
         }
@@ -190,7 +255,7 @@ mod tests {
             fs::File::create(&file_path).unwrap();
 
             let mut register = DiskLoggerRegistry::new();
-            let handle = register.register::<MockTaskProto>(file_path.clone());
+            let handle = register.register::<ProtoFormat, MockTaskProto>(file_path.clone());
 
             assert!(handle.is_err());
         }

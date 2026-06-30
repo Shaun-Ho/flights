@@ -3,6 +3,7 @@ use std::fs;
 use prost::Message;
 
 use super::test_helpers::*;
+use crate::core::central_disk_logger::interface::LogSender;
 use crate::core::central_disk_logger::*;
 use crate::core::thread_manager::*;
 
@@ -13,7 +14,7 @@ fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_dis
 
     let mut registry = DiskLoggerRegistry::new();
     let handle = registry
-        .register::<MockTaskProto>(file_path.clone())
+        .register_proto::<MockTaskProto>(file_path.clone())
         .expect("Failed to register logger");
     let mut central_logger = registry.build();
 
@@ -47,10 +48,10 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
     let mut registry = DiskLoggerRegistry::new();
 
     let log_handle_1 = registry
-        .register::<MockTaskProto>(file_path_1.clone())
+        .register_proto::<MockTaskProto>(file_path_1.clone())
         .unwrap();
     let log_handle_2 = registry
-        .register::<MockTaskProto>(file_path_2.clone())
+        .register_proto::<MockTaskProto>(file_path_2.clone())
         .unwrap();
 
     let mut central_logger = registry.build();

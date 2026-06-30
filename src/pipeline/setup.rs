@@ -45,7 +45,7 @@ impl AirspaceDataPipeline {
         let ingestor_logger_handle = pipeline_config
             .ingestor
             .write_path
-            .map(|path| disk_logger_registry.register::<PbAprsPacket>(path))
+            .map(|path| disk_logger_registry.register_proto::<PbAprsPacket>(path))
             .transpose()?;
 
         let ingestor = match pipeline_config.ingestor.source {
