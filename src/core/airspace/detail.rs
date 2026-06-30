@@ -115,7 +115,7 @@ mod tests {
     use crate::test_utilities::create_dummy_aircraft_at_time;
 
     fn to_datetime(time_string: &str) -> chrono::DateTime<chrono::Utc> {
-        let today = chrono::Local::now().date_naive();
+        let today = chrono::Utc::now().date_naive();
         let time = chrono::NaiveTime::parse_from_str(time_string, "%H:%M:%S")
             .expect("time string not in %H:%M:%S format");
         today.and_time(time).and_utc()
@@ -211,13 +211,15 @@ mod tests {
                 datetime: to_datetime("00:01:00"),
                 icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
             };
+            dbg!(&airspace);
             let new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
-
+            dbg!(&new_data);
             airspace.update(new_data);
 
             let history = airspace
                 .get_history(aircraft_icao_address)
                 .expect("expected to have history");
+            dbg!(&airspace);
 
             assert_eq!(history.len(), 3);
             assert_eq!(history[2].datetime, time_c);

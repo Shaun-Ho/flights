@@ -84,7 +84,7 @@ where
                 logger_id: self.logger_id,
                 payload,
             })
-            .map_err(|e| errors::LoggingError::SendError(e))?;
+            .map_err(errors::LoggingError::SendError)?;
 
         Ok(())
     }
@@ -112,10 +112,7 @@ impl DiskLoggerRegistry {
         &mut self,
         path: PathBuf,
     ) -> Result<LoggerHandle<ProtoFormat, M>, errors::DiskloggerRegistryError> {
-        if path
-            .extension()
-            .map_or(true, |ext| ext != PROTO_FILE_FORMAT)
-        {
+        if path.extension().is_none_or(|ext| ext != PROTO_FILE_FORMAT) {
             return Err(errors::DiskloggerRegistryError::InvalidPath(path));
         }
         self.register::<ProtoFormat, M>(path)
@@ -125,10 +122,7 @@ impl DiskLoggerRegistry {
         &mut self,
         path: PathBuf,
     ) -> Result<LoggerHandle<JsonlFormat, M>, errors::DiskloggerRegistryError> {
-        if path
-            .extension()
-            .map_or(true, |ext| ext != JSONL_FILE_FORMAT)
-        {
+        if path.extension().is_none_or(|ext| ext != JSONL_FILE_FORMAT) {
             return Err(errors::DiskloggerRegistryError::InvalidPath(path));
         }
         self.register::<JsonlFormat, M>(path)

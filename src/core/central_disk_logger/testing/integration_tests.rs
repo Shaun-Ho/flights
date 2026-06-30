@@ -10,7 +10,7 @@ use crate::core::thread_manager::*;
 #[test]
 fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_disk() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let file_path = temp_dir.path().join("system_log.bin");
+    let file_path = temp_dir.path().join("system_log.pb");
 
     let mut registry = DiskLoggerRegistry::new();
     let handle = registry
@@ -42,8 +42,8 @@ fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_dis
 #[test]
 fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_correctly() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let file_path_1 = temp_dir.path().join("flight_data.bin");
-    let file_path_2 = temp_dir.path().join("engine_data.bin");
+    let file_path_1 = temp_dir.path().join("flight_data.pb");
+    let file_path_2 = temp_dir.path().join("engine_data.pb");
 
     let mut registry = DiskLoggerRegistry::new();
 
