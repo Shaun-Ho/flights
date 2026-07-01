@@ -13,7 +13,10 @@ pub enum LoggingError<T> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DiskloggerRegistryError {
-    #[error("path already registered: {0}")]
+    #[error("Invalid path: {0}")]
+    InvalidPath(PathBuf),
+
+    #[error("Path already registered: {0}")]
     PathAlreadyRegisteredError(PathBuf),
 
     #[error("Unable to create logger file at path: {path}")]

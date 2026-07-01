@@ -2,7 +2,7 @@ use std::net::ToSocketAddrs;
 
 use prost::Message;
 
-use crate::core::central_disk_logger::LoggerHandle;
+use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
 use crate::core::ingestor::config::GliderNetConfig;
 use crate::core::ingestor::errors;
 use crate::core::ingestor::protobuf::PbAprsPacket;
@@ -13,13 +13,13 @@ pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration
 pub struct Ingestor {
     source: Box<dyn APRSDataSource>,
     sender: crossbeam_channel::Sender<AprsPacket>,
-    logger: Option<LoggerHandle<PbAprsPacket>>,
+    logger: Option<ProtoLoggerHandle<PbAprsPacket>>,
 }
 impl Ingestor {
     pub fn new<C: APRSDataSource + 'static>(
         source: C,
         sender: crossbeam_channel::Sender<AprsPacket>,
-        logger: Option<LoggerHandle<PbAprsPacket>>,
+        logger: Option<ProtoLoggerHandle<PbAprsPacket>>,
     ) -> Self {
         Self {
             source: Box::new(source),
@@ -31,7 +31,7 @@ impl Ingestor {
     pub fn read_data_from_file(
         read_path: &std::path::Path,
         sender: crossbeam_channel::Sender<AprsPacket>,
-        logger: Option<LoggerHandle<PbAprsPacket>>,
+        logger: Option<ProtoLoggerHandle<PbAprsPacket>>,
     ) -> Result<Self, std::io::Error> {
         log::info!(
             "Reading APRS data from file: {}",
@@ -44,7 +44,7 @@ impl Ingestor {
     pub fn connect_glidernet(
         config: &GliderNetConfig,
         sender: crossbeam_channel::Sender<AprsPacket>,
-        logger: Option<LoggerHandle<PbAprsPacket>>,
+        logger: Option<ProtoLoggerHandle<PbAprsPacket>>,
     ) -> Result<Self, std::io::Error> {
         log::info!("Connecting to TCP stream.");
 
