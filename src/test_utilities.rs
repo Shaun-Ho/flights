@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{io::Write, time::SystemTime};
 
 use ogn_aprs_parser::ICAOAddress;
 
@@ -31,9 +31,10 @@ pub fn create_dummy_aircraft_at_time(
     icao_address: ICAOAddress,
 ) -> Aircraft {
     Aircraft {
+        timestamp: SystemTime::now(),
         callsign: String::from("dummy"),
         icao_address,
-        datetime,
+        recorded_datetime: datetime,
         latitude: 0.0,
         longitude: 0.0,
         ground_track: 0.0,

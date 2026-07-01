@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package parser;
+import "google/protobuf/timestamp.proto";
+
+message PbAircraft{
+  google.protobuf.Timestamp timestamp         = 1;
+  string                    callsign          = 2;
+  uint32                    icao_address      = 3;
+  google.protobuf.Timestamp recorded_datetime = 4;
+  double                    latitude          = 5;
+  double                    longitude         = 6;
+  double                    ground_track      = 7;
+  double                    ground_speed      = 8;
+  double                    gps_altitude      = 9;
+}
