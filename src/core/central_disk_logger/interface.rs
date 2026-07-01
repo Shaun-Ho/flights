@@ -68,14 +68,20 @@ where
     }
 }
 
-impl<'a, M> LogSender<&'a M> for LoggerHandle<JsonlFormat, M>
+impl<M, T, E> LogSender<T> for LoggerHandle<JsonlFormat, M>
 where
-    M: serde::Serialize + ?Sized,
+    T: TryInto<M, Error = E>,
+    M: serde::Serialize,
 {
-    type Error = errors::LoggingError<serde_json::Error>;
+    type Error = errors::LoggingError<E>;
 
-    fn send(&self, message: &'a M) -> Result<(), Self::Error> {
-        let mut payload = serde_json::to_vec(message).map_err(errors::LoggingError::Conversion)?;
+    fn send(&self, message: T) -> Result<(), Self::Error> {
+        let json_message: M = message
+            .try_into()
+            .map_err(errors::LoggingError::Conversion)?;
+
+        let mut payload =
+            serde_json::to_vec(&json_message).map_err(errors::LoggingError::Serialization)?;
 
         payload.push(b'\n');
 

@@ -106,7 +106,7 @@ fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_d
     let domain_message = vec!["app_started".to_string(), "disk_ok".to_string()];
 
     handle
-        .send(&domain_message)
+        .send(domain_message)
         .expect("Failed to send json message");
 
     let state = central_logger.step();
@@ -145,7 +145,7 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
         .unwrap();
 
     let json_msg = vec!["concurrent_test".to_string()];
-    jsonl_handle.send(&json_msg).unwrap();
+    jsonl_handle.send(json_msg).unwrap();
 
     central_logger.step();
     central_logger.step();

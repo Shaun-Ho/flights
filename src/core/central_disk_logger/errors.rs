@@ -9,6 +9,8 @@ pub enum LoggingError<T> {
     Conversion(T),
     #[error("Failed to send: {0}")]
     SendError(#[from] crossbeam_channel::SendError<DiskLoggerMessage>),
+    #[error("Failed to send: {0}")]
+    Serialization(#[from] serde_json::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
