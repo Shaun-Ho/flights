@@ -66,13 +66,21 @@ impl AirspaceDataPipeline {
             crossbeam_channel::Receiver<Aircraft>,
         ) = crossbeam_channel::unbounded();
 
-        let parser = AircraftParser::new(ingestor_receiver, parser_sender);
+        let parser_logger_handle = pipeline_config
+            .parser
+            .write_path
+            .map(|path| disk_logger_registry.register_jsonl::<Aircraft>(path))
+            .transpose()?;
+
+        let parser = AircraftParser::new(ingestor_receiver, parser_sender, parser_logger_handle);
 
         let airspace_store = AirspaceStore::new(
             parser_receiver,
             chrono::TimeDelta::seconds(pipeline_config.airspace.time_buffer_seconds.into()),
         );
+        let disk_logger = disk_logger_registry.build();
         let task_order: Vec<(Box<dyn SteppableTask>, std::time::Duration)> = vec![
+            (Box::new(disk_logger), std::time::Duration::ZERO),
             (Box::new(ingestor), std::time::Duration::ZERO),
             (Box::new(parser), std::time::Duration::ZERO),
         ];
@@ -112,7 +120,7 @@ mod test {
     use super::*;
     use crate::core::ingestor::PbAprsPacket;
     use crate::pipeline::AirspaceDataPipeline;
-    use crate::pipeline::config::{AirspaceConfig, IngestorConfig};
+    use crate::pipeline::config::{AirspaceConfig, IngestorConfig, ParserConfig};
     use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
 
     #[rstest::rstest]
@@ -137,8 +145,10 @@ mod test {
         let airspace_config = AirspaceConfig {
             time_buffer_seconds: 1,
         };
+        let parser_config = ParserConfig { write_path: None };
         let pipeline_config = PipelineConfig {
             ingestor: ingestor_config,
+            parser: parser_config,
             airspace: airspace_config,
         };
         let pipeline = AirspaceDataPipeline::setup_pipeline(pipeline_config);

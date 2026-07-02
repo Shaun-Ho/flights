@@ -1,0 +1,19 @@
+[ingestor]
+# optional write path
+# write_path = "./data/ingestor.pb"
+
+[parser]
+# optional write path
+# write_path = "./data/parser.jsonl"
+
+[ingestor.source]
+# for reading from .pb log
+# read_path = "./data/ingestor.pb"
+
+# for reading from glidernet source
+host = "aprs.glidernet.org"
+port = 14580
+filter = "r/0/0/250000000000"
+
+[airspace]
+time_buffer_seconds = 60

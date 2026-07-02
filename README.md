@@ -14,7 +14,7 @@ Follow instructions [here](https://rust-lang.org/learn/get-started/) to install 
 
 ## Running the flights data-pipeline & gui
 ## Config file
-A config toml file for configuring data pipeline that feeds the app (`pipeline.toml.example`) is provided.
+A config toml file for configuring data pipeline that feeds the app (`pipeline.example.toml`) is provided.
 Pass the path of the config file to the app:
 `cargo run -- --config-file <path to your config file>`
 

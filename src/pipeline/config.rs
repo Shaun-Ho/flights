@@ -8,6 +8,7 @@ use crate::core::ingestor::config::GliderNetConfig;
 #[derive(serde::Deserialize)]
 pub struct PipelineConfig {
     pub ingestor: IngestorConfig,
+    pub parser: ParserConfig,
     pub airspace: AirspaceConfig,
 }
 
@@ -33,6 +34,11 @@ impl PipelineConfig {
 #[derive(serde::Deserialize)]
 pub struct IngestorConfig {
     pub source: IngestorSource,
+    pub write_path: Option<PathBuf>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ParserConfig {
     pub write_path: Option<PathBuf>,
 }
 #[derive(serde::Deserialize)]
