@@ -1,8 +1,10 @@
 use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub struct Aircraft {
     pub callsign: String,
+    #[serde(with = "icao_serde")]
     pub icao_address: ICAOAddress,
     pub datetime: chrono::DateTime<chrono::Utc>,
     pub latitude: f64,
@@ -32,5 +34,29 @@ pub fn convert_ogn_aprs_beacon_to_aircraft(
         ground_track: aircraft_beacon.ground_track,
         ground_speed: aircraft_beacon.ground_speed,
         gps_altitude: aircraft_beacon.gps_altitude,
+    }
+}
+
+mod icao_serde {
+    use super::ICAOAddress;
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(icao: &ICAOAddress, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let raw_value: u32 = icao.value();
+
+        serializer.serialize_u32(raw_value)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<ICAOAddress, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw_value = u32::deserialize(deserializer)?;
+
+        ICAOAddress::new(raw_value).map_err(D::Error::custom)
     }
 }
