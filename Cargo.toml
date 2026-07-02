@@ -7,7 +7,7 @@ rust-version = "1.92"
 
 [dependencies]
 bytes = "1.11.1"
-chrono = "0.4.42"
+chrono = { version = "0.4.42", features = ["serde"] }
 clap = { version = "4.5.53", features = ["derive"] }
 crossbeam-channel = "0.5"
 eframe = "0.33.3"
