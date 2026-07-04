@@ -2,7 +2,7 @@ use std::io::Write;
 
 use ogn_aprs_parser::ICAOAddress;
 
-use crate::core::parser::Aircraft;
+use crate::parser::Aircraft;
 
 pub struct TestPath {
     _guard: tempfile::TempDir,

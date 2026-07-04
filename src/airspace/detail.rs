@@ -3,7 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use chrono::{DateTime, Utc};
 use ogn_aprs_parser::ICAOAddress;
 
-use crate::core::parser::Aircraft;
+use crate::parser::Aircraft;
 
 #[derive(Debug, Clone)]
 pub struct Airspace {

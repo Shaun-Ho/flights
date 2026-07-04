@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use serde::{Deserialize, Serialize};
 
-use crate::core::parser::errors::PacketConversionError;
+use crate::parser::errors::PacketConversionError;
 use crate::pb::parser::PbAircraft;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]

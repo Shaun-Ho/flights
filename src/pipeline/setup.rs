@@ -1,9 +1,9 @@
 use crate::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::central_disk_logger::DiskLoggerRegistry;
 use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
-use crate::core::parser::{Aircraft, AircraftParser};
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
 use crate::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
+use crate::parser::{Aircraft, AircraftParser};
 use crate::pb::airspace::PbAirspace;
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 

@@ -1,7 +1,7 @@
 use crate::airspace::detail::Airspace;
 use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
-use crate::core::parser::Aircraft;
 use crate::core::thread_manager::{SteppableTask, TaskState};
+use crate::parser::Aircraft;
 use crate::pb::airspace::PbAirspace;
 
 pub struct AirspaceStore {

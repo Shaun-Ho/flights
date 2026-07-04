@@ -6,7 +6,7 @@ use ogn_aprs_parser::ICAOAddress;
 
 use crate::airspace::detail::Airspace;
 use crate::airspace::errors::PacketConversionError;
-use crate::core::parser::Aircraft;
+use crate::parser::Aircraft;
 use crate::pb::airspace::{PbAircraftHistory, PbAirspace};
 
 impl TryFrom<PbAirspace> for Airspace {

@@ -7,7 +7,7 @@ pub enum PacketConversionError {
     #[error("Invalid Timestamp")]
     InvalidTimestamp(#[from] prost_types::TimestampError),
     #[error("Invalid aircraft: {0}")]
-    InvalidAircraft(crate::core::parser::errors::PacketConversionError),
+    InvalidAircraft(crate::parser::errors::PacketConversionError),
     #[error("Invalid ICAOAddress as key: {0}")]
     InvalidICAOAddressKey(#[from] ICAOAddressError),
 }
