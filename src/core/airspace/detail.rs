@@ -1,3 +1,6 @@
+use std::collections::{HashMap, VecDeque};
+
+use chrono::{DateTime, Utc};
 use ogn_aprs_parser::ICAOAddress;
 
 use crate::core::parser::Aircraft;
@@ -14,6 +17,15 @@ impl Airspace {
         Airspace {
             datetime: chrono::DateTime::<chrono::Utc>::MIN_UTC,
             icao_to_aircraft_map: std::collections::HashMap::new(),
+        }
+    }
+    pub fn from_state(
+        datetime: DateTime<Utc>,
+        icao_to_aircraft_map: HashMap<ICAOAddress, VecDeque<Aircraft>>,
+    ) -> Self {
+        Airspace {
+            datetime,
+            icao_to_aircraft_map,
         }
     }
 
@@ -76,6 +88,16 @@ impl Airspace {
         &self,
     ) -> &std::collections::HashMap<ICAOAddress, std::collections::VecDeque<Aircraft>> {
         &self.icao_to_aircraft_map
+    }
+
+    #[must_use]
+    pub fn into_inner(
+        self,
+    ) -> (
+        chrono::DateTime<chrono::Utc>,
+        std::collections::HashMap<ICAOAddress, std::collections::VecDeque<Aircraft>>,
+    ) {
+        (self.datetime, self.icao_to_aircraft_map)
     }
 
     fn prune(&mut self, buffer_duration: chrono::Duration) {
