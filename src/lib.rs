@@ -3,6 +3,7 @@ pub mod core;
 pub mod ext;
 pub mod gui;
 pub mod logging;
+pub mod pb;
 pub mod pipeline;
 
 #[cfg(test)]
