@@ -5,6 +5,7 @@ use crate::core::thread_manager::{SteppableTask, TaskState};
 pub struct AirspaceStore {
     inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
     aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
+    airspace_time_buffer: chrono::TimeDelta,
 }
 impl AirspaceStore {
     #[must_use]
@@ -12,10 +13,11 @@ impl AirspaceStore {
         aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
         airspace_time_buffer: chrono::TimeDelta,
     ) -> Self {
-        let empty_airspace = Airspace::new(airspace_time_buffer);
+        let empty_airspace = Airspace::new();
         AirspaceStore {
             inner: std::sync::Arc::new(std::sync::RwLock::new(empty_airspace)),
             aircraft_receiver,
+            airspace_time_buffer,
         }
     }
     #[must_use]
@@ -44,7 +46,7 @@ impl SteppableTask for AirspaceStore {
         }
 
         if let Ok(mut airspace) = self.inner.write() {
-            airspace.update(aircrafts);
+            airspace.update(aircrafts, self.airspace_time_buffer);
         }
         TaskState::Running
     }

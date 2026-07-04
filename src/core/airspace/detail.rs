@@ -4,22 +4,20 @@ use crate::core::parser::Aircraft;
 
 #[derive(Debug)]
 pub struct Airspace {
-    buffer_duration: chrono::Duration,
     datetime: chrono::DateTime<chrono::Utc>,
     icao_to_aircraft_map:
         std::collections::HashMap<ICAOAddress, std::collections::VecDeque<Aircraft>>,
 }
 impl Airspace {
     #[must_use]
-    pub fn new(buffer_duration: chrono::Duration) -> Self {
+    pub fn new() -> Self {
         Airspace {
-            buffer_duration,
             datetime: chrono::DateTime::<chrono::Utc>::MIN_UTC,
             icao_to_aircraft_map: std::collections::HashMap::new(),
         }
     }
 
-    pub fn update(&mut self, aircrafts: Vec<Aircraft>) {
+    pub fn update(&mut self, aircrafts: Vec<Aircraft>, buffer_duration: chrono::Duration) {
         let mut aircrafts = aircrafts;
 
         while let Some(aircraft) = aircrafts.pop() {
@@ -29,7 +27,7 @@ impl Airspace {
             }
 
             // check that aircraft is within buffer window
-            let cutoff_time = self.datetime - self.buffer_duration;
+            let cutoff_time = self.datetime - buffer_duration;
             if aircraft.datetime < cutoff_time {
                 continue;
             }
@@ -57,7 +55,7 @@ impl Airspace {
             let idx = history.partition_point(|x| x.datetime < aircraft.datetime);
             history.insert(idx, aircraft);
         }
-        self.prune();
+        self.prune(buffer_duration);
     }
 
     #[must_use]
@@ -80,10 +78,10 @@ impl Airspace {
         &self.icao_to_aircraft_map
     }
 
-    fn prune(&mut self) {
+    fn prune(&mut self, buffer_duration: chrono::Duration) {
         let cutoff_time = self
             .datetime
-            .checked_sub_signed(self.buffer_duration)
+            .checked_sub_signed(buffer_duration)
             .unwrap_or(chrono::DateTime::<chrono::Utc>::MIN_UTC);
 
         for aircraft_history in self.icao_to_aircraft_map.values_mut() {
@@ -106,6 +104,12 @@ impl Airspace {
     }
 }
 
+impl Default for Airspace {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -124,8 +128,8 @@ mod tests {
     #[test]
     fn when_adding_aircrafts_to_empty_entries_then_correct_histories_are_created() {
         let now_datetime = chrono::Utc::now();
+        let buffer_duration = chrono::TimeDelta::seconds(5);
         let mut airspace = Airspace {
-            buffer_duration: chrono::TimeDelta::seconds(5),
             datetime: now_datetime,
             icao_to_aircraft_map: std::collections::HashMap::new(),
         };
@@ -142,7 +146,7 @@ mod tests {
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
 
-        airspace.update(aircrafts);
+        airspace.update(aircrafts, buffer_duration);
 
         assert_eq!(airspace.icao_to_aircraft_map.len(), 2);
 
@@ -164,7 +168,8 @@ mod tests {
     }
     #[test]
     fn when_adding_aircrafts_to_empty_entries_then_airspace_datetime_is_correctly_updated() {
-        let mut airspace = Airspace::new(chrono::TimeDelta::seconds(5));
+        let buffer_duration = chrono::TimeDelta::seconds(5);
+        let mut airspace = Airspace::new();
         let now_datetime = chrono::Utc::now();
 
         let expected_aircraft_1_icao_address = ICAOAddress::new(0).unwrap();
@@ -179,7 +184,7 @@ mod tests {
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
 
-        airspace.update(aircrafts);
+        airspace.update(aircrafts, buffer_duration);
         assert_eq!(airspace.datetime, now_datetime);
     }
 
@@ -205,16 +210,15 @@ mod tests {
                     create_dummy_aircraft_at_time(time_b, aircraft_icao_address),
                 ]),
             )];
-
+            let buffer_duration = chrono::TimeDelta::seconds(5);
             let mut airspace = Airspace {
-                buffer_duration: chrono::TimeDelta::seconds(5),
                 datetime: to_datetime("00:01:00"),
                 icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
             };
             dbg!(&airspace);
             let new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
             dbg!(&new_data);
-            airspace.update(new_data);
+            airspace.update(new_data, buffer_duration);
 
             let history = airspace
                 .get_history(aircraft_icao_address)
@@ -243,15 +247,14 @@ mod tests {
                     create_dummy_aircraft_at_time(time_c, aircraft_icao_address),
                 ]),
             )];
-
+            let buffer_duration = chrono::TimeDelta::seconds(5);
             let mut airspace = Airspace {
-                buffer_duration: chrono::TimeDelta::seconds(5),
                 datetime: to_datetime("00:01:00"),
                 icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
             };
             let new_data = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
 
-            airspace.update(new_data);
+            airspace.update(new_data, buffer_duration);
 
             let history = airspace
                 .get_history(aircraft_icao_address)
@@ -283,14 +286,14 @@ mod tests {
                 ]),
             )];
 
+            let buffer_duration = chrono::TimeDelta::seconds(5);
             let mut airspace = Airspace {
-                buffer_duration: chrono::TimeDelta::seconds(5),
                 datetime: to_datetime("00:01:00"),
                 icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
             };
             let new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
-            airspace.update(new_data);
+            airspace.update(new_data, buffer_duration);
 
             let history = airspace
                 .get_history(aircraft_icao_address)
