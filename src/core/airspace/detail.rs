@@ -5,7 +5,7 @@ use ogn_aprs_parser::ICAOAddress;
 
 use crate::core::parser::Aircraft;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Airspace {
     datetime: chrono::DateTime<chrono::Utc>,
     icao_to_aircraft_map:

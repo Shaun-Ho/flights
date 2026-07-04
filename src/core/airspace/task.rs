@@ -1,5 +1,5 @@
 use crate::core::airspace::detail::Airspace;
-use crate::core::central_disk_logger::ProtoLoggerHandle;
+use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
 use crate::core::parser::Aircraft;
 use crate::core::thread_manager::{SteppableTask, TaskState};
 use crate::pb::airspace::PbAirspace;
@@ -52,6 +52,9 @@ impl SteppableTask for AirspaceStore {
 
         if let Ok(mut airspace) = self.inner.write() {
             airspace.update(aircrafts, self.airspace_time_buffer);
+            if let Some(logger) = &self.logger {
+                let _ = logger.send((*airspace).clone());
+            }
         }
         TaskState::Running
     }
