@@ -1,13 +1,13 @@
-use crate::ingestor::errors::PacketConversionError;
+use crate::ingestor::errors::APRSPacketConversionError;
 use crate::ingestor::task::AprsPacket;
 use crate::pb::ingestor::PbAprsPacket;
 
 impl TryFrom<PbAprsPacket> for AprsPacket {
-    type Error = PacketConversionError;
+    type Error = APRSPacketConversionError;
     fn try_from(packet: PbAprsPacket) -> Result<Self, Self::Error> {
         let timestamp = packet
             .timestamp
-            .ok_or(PacketConversionError::MissingTimestamp)?
+            .ok_or(APRSPacketConversionError::MissingTimestamp)?
             .try_into()?;
 
         Ok(Self {
