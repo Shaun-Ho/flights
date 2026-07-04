@@ -1,7 +1,7 @@
 pub mod config;
+pub mod conversion;
 pub mod errors;
-pub mod protobuf;
 pub mod task;
 
-pub use protobuf::PbAprsPacket;
+pub use crate::pb::ingestor::PbAprsPacket;
 pub use task::{APRSDataSource, AprsPacket, Ingestor};
