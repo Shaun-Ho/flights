@@ -4,8 +4,8 @@ use std::time::SystemTime;
 use chrono::{DateTime, Utc};
 use ogn_aprs_parser::ICAOAddress;
 
-use crate::core::airspace::detail::Airspace;
-use crate::core::airspace::errors::PacketConversionError;
+use crate::airspace::detail::Airspace;
+use crate::airspace::errors::PacketConversionError;
 use crate::core::parser::Aircraft;
 use crate::pb::airspace::{PbAircraftHistory, PbAirspace};
 

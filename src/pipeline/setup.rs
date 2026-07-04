@@ -1,4 +1,4 @@
-use crate::core::airspace::{AirspaceStore, AirspaceViewer};
+use crate::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::central_disk_logger::DiskLoggerRegistry;
 use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
 use crate::core::ingestor::{AprsPacket, Ingestor, PbAprsPacket};

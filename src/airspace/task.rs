@@ -1,4 +1,4 @@
-use crate::core::airspace::detail::Airspace;
+use crate::airspace::detail::Airspace;
 use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
 use crate::core::parser::Aircraft;
 use crate::core::thread_manager::{SteppableTask, TaskState};
@@ -36,27 +36,39 @@ impl AirspaceStore {
 impl SteppableTask for AirspaceStore {
     fn step(&mut self) -> TaskState {
         let mut aircrafts = Vec::new();
+        let mut is_disconnected = false;
 
-        match self.aircraft_receiver.try_recv() {
-            Ok(aircraft) => {
-                aircrafts.push(aircraft);
-            }
-            Err(crossbeam_channel::TryRecvError::Empty) => {
-                return TaskState::Running;
-            }
-            Err(crossbeam_channel::TryRecvError::Disconnected) => {
-                log::error!("AirspaceStore upstream disconnected");
-                return TaskState::Completed;
+        // drain the channel to check status of channel
+        loop {
+            match self.aircraft_receiver.try_recv() {
+                Ok(aircraft) => {
+                    aircrafts.push(aircraft);
+                }
+                Err(crossbeam_channel::TryRecvError::Empty) => {
+                    break;
+                }
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    log::error!("AirspaceStore upstream disconnected");
+                    is_disconnected = true;
+                    break;
+                }
             }
         }
 
-        if let Ok(mut airspace) = self.inner.write() {
+        if !aircrafts.is_empty()
+            && let Ok(mut airspace) = self.inner.write()
+        {
             airspace.update(aircrafts, self.airspace_time_buffer);
             if let Some(logger) = &self.logger {
                 let _ = logger.send((*airspace).clone());
             }
         }
-        TaskState::Running
+
+        if is_disconnected {
+            TaskState::Completed
+        } else {
+            TaskState::Running
+        }
     }
 }
 #[derive(Clone)]

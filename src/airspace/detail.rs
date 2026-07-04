@@ -137,7 +137,7 @@ mod tests {
 
     use ogn_aprs_parser::ICAOAddress;
 
-    use crate::core::airspace::detail::Airspace;
+    use crate::airspace::detail::Airspace;
     use crate::test_utilities::create_dummy_aircraft_at_time;
 
     fn to_datetime(time_string: &str) -> chrono::DateTime<chrono::Utc> {
