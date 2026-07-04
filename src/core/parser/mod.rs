@@ -1,4 +1,5 @@
 mod conversion;
+pub mod errors;
 mod task;
 
 pub use conversion::Aircraft;

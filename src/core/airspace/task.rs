@@ -1,21 +1,28 @@
 use crate::core::airspace::detail::Airspace;
+use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
 use crate::core::parser::Aircraft;
 use crate::core::thread_manager::{SteppableTask, TaskState};
+use crate::pb::airspace::PbAirspace;
 
 pub struct AirspaceStore {
     inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
     aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
+    airspace_time_buffer: chrono::TimeDelta,
+    logger: Option<ProtoLoggerHandle<PbAirspace>>,
 }
 impl AirspaceStore {
     #[must_use]
     pub fn new(
         aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
         airspace_time_buffer: chrono::TimeDelta,
+        logger: Option<ProtoLoggerHandle<PbAirspace>>,
     ) -> Self {
-        let empty_airspace = Airspace::new(airspace_time_buffer);
+        let empty_airspace = Airspace::new();
         AirspaceStore {
             inner: std::sync::Arc::new(std::sync::RwLock::new(empty_airspace)),
             aircraft_receiver,
+            airspace_time_buffer,
+            logger,
         }
     }
     #[must_use]
@@ -44,7 +51,10 @@ impl SteppableTask for AirspaceStore {
         }
 
         if let Ok(mut airspace) = self.inner.write() {
-            airspace.update(aircrafts);
+            airspace.update(aircrafts, self.airspace_time_buffer);
+            if let Some(logger) = &self.logger {
+                let _ = logger.send((*airspace).clone());
+            }
         }
         TaskState::Running
     }
@@ -69,7 +79,7 @@ mod tests {
 
     fn setup_store() -> (crossbeam_channel::Sender<Aircraft>, AirspaceStore) {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let store = AirspaceStore::new(receiver, chrono::TimeDelta::seconds(60));
+        let store = AirspaceStore::new(receiver, chrono::TimeDelta::seconds(60), None);
         (sender, store)
     }
 

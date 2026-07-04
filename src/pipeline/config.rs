@@ -44,6 +44,7 @@ pub struct ParserConfig {
 #[derive(serde::Deserialize)]
 pub struct AirspaceConfig {
     pub time_buffer_seconds: u8,
+    pub write_path: Option<PathBuf>,
 }
 
 pub mod errors {

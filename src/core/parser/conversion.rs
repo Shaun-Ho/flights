@@ -1,5 +1,11 @@
+use std::time::SystemTime;
+
+use chrono::{DateTime, Utc};
 use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use serde::{Deserialize, Serialize};
+
+use crate::core::parser::errors::PacketConversionError;
+use crate::pb::parser::PbAircraft;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub struct Aircraft {
@@ -58,5 +64,45 @@ mod icao_serde {
         let raw_value = u32::deserialize(deserializer)?;
 
         ICAOAddress::new(raw_value).map_err(D::Error::custom)
+    }
+}
+
+impl TryFrom<PbAircraft> for Aircraft {
+    type Error = PacketConversionError;
+    fn try_from(packet: PbAircraft) -> Result<Self, Self::Error> {
+        let icao_address = ICAOAddress::new(packet.icao_address)?;
+        let ts = packet
+            .datetime
+            .ok_or(PacketConversionError::MissingDatetime)?;
+        let sys_time = SystemTime::try_from(ts)?;
+        let datetime = DateTime::<Utc>::from(sys_time);
+
+        Ok(Self {
+            callsign: packet.callsign,
+            icao_address,
+            datetime,
+            latitude: packet.latitude,
+            longitude: packet.longitude,
+            ground_track: packet.ground_track,
+            ground_speed: packet.ground_speed,
+            gps_altitude: packet.gps_altitude,
+        })
+    }
+}
+
+impl From<Aircraft> for PbAircraft {
+    fn from(aircraft: Aircraft) -> Self {
+        let system_time = SystemTime::from(aircraft.datetime);
+        let timestamp = prost_types::Timestamp::from(system_time);
+        Self {
+            callsign: aircraft.callsign,
+            icao_address: aircraft.icao_address.value(),
+            datetime: Some(timestamp),
+            latitude: aircraft.latitude,
+            longitude: aircraft.longitude,
+            ground_track: aircraft.ground_track,
+            ground_speed: aircraft.ground_speed,
+            gps_altitude: aircraft.gps_altitude,
+        }
     }
 }
