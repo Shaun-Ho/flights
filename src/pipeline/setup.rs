@@ -1,9 +1,10 @@
-use crate::core::airspace::{AirspaceStore, AirspaceViewer};
+use crate::core::airspace::{Airspace, AirspaceStore, AirspaceViewer};
 use crate::core::central_disk_logger::DiskLoggerRegistry;
 use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
 use crate::core::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use crate::core::parser::{Aircraft, AircraftParser};
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
+use crate::pb::airspace::PbAirspace;
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 
 pub struct AirspaceDataPipeline {
@@ -74,9 +75,16 @@ impl AirspaceDataPipeline {
 
         let parser = AircraftParser::new(ingestor_receiver, parser_sender, parser_logger_handle);
 
+        let airspace_logger_handle = pipeline_config
+            .airspace
+            .write_path
+            .map(|path| disk_logger_registry.register_proto::<PbAirspace>(path))
+            .transpose()?;
+
         let airspace_store = AirspaceStore::new(
             parser_receiver,
             chrono::TimeDelta::seconds(pipeline_config.airspace.time_buffer_seconds.into()),
+            airspace_logger_handle,
         );
         let disk_logger = disk_logger_registry.build();
         let task_order: Vec<(Box<dyn SteppableTask>, std::time::Duration)> = vec![
@@ -144,6 +152,7 @@ mod test {
         };
         let airspace_config = AirspaceConfig {
             time_buffer_seconds: 1,
+            write_path: None,
         };
         let parser_config = ParserConfig { write_path: None };
         let pipeline_config = PipelineConfig {
