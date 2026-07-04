@@ -84,6 +84,8 @@ impl AirspaceViewer {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{HashMap, VecDeque};
+
     use ogn_aprs_parser::ICAOAddress;
 
     use super::*;
@@ -122,12 +124,17 @@ mod tests {
         let dummy_aircraft =
             create_dummy_aircraft_at_time(chrono::Utc::now(), ICAOAddress::new(0).unwrap());
 
+        let expected_mapping = HashMap::from([(
+            dummy_aircraft.icao_address,
+            VecDeque::from([dummy_aircraft.clone()]),
+        )]);
         sender.send(dummy_aircraft).unwrap();
         drop(sender);
-        // we still continue to finish processing the disconnected queue
-        assert!(matches!(store.step(), TaskState::Running));
 
-        // when queue is empty, and channel is disconnected, next step() should error
         assert!(matches!(store.step(), TaskState::Completed));
+        let viewer = store.get_airspace_viewer();
+        let airspace = viewer.read();
+        let mapping = airspace.icao_to_aircraft_mapping();
+        assert_eq!(mapping, &expected_mapping);
     }
 }
