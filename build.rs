@@ -2,11 +2,11 @@ use glob::glob;
 use std::io::Result;
 
 fn main() -> Result<()> {
-    println!("cargo:rerun-if-changed=src/");
+    println!("cargo:rerun-if-changed=proto/");
 
     let mut proto_files = Vec::new();
 
-    let paths = glob("src/proto/**/*.proto").expect("Failed to read glob pattern");
+    let paths = glob("proto/**/*.proto").expect("Failed to read glob pattern");
 
     for entry in paths {
         match entry {
@@ -16,8 +16,7 @@ fn main() -> Result<()> {
     }
     let mut config = prost_build::Config::new();
     config.bytes(["."]);
-
-    config.compile_protos(&proto_files, &["src/"])?;
+    config.compile_protos(&proto_files, &["proto/"])?;
 
     Ok(())
 }
