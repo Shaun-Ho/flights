@@ -1,6 +1,6 @@
 use crate::core::ingestor::errors::PacketConversionError;
-use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::ingestor::task::AprsPacket;
+use crate::pb::ingestor::PbAprsPacket;
 
 impl TryFrom<PbAprsPacket> for AprsPacket {
     type Error = PacketConversionError;

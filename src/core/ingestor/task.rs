@@ -5,8 +5,8 @@ use prost::Message;
 use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
 use crate::core::ingestor::config::GliderNetConfig;
 use crate::core::ingestor::errors;
-use crate::core::ingestor::protobuf::PbAprsPacket;
 use crate::core::thread_manager::{SteppableTask, TaskState};
+use crate::pb::ingestor::PbAprsPacket;
 
 pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
