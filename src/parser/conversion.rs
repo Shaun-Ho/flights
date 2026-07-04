@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use serde::{Deserialize, Serialize};
 
-use crate::core::parser::errors::PacketConversionError;
+use crate::parser::errors::AircraftConversionError;
 use crate::pb::parser::PbAircraft;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
@@ -68,12 +68,12 @@ mod icao_serde {
 }
 
 impl TryFrom<PbAircraft> for Aircraft {
-    type Error = PacketConversionError;
+    type Error = AircraftConversionError;
     fn try_from(packet: PbAircraft) -> Result<Self, Self::Error> {
         let icao_address = ICAOAddress::new(packet.icao_address)?;
         let ts = packet
             .datetime
-            .ok_or(PacketConversionError::MissingDatetime)?;
+            .ok_or(AircraftConversionError::MissingDatetime)?;
         let sys_time = SystemTime::try_from(ts)?;
         let datetime = DateTime::<Utc>::from(sys_time);
 

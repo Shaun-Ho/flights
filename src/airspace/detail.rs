@@ -3,7 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use chrono::{DateTime, Utc};
 use ogn_aprs_parser::ICAOAddress;
 
-use crate::core::parser::Aircraft;
+use crate::parser::Aircraft;
 
 #[derive(Debug, Clone)]
 pub struct Airspace {
@@ -137,7 +137,7 @@ mod tests {
 
     use ogn_aprs_parser::ICAOAddress;
 
-    use crate::core::airspace::detail::Airspace;
+    use crate::airspace::detail::Airspace;
     use crate::test_utilities::create_dummy_aircraft_at_time;
 
     fn to_datetime(time_string: &str) -> chrono::DateTime<chrono::Utc> {
@@ -237,15 +237,14 @@ mod tests {
                 datetime: to_datetime("00:01:00"),
                 icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
             };
-            dbg!(&airspace);
+
             let new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
-            dbg!(&new_data);
+
             airspace.update(new_data, buffer_duration);
 
             let history = airspace
                 .get_history(aircraft_icao_address)
                 .expect("expected to have history");
-            dbg!(&airspace);
 
             assert_eq!(history.len(), 3);
             assert_eq!(history[2].datetime, time_c);

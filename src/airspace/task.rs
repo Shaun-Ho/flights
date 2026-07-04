@@ -1,7 +1,7 @@
-use crate::core::airspace::detail::Airspace;
+use crate::airspace::detail::Airspace;
 use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
-use crate::core::parser::Aircraft;
 use crate::core::thread_manager::{SteppableTask, TaskState};
+use crate::parser::Aircraft;
 use crate::pb::airspace::PbAirspace;
 
 pub struct AirspaceStore {
@@ -36,27 +36,39 @@ impl AirspaceStore {
 impl SteppableTask for AirspaceStore {
     fn step(&mut self) -> TaskState {
         let mut aircrafts = Vec::new();
+        let mut is_disconnected = false;
 
-        match self.aircraft_receiver.try_recv() {
-            Ok(aircraft) => {
-                aircrafts.push(aircraft);
-            }
-            Err(crossbeam_channel::TryRecvError::Empty) => {
-                return TaskState::Running;
-            }
-            Err(crossbeam_channel::TryRecvError::Disconnected) => {
-                log::error!("AirspaceStore upstream disconnected");
-                return TaskState::Completed;
+        // drain the channel to check status of channel
+        loop {
+            match self.aircraft_receiver.try_recv() {
+                Ok(aircraft) => {
+                    aircrafts.push(aircraft);
+                }
+                Err(crossbeam_channel::TryRecvError::Empty) => {
+                    break;
+                }
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    log::error!("AirspaceStore upstream disconnected");
+                    is_disconnected = true;
+                    break;
+                }
             }
         }
 
-        if let Ok(mut airspace) = self.inner.write() {
+        if !aircrafts.is_empty()
+            && let Ok(mut airspace) = self.inner.write()
+        {
             airspace.update(aircrafts, self.airspace_time_buffer);
             if let Some(logger) = &self.logger {
                 let _ = logger.send((*airspace).clone());
             }
         }
-        TaskState::Running
+
+        if is_disconnected {
+            TaskState::Completed
+        } else {
+            TaskState::Running
+        }
     }
 }
 #[derive(Clone)]
@@ -72,6 +84,8 @@ impl AirspaceViewer {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{HashMap, VecDeque};
+
     use ogn_aprs_parser::ICAOAddress;
 
     use super::*;
@@ -110,12 +124,17 @@ mod tests {
         let dummy_aircraft =
             create_dummy_aircraft_at_time(chrono::Utc::now(), ICAOAddress::new(0).unwrap());
 
+        let expected_mapping = HashMap::from([(
+            dummy_aircraft.icao_address,
+            VecDeque::from([dummy_aircraft.clone()]),
+        )]);
         sender.send(dummy_aircraft).unwrap();
         drop(sender);
-        // we still continue to finish processing the disconnected queue
-        assert!(matches!(store.step(), TaskState::Running));
 
-        // when queue is empty, and channel is disconnected, next step() should error
         assert!(matches!(store.step(), TaskState::Completed));
+        let viewer = store.get_airspace_viewer();
+        let airspace = viewer.read();
+        let mapping = airspace.icao_to_aircraft_mapping();
+        assert_eq!(mapping, &expected_mapping);
     }
 }

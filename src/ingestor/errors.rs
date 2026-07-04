@@ -13,7 +13,7 @@ pub enum IngestorConfigError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum PacketConversionError {
+pub enum APRSPacketConversionError {
     #[error("Missing timestamp field")]
     MissingTimestamp,
     #[error("Invalid timestamp: {0}")]
@@ -23,7 +23,7 @@ pub enum PacketConversionError {
 #[derive(Debug, thiserror::Error)]
 pub enum PacketError {
     #[error("Packet Conversion Error: {0}")]
-    Conversion(PacketConversionError),
+    Conversion(APRSPacketConversionError),
     #[error("Failed to decode protobuf message from file: {0}")]
     DecodeReadError(#[from] prost::DecodeError),
     #[error("Some IO error: {0}")]
