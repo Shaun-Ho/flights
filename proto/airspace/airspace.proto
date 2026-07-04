@@ -5,15 +5,11 @@ import "google/protobuf/timestamp.proto";
 import "proto/parser/aircraft.proto";
 
 message PbAirspace{
-  google.protobuf.Timestamp timestamp = 1;
+  google.protobuf.Timestamp    timestamp            = 1;
+  map<uint32, AircraftHistory> icao_to_aircraft_map = 2;
 
 }
 
 message AircraftHistory {
   repeated parser.PbAircraft aircraft = 1;
-}
-
-message AirspaceState {
-  google.protobuf.Timestamp    timestamp            = 1;
-  map<uint32, AircraftHistory> icao_to_aircraft_map = 2;
 }
