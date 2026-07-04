@@ -3,6 +3,7 @@ pub mod cli;
 pub mod core;
 pub mod ext;
 pub mod gui;
+pub mod ingestor;
 pub mod logging;
 pub mod pb;
 pub mod pipeline;

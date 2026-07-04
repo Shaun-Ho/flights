@@ -3,9 +3,9 @@ use std::net::ToSocketAddrs;
 use prost::Message;
 
 use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
-use crate::core::ingestor::config::GliderNetConfig;
-use crate::core::ingestor::errors;
 use crate::core::thread_manager::{SteppableTask, TaskState};
+use crate::ingestor::config::GliderNetConfig;
+use crate::ingestor::errors;
 use crate::pb::ingestor::PbAprsPacket;
 
 pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -219,9 +219,9 @@ mod test {
 
     use rstest;
 
-    use crate::core::ingestor::task::{APRSDataSource, Ingestor, LiveSource, ReplaySource};
-    use crate::core::ingestor::task::{AprsPacket, PbAprsPacket};
     use crate::core::thread_manager::{SteppableTask, TaskState};
+    use crate::ingestor::task::{APRSDataSource, Ingestor, LiveSource, ReplaySource};
+    use crate::ingestor::task::{AprsPacket, PbAprsPacket};
     use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
 
     struct MockStream {

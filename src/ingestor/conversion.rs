@@ -1,5 +1,5 @@
-use crate::core::ingestor::errors::PacketConversionError;
-use crate::core::ingestor::task::AprsPacket;
+use crate::ingestor::errors::PacketConversionError;
+use crate::ingestor::task::AprsPacket;
 use crate::pb::ingestor::PbAprsPacket;
 
 impl TryFrom<PbAprsPacket> for AprsPacket {

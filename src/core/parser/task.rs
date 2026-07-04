@@ -1,10 +1,10 @@
 use ogn_aprs_parser::parse_ogn_aprs_aircraft_beacon;
 
 use crate::core::central_disk_logger::{JsonlLoggerHandle, LogSender};
-use crate::core::ingestor::AprsPacket;
 use crate::core::parser::Aircraft;
 use crate::core::parser::conversion::convert_ogn_aprs_beacon_to_aircraft;
 use crate::core::thread_manager::{SteppableTask, TaskState};
+use crate::ingestor::AprsPacket;
 
 pub struct AircraftParser {
     receiver: crossbeam_channel::Receiver<AprsPacket>,

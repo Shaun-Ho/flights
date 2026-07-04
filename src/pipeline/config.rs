@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use serde;
 use toml;
 
-use crate::core::ingestor::config::GliderNetConfig;
+use crate::ingestor::config::GliderNetConfig;
 
 #[derive(serde::Deserialize)]
 pub struct PipelineConfig {

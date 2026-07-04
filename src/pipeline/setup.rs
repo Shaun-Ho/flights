@@ -1,9 +1,9 @@
 use crate::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::central_disk_logger::DiskLoggerRegistry;
 use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
-use crate::core::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use crate::core::parser::{Aircraft, AircraftParser};
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
+use crate::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use crate::pb::airspace::PbAirspace;
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 
@@ -126,8 +126,6 @@ pub enum AircraftDataPipelineError {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::core::ingestor::PbAprsPacket;
-    use crate::pipeline::AirspaceDataPipeline;
     use crate::pipeline::config::{AirspaceConfig, IngestorConfig, ParserConfig};
     use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
 
