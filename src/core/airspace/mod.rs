@@ -1,3 +1,6 @@
+pub mod conversion;
+pub mod errors;
+
 mod detail;
 mod task;
 
