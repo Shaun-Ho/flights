@@ -69,23 +69,23 @@ mod icao_serde {
 
 impl TryFrom<PbAircraft> for Aircraft {
     type Error = AircraftConversionError;
-    fn try_from(packet: PbAircraft) -> Result<Self, Self::Error> {
-        let icao_address = ICAOAddress::new(packet.icao_address)?;
-        let ts = packet
+    fn try_from(pb_aircraft: PbAircraft) -> Result<Self, Self::Error> {
+        let icao_address = ICAOAddress::new(pb_aircraft.icao_address)?;
+        let ts = pb_aircraft
             .broadcasted_timestamp
             .ok_or(AircraftConversionError::MissingDatetime)?;
         let sys_time = SystemTime::try_from(ts)?;
         let broadcasted_timestamp = DateTime::<Utc>::from(sys_time);
 
         Ok(Self {
-            callsign: packet.callsign,
+            callsign: pb_aircraft.callsign,
             icao_address,
             broadcasted_timestamp,
-            latitude: packet.latitude,
-            longitude: packet.longitude,
-            ground_track: packet.ground_track,
-            ground_speed: packet.ground_speed,
-            gps_altitude: packet.gps_altitude,
+            latitude: pb_aircraft.latitude,
+            longitude: pb_aircraft.longitude,
+            ground_track: pb_aircraft.ground_track,
+            ground_speed: pb_aircraft.ground_speed,
+            gps_altitude: pb_aircraft.gps_altitude,
         })
     }
 }
