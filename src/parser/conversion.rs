@@ -22,19 +22,19 @@ pub struct Aircraft {
 
 pub fn convert_ogn_aprs_beacon_to_aircraft(
     aircraft_beacon: AircraftBeacon,
-    timestamp: std::time::SystemTime,
+    reference_packet_timestamp: DateTime<Utc>,
 ) -> Aircraft {
-    let now: chrono::DateTime<chrono::Utc> = timestamp.into();
-
-    let datetime = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-        now.date_naive().and_time(aircraft_beacon.time),
+    let broadcasted_timestamp = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+        reference_packet_timestamp
+            .date_naive()
+            .and_time(aircraft_beacon.time),
         chrono::Utc,
     );
 
     Aircraft {
         callsign: aircraft_beacon.callsign,
         icao_address: aircraft_beacon.ogn_beacon_id.icao_address,
-        broadcasted_timestamp: datetime,
+        broadcasted_timestamp,
         latitude: aircraft_beacon.latitude,
         longitude: aircraft_beacon.longitude,
         ground_track: aircraft_beacon.ground_track,

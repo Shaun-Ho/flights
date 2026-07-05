@@ -1,5 +1,6 @@
 use std::net::ToSocketAddrs;
 
+use chrono::{DateTime, Utc};
 use prost::Message;
 
 use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
@@ -97,7 +98,7 @@ impl SteppableTask for Ingestor {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AprsPacket {
-    pub timestamp: std::time::SystemTime,
+    pub timestamp: DateTime<Utc>,
     pub message: bytes::Bytes,
 }
 
@@ -125,7 +126,7 @@ impl<R: std::io::Read + Send> APRSDataSource for LiveSource<R> {
                     return Err(errors::PacketError::Disconnected);
                 }
 
-                let timestamp = std::time::SystemTime::now();
+                let timestamp = Utc::now();
 
                 let packet = AprsPacket {
                     timestamp,
