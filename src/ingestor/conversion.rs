@@ -1,28 +1,32 @@
+use std::time::SystemTime;
+
 use crate::ingestor::errors::APRSPacketConversionError;
 use crate::ingestor::task::AprsPacket;
 use crate::pb::ingestor::PbAprsPacket;
 
 impl TryFrom<PbAprsPacket> for AprsPacket {
     type Error = APRSPacketConversionError;
-    fn try_from(packet: PbAprsPacket) -> Result<Self, Self::Error> {
-        let timestamp = packet
+    fn try_from(pb_packet: PbAprsPacket) -> Result<Self, Self::Error> {
+        let pb_timestamp = pb_packet
             .timestamp
-            .ok_or(APRSPacketConversionError::MissingTimestamp)?
-            .try_into()?;
+            .ok_or(APRSPacketConversionError::MissingTimestamp)?;
+
+        let sys_time: SystemTime = pb_timestamp.try_into()?;
+        let timestamp = sys_time.into();
 
         Ok(Self {
             timestamp,
-            message: packet.message,
+            message: pb_packet.message,
         })
     }
 }
 
 impl From<AprsPacket> for PbAprsPacket {
     fn from(packet: AprsPacket) -> Self {
-        let pb_timestamp = packet.timestamp.into();
+        let sys_time: SystemTime = packet.timestamp.into();
 
         Self {
-            timestamp: Some(pb_timestamp),
+            timestamp: Some(sys_time.into()),
             message: packet.message,
         }
     }

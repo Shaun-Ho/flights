@@ -11,15 +11,15 @@ use crate::pb::airspace::{PbAircraftHistory, PbAirspace};
 
 impl TryFrom<PbAirspace> for Airspace {
     type Error = PacketConversionError;
-    fn try_from(packet: PbAirspace) -> Result<Self, Self::Error> {
-        let pb_timestamp = packet
+    fn try_from(pb_airspace: PbAirspace) -> Result<Self, Self::Error> {
+        let pb_timestamp = pb_airspace
             .timestamp
             .ok_or(PacketConversionError::MissingTimestamp)?;
         let sys_timestamp = SystemTime::try_from(pb_timestamp)?;
 
         let timestamp: DateTime<Utc> = sys_timestamp.into();
 
-        let mapping = packet
+        let mapping = pb_airspace
             .icao_to_aircraft_map
             .into_iter()
             .map(|(icao_address_u32, aircraft_history)| {
@@ -44,8 +44,8 @@ impl TryFrom<PbAirspace> for Airspace {
 
 impl From<Airspace> for PbAirspace {
     fn from(airspace: Airspace) -> Self {
-        let (datetime, icao_to_aircraft_mapping) = airspace.into_inner();
-        let sys_time: SystemTime = datetime.into();
+        let (timestamp, icao_to_aircraft_mapping) = airspace.into_inner();
+        let sys_time: SystemTime = timestamp.into();
         let timestamp = Some(sys_time.into());
 
         let pb_mapping = icao_to_aircraft_mapping

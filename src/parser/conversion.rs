@@ -12,7 +12,7 @@ pub struct Aircraft {
     pub callsign: String,
     #[serde(with = "icao_serde")]
     pub icao_address: ICAOAddress,
-    pub datetime: chrono::DateTime<chrono::Utc>,
+    pub broadcasted_timestamp: chrono::DateTime<chrono::Utc>,
     pub latitude: f64,
     pub longitude: f64,
     pub ground_track: f64,
@@ -22,19 +22,19 @@ pub struct Aircraft {
 
 pub fn convert_ogn_aprs_beacon_to_aircraft(
     aircraft_beacon: AircraftBeacon,
-    timestamp: std::time::SystemTime,
+    reference_packet_timestamp: DateTime<Utc>,
 ) -> Aircraft {
-    let now: chrono::DateTime<chrono::Utc> = timestamp.into();
-
-    let datetime = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-        now.date_naive().and_time(aircraft_beacon.time),
+    let broadcasted_timestamp = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+        reference_packet_timestamp
+            .date_naive()
+            .and_time(aircraft_beacon.time),
         chrono::Utc,
     );
 
     Aircraft {
         callsign: aircraft_beacon.callsign,
         icao_address: aircraft_beacon.ogn_beacon_id.icao_address,
-        datetime,
+        broadcasted_timestamp,
         latitude: aircraft_beacon.latitude,
         longitude: aircraft_beacon.longitude,
         ground_track: aircraft_beacon.ground_track,
@@ -69,35 +69,35 @@ mod icao_serde {
 
 impl TryFrom<PbAircraft> for Aircraft {
     type Error = AircraftConversionError;
-    fn try_from(packet: PbAircraft) -> Result<Self, Self::Error> {
-        let icao_address = ICAOAddress::new(packet.icao_address)?;
-        let ts = packet
-            .datetime
+    fn try_from(pb_aircraft: PbAircraft) -> Result<Self, Self::Error> {
+        let icao_address = ICAOAddress::new(pb_aircraft.icao_address)?;
+        let ts = pb_aircraft
+            .broadcasted_timestamp
             .ok_or(AircraftConversionError::MissingDatetime)?;
         let sys_time = SystemTime::try_from(ts)?;
-        let datetime = DateTime::<Utc>::from(sys_time);
+        let broadcasted_timestamp = DateTime::<Utc>::from(sys_time);
 
         Ok(Self {
-            callsign: packet.callsign,
+            callsign: pb_aircraft.callsign,
             icao_address,
-            datetime,
-            latitude: packet.latitude,
-            longitude: packet.longitude,
-            ground_track: packet.ground_track,
-            ground_speed: packet.ground_speed,
-            gps_altitude: packet.gps_altitude,
+            broadcasted_timestamp,
+            latitude: pb_aircraft.latitude,
+            longitude: pb_aircraft.longitude,
+            ground_track: pb_aircraft.ground_track,
+            ground_speed: pb_aircraft.ground_speed,
+            gps_altitude: pb_aircraft.gps_altitude,
         })
     }
 }
 
 impl From<Aircraft> for PbAircraft {
     fn from(aircraft: Aircraft) -> Self {
-        let system_time = SystemTime::from(aircraft.datetime);
+        let system_time = SystemTime::from(aircraft.broadcasted_timestamp);
         let timestamp = prost_types::Timestamp::from(system_time);
         Self {
             callsign: aircraft.callsign,
             icao_address: aircraft.icao_address.value(),
-            datetime: Some(timestamp),
+            broadcasted_timestamp: Some(timestamp),
             latitude: aircraft.latitude,
             longitude: aircraft.longitude,
             ground_track: aircraft.ground_track,
