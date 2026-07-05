@@ -44,8 +44,8 @@ impl TryFrom<PbAirspace> for Airspace {
 
 impl From<Airspace> for PbAirspace {
     fn from(airspace: Airspace) -> Self {
-        let (datetime, icao_to_aircraft_mapping) = airspace.into_inner();
-        let sys_time: SystemTime = datetime.into();
+        let (timestamp, icao_to_aircraft_mapping) = airspace.into_inner();
+        let sys_time: SystemTime = timestamp.into();
         let timestamp = Some(sys_time.into());
 
         let pb_mapping = icao_to_aircraft_mapping

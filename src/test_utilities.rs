@@ -27,13 +27,13 @@ pub fn test_data_path() -> std::path::PathBuf {
 }
 
 pub fn create_dummy_aircraft_at_time(
-    datetime: chrono::DateTime<chrono::Utc>,
+    timestamp: chrono::DateTime<chrono::Utc>,
     icao_address: ICAOAddress,
 ) -> Aircraft {
     Aircraft {
         callsign: String::from("dummy"),
         icao_address,
-        datetime,
+        broadcasted_timestamp: timestamp,
         latitude: 0.0,
         longitude: 0.0,
         ground_track: 0.0,

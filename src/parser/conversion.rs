@@ -12,7 +12,7 @@ pub struct Aircraft {
     pub callsign: String,
     #[serde(with = "icao_serde")]
     pub icao_address: ICAOAddress,
-    pub datetime: chrono::DateTime<chrono::Utc>,
+    pub broadcasted_timestamp: chrono::DateTime<chrono::Utc>,
     pub latitude: f64,
     pub longitude: f64,
     pub ground_track: f64,
@@ -34,7 +34,7 @@ pub fn convert_ogn_aprs_beacon_to_aircraft(
     Aircraft {
         callsign: aircraft_beacon.callsign,
         icao_address: aircraft_beacon.ogn_beacon_id.icao_address,
-        datetime,
+        broadcasted_timestamp: datetime,
         latitude: aircraft_beacon.latitude,
         longitude: aircraft_beacon.longitude,
         ground_track: aircraft_beacon.ground_track,
@@ -72,15 +72,15 @@ impl TryFrom<PbAircraft> for Aircraft {
     fn try_from(packet: PbAircraft) -> Result<Self, Self::Error> {
         let icao_address = ICAOAddress::new(packet.icao_address)?;
         let ts = packet
-            .datetime
+            .broadcasted_timestamp
             .ok_or(AircraftConversionError::MissingDatetime)?;
         let sys_time = SystemTime::try_from(ts)?;
-        let datetime = DateTime::<Utc>::from(sys_time);
+        let broadcasted_timestamp = DateTime::<Utc>::from(sys_time);
 
         Ok(Self {
             callsign: packet.callsign,
             icao_address,
-            datetime,
+            broadcasted_timestamp,
             latitude: packet.latitude,
             longitude: packet.longitude,
             ground_track: packet.ground_track,
@@ -92,12 +92,12 @@ impl TryFrom<PbAircraft> for Aircraft {
 
 impl From<Aircraft> for PbAircraft {
     fn from(aircraft: Aircraft) -> Self {
-        let system_time = SystemTime::from(aircraft.datetime);
+        let system_time = SystemTime::from(aircraft.broadcasted_timestamp);
         let timestamp = prost_types::Timestamp::from(system_time);
         Self {
             callsign: aircraft.callsign,
             icao_address: aircraft.icao_address.value(),
-            datetime: Some(timestamp),
+            broadcasted_timestamp: Some(timestamp),
             latitude: aircraft.latitude,
             longitude: aircraft.longitude,
             ground_track: aircraft.ground_track,

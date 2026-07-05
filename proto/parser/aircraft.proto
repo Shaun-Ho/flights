@@ -4,12 +4,12 @@ package parser;
 import "google/protobuf/timestamp.proto";
 
 message PbAircraft {
-  string                    callsign     = 1;
-  uint32                    icao_address = 2;
-  google.protobuf.Timestamp datetime     = 3;
-  double                    latitude     = 4;
-  double                    longitude    = 5;
-  double                    ground_track = 6;
-  double                    ground_speed = 7;
-  double                    gps_altitude = 8;
+  string                    callsign              = 1;
+  uint32                    icao_address          = 2;
+  google.protobuf.Timestamp broadcasted_timestamp = 3;
+  double                    latitude              = 4;
+  double                    longitude             = 5;
+  double                    ground_track          = 6;
+  double                    ground_speed          = 7;
+  double                    gps_altitude          = 8;
 }
