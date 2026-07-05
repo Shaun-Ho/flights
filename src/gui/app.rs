@@ -3,7 +3,6 @@ use walkers;
 
 use crate::airspace::AirspaceViewer;
 use crate::gui::constants::AIRCRAFT_REFERENCE_SHAPE;
-use crate::parser::Aircraft;
 
 pub struct RadarApp {
     airspace_viewer: AirspaceViewer,
@@ -72,43 +71,37 @@ impl walkers::Plugin for AirspacePlugin {
         // read from airspace and render information on screen.
         let airspace = self.viewer.read();
 
-        for aircraft_queue in airspace.icao_to_aircraft_mapping().values() {
-            if aircraft_queue.is_empty() {
-                continue;
-            }
-
-            // convert every position in the history to a screen x,y
-            let aircraft_and_points: Vec<(&Aircraft, egui::Pos2)> = aircraft_queue
-                .iter()
-                .map(|aircraft| {
-                    (
-                        aircraft,
-                        projector
-                            .project(walkers::lat_lon(aircraft.latitude, aircraft.longitude))
-                            .to_pos2(),
-                    )
-                })
-                .collect();
-
-            // draw most recent position
-            if let Some((aircraft, current_position)) = aircraft_and_points.last() {
+        for track in airspace.get_tracks().values() {
+            // draw shape for most recent position
+            if let Some(state) = track.latest_state() {
+                let position_heading_pair = (
+                    projector
+                        .project(walkers::lat_lon(state.latitude, state.longitude))
+                        .to_pos2(),
+                    state.ground_track.to_radians() as f32,
+                );
                 // don't draw if the dot is off-screen
-                if ui.max_rect().contains(*current_position) {
+                if ui.max_rect().contains(position_heading_pair.0) {
                     draw_aircraft(
                         ui,
-                        aircraft,
-                        *current_position,
+                        &track.icao_address().to_string(),
+                        position_heading_pair,
                         scale_factor,
                         epaint::Color32::RED,
                     );
                 }
             }
             // draw trails
+            let points: Vec<egui::Pos2> = track
+                .iter_history()
+                .map(|aircraft| {
+                    projector
+                        .project(walkers::lat_lon(aircraft.latitude, aircraft.longitude))
+                        .to_pos2()
+                })
+                .collect();
             ui.painter().line(
-                aircraft_and_points
-                    .iter()
-                    .map(|(_aircraft, point)| *point)
-                    .collect::<Vec<egui::Pos2>>(),
+                points,
                 egui::epaint::Stroke::new(1.0, epaint::Color32::BLUE),
             );
         }
@@ -149,22 +142,26 @@ fn build_aircraft_path_shape(
 
 fn draw_aircraft(
     ui: &mut egui::Ui,
-    aircraft: &Aircraft,
-    current_position: egui::Pos2,
+    text: &str,
+    position_heading_pair: (egui::Pos2, f32),
     scale_factor: f32,
     color: epaint::Color32,
 ) {
     // calculate shape of aircraft drawn on screen based on the actual point
     #[allow(clippy::cast_possible_truncation)]
-    let aircraft_bearing = aircraft.ground_track.to_radians() as f32;
-    let shape = build_aircraft_path_shape(current_position, scale_factor, aircraft_bearing, color);
+    let shape = build_aircraft_path_shape(
+        position_heading_pair.0,
+        scale_factor,
+        position_heading_pair.1,
+        color,
+    );
 
     ui.painter().add(shape);
 
     ui.painter().text(
-        current_position,
+        position_heading_pair.0,
         egui::Align2::LEFT_BOTTOM,
-        aircraft.icao_address.to_string(),
+        text,
         egui::FontId::default(),
         color,
     );
