@@ -1,3 +1,5 @@
+use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::vec_deque;
 use std::collections::{HashMap, VecDeque};
 
 use chrono::{DateTime, Utc};
@@ -5,33 +7,112 @@ use ogn_aprs_parser::ICAOAddress;
 
 use crate::parser::Aircraft;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct AircraftState {
+    pub broadcasted_timestamp: chrono::DateTime<chrono::Utc>,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub ground_track: f64,
+    pub ground_speed: f64,
+    pub gps_altitude: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AircraftTrack {
+    icao_address: ICAOAddress,
+    history: VecDeque<AircraftState>,
+}
+impl AircraftTrack {
+    pub fn new(icao_address: ICAOAddress, current: AircraftState) -> Self {
+        Self {
+            icao_address,
+            history: VecDeque::from([current]),
+        }
+    }
+    pub fn create_with_history(
+        icao_address: ICAOAddress,
+        history: VecDeque<AircraftState>,
+    ) -> Self {
+        Self {
+            icao_address,
+            history,
+        }
+    }
+
+    pub fn insert(&mut self, state: AircraftState) {
+        // We expect that the new data is normally most recent data, so we check that we can push
+        // back into the end of the VecDeque
+        if let Some(last) = self.history.back()
+            && state.broadcasted_timestamp >= last.broadcasted_timestamp
+        {
+            self.history.push_back(state);
+            return;
+        }
+
+        // If it is not new data, try to see the data is old enough to be front of VecDeque
+        if let Some(first) = self.history.front()
+            && state.broadcasted_timestamp <= first.broadcasted_timestamp
+        {
+            self.history.push_front(state);
+            return;
+        }
+
+        // It is somewhere in between
+        let idx = self
+            .history
+            .partition_point(|x| x.broadcasted_timestamp < state.broadcasted_timestamp);
+
+        self.history.insert(idx, state);
+    }
+
+    #[must_use]
+    pub fn latest_state(&self) -> Option<&AircraftState> {
+        self.history.back()
+    }
+
+    pub fn icao_address(&self) -> ICAOAddress {
+        self.icao_address
+    }
+
+    pub fn iter_history(&self) -> vec_deque::Iter<'_, AircraftState> {
+        self.history.iter()
+    }
+}
+
+impl From<Aircraft> for AircraftState {
+    fn from(aircraft: Aircraft) -> Self {
+        Self {
+            broadcasted_timestamp: aircraft.broadcasted_timestamp,
+            latitude: aircraft.latitude,
+            longitude: aircraft.longitude,
+            ground_track: aircraft.ground_track,
+            ground_speed: aircraft.ground_speed,
+            gps_altitude: aircraft.gps_altitude,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Airspace {
     timestamp: chrono::DateTime<chrono::Utc>,
-    icao_to_aircraft_map:
-        std::collections::HashMap<ICAOAddress, std::collections::VecDeque<Aircraft>>,
+    tracks: HashMap<ICAOAddress, AircraftTrack>,
 }
 impl Airspace {
     #[must_use]
     pub fn new() -> Self {
         Airspace {
             timestamp: chrono::DateTime::<chrono::Utc>::MIN_UTC,
-            icao_to_aircraft_map: std::collections::HashMap::new(),
+            tracks: HashMap::new(),
         }
     }
-    pub fn from_state(
+    pub fn create_with_state(
         timestamp: DateTime<Utc>,
-        icao_to_aircraft_map: HashMap<ICAOAddress, VecDeque<Aircraft>>,
+        tracks: HashMap<ICAOAddress, AircraftTrack>,
     ) -> Self {
-        Airspace {
-            timestamp,
-            icao_to_aircraft_map,
-        }
+        Airspace { timestamp, tracks }
     }
 
-    pub fn update(&mut self, aircrafts: Vec<Aircraft>, buffer_duration: chrono::Duration) {
-        let mut aircrafts = aircrafts;
-
+    pub fn update(&mut self, aircrafts: &mut Vec<Aircraft>, buffer_duration: chrono::Duration) {
         while let Some(aircraft) = aircrafts.pop() {
             // find latest aircraft datetime and set as current datetime.
             if aircraft.broadcasted_timestamp > self.timestamp {
@@ -44,61 +125,40 @@ impl Airspace {
                 continue;
             }
 
-            let history = self.get_history_or_create_empty_history(aircraft.icao_address);
-
-            // We expect that the new data is normally most recent data, so we check that we can push
-            // back into the end of the VecDeque
-            if let Some(last) = history.back()
-                && aircraft.broadcasted_timestamp >= last.broadcasted_timestamp
-            {
-                history.push_back(aircraft);
-                continue;
-            }
-
-            // If it is not new data, try to see the data is old enough to be front of VecDeque
-            if let Some(first) = history.front()
-                && aircraft.broadcasted_timestamp <= first.broadcasted_timestamp
-            {
-                history.push_front(aircraft);
-                continue;
-            }
-
-            // It is somewhere in between
-            let idx = history
-                .partition_point(|x| x.broadcasted_timestamp < aircraft.broadcasted_timestamp);
-            history.insert(idx, aircraft);
+            self.update_or_register_track(aircraft);
         }
         self.prune(buffer_duration);
     }
 
     #[must_use]
-    pub fn get_history(
-        &self,
-        icao_address: ICAOAddress,
-    ) -> Option<&std::collections::VecDeque<Aircraft>> {
-        self.icao_to_aircraft_map.get(&icao_address)
+    pub fn get_aircraft_track(&self, icao_address: ICAOAddress) -> Option<&AircraftTrack> {
+        self.tracks.get(&icao_address)
     }
 
     #[must_use]
-    pub fn get_timestamp(&self) -> chrono::DateTime<chrono::Utc> {
+    pub fn timestamp(&self) -> chrono::DateTime<chrono::Utc> {
         self.timestamp
     }
 
     #[must_use]
-    pub fn icao_to_aircraft_mapping(
-        &self,
-    ) -> &std::collections::HashMap<ICAOAddress, std::collections::VecDeque<Aircraft>> {
-        &self.icao_to_aircraft_map
+    pub fn get_tracks(&self) -> &HashMap<ICAOAddress, AircraftTrack> {
+        &self.tracks
+    }
+
+    fn update_or_register_track(&mut self, aircraft: Aircraft) {
+        match self.tracks.entry(aircraft.icao_address) {
+            Occupied(mut entry) => {
+                entry.get_mut().insert(aircraft.into());
+            }
+            Vacant(entry) => {
+                entry.insert(AircraftTrack::new(aircraft.icao_address, aircraft.into()));
+            }
+        };
     }
 
     #[must_use]
-    pub fn into_inner(
-        self,
-    ) -> (
-        chrono::DateTime<chrono::Utc>,
-        std::collections::HashMap<ICAOAddress, std::collections::VecDeque<Aircraft>>,
-    ) {
-        (self.timestamp, self.icao_to_aircraft_map)
+    pub fn into_inner(self) -> (DateTime<Utc>, HashMap<ICAOAddress, AircraftTrack>) {
+        (self.timestamp, self.tracks)
     }
 
     fn prune(&mut self, buffer_duration: chrono::Duration) {
@@ -107,23 +167,15 @@ impl Airspace {
             .checked_sub_signed(buffer_duration)
             .unwrap_or(chrono::DateTime::<chrono::Utc>::MIN_UTC);
 
-        for aircraft_history in self.icao_to_aircraft_map.values_mut() {
-            while let Some(aircraft) = aircraft_history.front() {
+        for track in self.tracks.values_mut() {
+            while let Some(aircraft) = track.history.front() {
                 if aircraft.broadcasted_timestamp < cutoff_time {
-                    aircraft_history.pop_front();
+                    track.history.pop_front();
                 } else {
                     break;
                 }
             }
         }
-    }
-
-    // method to get history of an address, but populates a default empty VecDeque if icao_address does not exist
-    fn get_history_or_create_empty_history(
-        &mut self,
-        icao_address: ICAOAddress,
-    ) -> &mut std::collections::VecDeque<Aircraft> {
-        self.icao_to_aircraft_map.entry(icao_address).or_default()
     }
 }
 
@@ -154,7 +206,7 @@ mod tests {
         let buffer_duration = chrono::TimeDelta::seconds(5);
         let mut airspace = Airspace {
             timestamp: now_datetime,
-            icao_to_aircraft_map: std::collections::HashMap::new(),
+            tracks: std::collections::HashMap::new(),
         };
 
         let expected_aircraft_1_icao_address = ICAOAddress::new(0).unwrap();
@@ -164,34 +216,34 @@ mod tests {
         let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
 
         #[rustfmt::skip]
-        let aircrafts = vec![
+        let mut aircrafts = vec![
             create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
 
-        airspace.update(aircrafts, buffer_duration);
+        airspace.update(&mut aircrafts, buffer_duration);
 
-        assert_eq!(airspace.icao_to_aircraft_map.len(), 2);
+        assert_eq!(airspace.tracks.len(), 2);
 
         // check aircraft 1 inserted
-        let aircraft_1_history = airspace
-            .icao_to_aircraft_map
+        let aircraft_1_track = airspace
+            .tracks
             .get(&expected_aircraft_1_icao_address)
             .expect("expected a VecDeque for aircraft 1");
-        assert_eq!(aircraft_1_history.len(), 1);
+        assert_eq!(aircraft_1_track.history.len(), 1);
         assert_eq!(
-            aircraft_1_history[0].broadcasted_timestamp,
+            aircraft_1_track.history[0].broadcasted_timestamp,
             expected_aircraft_1_datetime
         );
 
         // check aircraft 2 inserted
-        let aircraft_2_history = airspace
-            .icao_to_aircraft_map
+        let aircraft_2_track = airspace
+            .tracks
             .get(&expected_aircraft_2_icao_address)
             .expect("expected a VecDeque for aircraft 1");
-        assert_eq!(aircraft_2_history.len(), 1);
+        assert_eq!(aircraft_2_track.history.len(), 1);
         assert_eq!(
-            aircraft_2_history[0].broadcasted_timestamp,
+            aircraft_2_track.history[0].broadcasted_timestamp,
             expected_aircraft_2_datetime
         );
     }
@@ -208,17 +260,20 @@ mod tests {
         let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
 
         #[rustfmt::skip]
-        let aircrafts = vec![
+        let mut aircrafts = vec![
             create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
 
-        airspace.update(aircrafts, buffer_duration);
+        airspace.update(&mut aircrafts, buffer_duration);
         assert_eq!(airspace.timestamp, now_datetime);
     }
 
     #[cfg(test)]
     mod when_adding_aircrafts_to_existing_entries {
+
+        use crate::airspace::detail::AircraftTrack;
+
         use super::*;
         #[test]
         fn and_aircraft_timestamp_is_newest_then_correct_order_is_added() {
@@ -240,21 +295,29 @@ mod tests {
                 ]),
             )];
             let buffer_duration = chrono::TimeDelta::seconds(5);
+            let existing = existing_order_mapping
+                .into_iter()
+                .map(|(icao_address, deque)| {
+                    let history = deque.into_iter().map(Into::into).collect();
+                    let track = AircraftTrack::create_with_history(icao_address, history);
+                    (icao_address, track)
+                })
+                .collect();
             let mut airspace = Airspace {
                 timestamp: to_datetime("00:01:00"),
-                icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
+                tracks: existing,
             };
 
-            let new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let mut new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
-            airspace.update(new_data, buffer_duration);
+            airspace.update(&mut new_data, buffer_duration);
 
-            let history = airspace
-                .get_history(aircraft_icao_address)
+            let track = airspace
+                .get_aircraft_track(aircraft_icao_address)
                 .expect("expected to have history");
 
-            assert_eq!(history.len(), 3);
-            assert_eq!(history[2].broadcasted_timestamp, time_c);
+            assert_eq!(track.history.len(), 3);
+            assert_eq!(track.history[2].broadcasted_timestamp, time_c);
         }
         #[test]
         fn and_aircraft_timestamp_is_oldest_then_correct_order_is_added() {
@@ -275,21 +338,31 @@ mod tests {
                     create_dummy_aircraft_at_time(time_c, aircraft_icao_address),
                 ]),
             )];
+
+            let existing = existing_order_mapping
+                .into_iter()
+                .map(|(icao_address, deque)| {
+                    let history = deque.into_iter().map(Into::into).collect();
+                    let track = AircraftTrack::create_with_history(icao_address, history);
+                    (icao_address, track)
+                })
+                .collect();
+
             let buffer_duration = chrono::TimeDelta::seconds(5);
             let mut airspace = Airspace {
                 timestamp: to_datetime("00:01:00"),
-                icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
+                tracks: existing,
             };
-            let new_data = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
+            let mut new_data = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
 
-            airspace.update(new_data, buffer_duration);
+            airspace.update(&mut new_data, buffer_duration);
 
-            let history = airspace
-                .get_history(aircraft_icao_address)
+            let tracks = airspace
+                .get_aircraft_track(aircraft_icao_address)
                 .expect("expected to have history");
 
-            assert_eq!(history.len(), 3);
-            assert_eq!(history[2].broadcasted_timestamp, time_c);
+            assert_eq!(tracks.history.len(), 3);
+            assert_eq!(tracks.history[2].broadcasted_timestamp, time_c);
         }
         #[test]
         fn and_aircraft_timestamp_is_somewhere_in_between_then_correct_order_is_added() {
@@ -315,20 +388,30 @@ mod tests {
             )];
 
             let buffer_duration = chrono::TimeDelta::seconds(5);
+
+            let existing = existing_order_mapping
+                .into_iter()
+                .map(|(icao_address, deque)| {
+                    let history = deque.into_iter().map(Into::into).collect();
+                    let track = AircraftTrack::create_with_history(icao_address, history);
+                    (icao_address, track)
+                })
+                .collect();
+
             let mut airspace = Airspace {
                 timestamp: to_datetime("00:01:00"),
-                icao_to_aircraft_map: existing_order_mapping.into_iter().collect(),
+                tracks: existing,
             };
-            let new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let mut new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
-            airspace.update(new_data, buffer_duration);
+            airspace.update(&mut new_data, buffer_duration);
 
-            let history = airspace
-                .get_history(aircraft_icao_address)
+            let tracks = airspace
+                .get_aircraft_track(aircraft_icao_address)
                 .expect("expected to have history");
 
-            assert_eq!(history.len(), 4);
-            assert_eq!(history[2].broadcasted_timestamp, time_c);
+            assert_eq!(tracks.history.len(), 4);
+            assert_eq!(tracks.history[2].broadcasted_timestamp, time_c);
         }
     }
 }
