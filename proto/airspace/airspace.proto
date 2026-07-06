@@ -4,12 +4,8 @@ package airspace;
 import "google/protobuf/timestamp.proto";
 import "proto/parser/aircraft.proto";
 
-message PbAirspace{
-  google.protobuf.Timestamp    timestamp            = 1;
-  map<uint32, PbAircraftHistory> icao_to_aircraft_map = 2;
+message PbAirspaceUpdate{
+  google.protobuf.Timestamp  timestamp = 1;
+  repeated parser.PbAircraft updates   = 2;
 
-}
-
-message PbAircraftHistory {
-  repeated parser.PbAircraft aircraft = 1;
 }

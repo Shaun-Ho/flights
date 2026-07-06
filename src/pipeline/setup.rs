@@ -4,7 +4,7 @@ use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
 use crate::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use crate::parser::{Aircraft, AircraftParser};
-use crate::pb::airspace::PbAirspace;
+use crate::pb::airspace::PbAirspaceUpdate;
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 
 pub struct AirspaceDataPipeline {
@@ -78,7 +78,7 @@ impl AirspaceDataPipeline {
         let airspace_logger_handle = pipeline_config
             .airspace
             .write_path
-            .map(|path| disk_logger_registry.register_proto::<PbAirspace>(path))
+            .map(|path| disk_logger_registry.register_proto::<PbAirspaceUpdate>(path))
             .transpose()?;
 
         let airspace_store = AirspaceStore::new(

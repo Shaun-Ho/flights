@@ -5,6 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use chrono::{DateTime, Utc};
 use ogn_aprs_parser::ICAOAddress;
 
+use crate::airspace::errors::{AirspaceError, ProblematicAircraftUpdate};
 use crate::parser::Aircraft;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -112,11 +113,32 @@ impl Airspace {
         Airspace { timestamp, tracks }
     }
 
-    pub fn update(&mut self, aircrafts: &mut Vec<Aircraft>, buffer_duration: chrono::Duration) {
+    #[must_use]
+    pub fn update(
+        &mut self,
+        airspace_update: AirspaceUpdate,
+        buffer_duration: chrono::Duration,
+    ) -> Result<(), AirspaceError> {
+        let mut aircrafts = airspace_update.updates;
+
+        if self.timestamp > airspace_update.timestamp {
+            return Err(AirspaceError::InvalidUpdateTimestamp(
+                airspace_update.timestamp,
+            ));
+        }
+        self.timestamp = airspace_update.timestamp;
+
+        let mut problematic = Vec::new();
+
         while let Some(aircraft) = aircrafts.pop() {
-            // find latest aircraft datetime and set as current datetime.
+            // if aircraft broadcasted timestamp is greater than airspace timestamp,
+            // we discard it
             if aircraft.broadcasted_timestamp > self.timestamp {
-                self.timestamp = aircraft.broadcasted_timestamp;
+                problematic.push(ProblematicAircraftUpdate {
+                    airspace_timestamp: self.timestamp,
+                    // aircraft,
+                    aircraft: aircraft.clone(),
+                });
             }
 
             // check that aircraft is within buffer window
@@ -128,6 +150,13 @@ impl Airspace {
             self.update_or_register_track(aircraft);
         }
         self.prune(buffer_duration);
+        if problematic.is_empty() {
+            Ok(())
+        } else {
+            Err(AirspaceError::ContainedInvalidAircraftTimestamp(
+                problematic,
+            ))
+        }
     }
 
     #[must_use]
@@ -184,13 +213,18 @@ impl Default for Airspace {
         Self::new()
     }
 }
+#[derive(Debug, Clone)]
+pub struct AirspaceUpdate {
+    pub timestamp: DateTime<Utc>,
+    pub updates: Vec<Aircraft>,
+}
 
 #[cfg(test)]
 mod tests {
 
     use ogn_aprs_parser::ICAOAddress;
 
-    use crate::airspace::detail::Airspace;
+    use crate::airspace::detail::{Airspace, AirspaceUpdate};
     use crate::test_utilities::create_dummy_aircraft_at_time;
 
     fn to_datetime(time_string: &str) -> chrono::DateTime<chrono::Utc> {
@@ -216,12 +250,16 @@ mod tests {
         let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
 
         #[rustfmt::skip]
-        let mut aircrafts = vec![
+        let aircrafts = vec![
             create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
+        let airspace_update = AirspaceUpdate {
+            timestamp: now_datetime,
+            updates: aircrafts,
+        };
 
-        airspace.update(&mut aircrafts, buffer_duration);
+        airspace.update(airspace_update, buffer_duration);
 
         assert_eq!(airspace.tracks.len(), 2);
 
@@ -260,12 +298,16 @@ mod tests {
         let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
 
         #[rustfmt::skip]
-        let mut aircrafts = vec![
+        let aircrafts = vec![
             create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
+        let airspace_update = AirspaceUpdate {
+            timestamp: now_datetime,
+            updates: aircrafts,
+        };
 
-        airspace.update(&mut aircrafts, buffer_duration);
+        airspace.update(airspace_update, buffer_duration);
         assert_eq!(airspace.timestamp, now_datetime);
     }
 
@@ -308,9 +350,14 @@ mod tests {
                 tracks: existing,
             };
 
-            let mut new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let aircrafts = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
-            airspace.update(&mut new_data, buffer_duration);
+            let airspace_update = AirspaceUpdate {
+                timestamp: now,
+                updates: aircrafts,
+            };
+
+            airspace.update(airspace_update, buffer_duration);
 
             let track = airspace
                 .get_aircraft_track(aircraft_icao_address)
@@ -353,9 +400,14 @@ mod tests {
                 timestamp: to_datetime("00:01:00"),
                 tracks: existing,
             };
-            let mut new_data = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
+            let aircrafts = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
 
-            airspace.update(&mut new_data, buffer_duration);
+            let airspace_update = AirspaceUpdate {
+                timestamp: now,
+                updates: aircrafts,
+            };
+
+            airspace.update(airspace_update, buffer_duration);
 
             let tracks = airspace
                 .get_aircraft_track(aircraft_icao_address)
@@ -402,9 +454,14 @@ mod tests {
                 timestamp: to_datetime("00:01:00"),
                 tracks: existing,
             };
-            let mut new_data = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let aircrafts = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
-            airspace.update(&mut new_data, buffer_duration);
+            let airspace_update = AirspaceUpdate {
+                timestamp: now,
+                updates: aircrafts,
+            };
+
+            airspace.update(airspace_update, buffer_duration);
 
             let tracks = airspace
                 .get_aircraft_track(aircraft_icao_address)
