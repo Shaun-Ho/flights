@@ -2,7 +2,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::vec_deque;
 use std::collections::{HashMap, VecDeque};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use ogn_aprs_parser::ICAOAddress;
 
 use crate::airspace::errors::{AirspaceError, ProblematicAircraftUpdate};
@@ -47,12 +47,13 @@ impl Airspace {
         while let Some(aircraft) = aircrafts.pop() {
             // if aircraft broadcasted timestamp is greater than airspace timestamp,
             // we discard it
-            if aircraft.broadcasted_timestamp > self.timestamp {
+            if aircraft.broadcasted_timestamp - self.timestamp > Duration::milliseconds(500) {
                 problematic.push(ProblematicAircraftUpdate {
                     airspace_timestamp: self.timestamp,
                     // aircraft,
                     aircraft: aircraft.clone(),
                 });
+                continue;
             }
 
             // check that aircraft is within buffer window

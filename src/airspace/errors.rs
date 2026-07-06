@@ -13,7 +13,7 @@ pub struct ProblematicAircraftUpdate {
 pub enum AirspaceError {
     #[error("AirspaceUpdate has timestamp that is behind current airspace")]
     InvalidUpdateTimestamp(DateTime<Utc>),
-    #[error("AirspaceUpdate contained aircraft that was newer than current timestamp")]
+    #[error("AirspaceUpdate contained aircraft that was newer than current timestamp: {0:?}")]
     ContainedInvalidAircraftTimestamp(Vec<ProblematicAircraftUpdate>),
 }
 #[derive(Debug, thiserror::Error)]
