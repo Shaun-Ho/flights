@@ -28,7 +28,6 @@ impl Airspace {
         Airspace { timestamp, tracks }
     }
 
-    #[must_use]
     pub fn update(
         &mut self,
         airspace_update: AirspaceUpdate,
@@ -259,7 +258,7 @@ mod tests {
             updates: aircrafts,
         };
 
-        airspace.update(airspace_update, buffer_duration);
+        let _ = airspace.update(airspace_update, buffer_duration);
 
         assert_eq!(airspace.tracks.len(), 2);
 
@@ -307,7 +306,7 @@ mod tests {
             updates: aircrafts,
         };
 
-        airspace.update(airspace_update, buffer_duration);
+        let _ = airspace.update(airspace_update, buffer_duration);
         assert_eq!(airspace.timestamp, now_datetime);
     }
 
@@ -357,7 +356,7 @@ mod tests {
                 updates: aircrafts,
             };
 
-            airspace.update(airspace_update, buffer_duration);
+            let _ = airspace.update(airspace_update, buffer_duration);
 
             let track = airspace
                 .get_aircraft_track(aircraft_icao_address)
@@ -407,7 +406,7 @@ mod tests {
                 updates: aircrafts,
             };
 
-            airspace.update(airspace_update, buffer_duration);
+            let _ = airspace.update(airspace_update, buffer_duration);
 
             let tracks = airspace
                 .get_aircraft_track(aircraft_icao_address)
@@ -461,7 +460,7 @@ mod tests {
                 updates: aircrafts,
             };
 
-            airspace.update(airspace_update, buffer_duration);
+            let _ = airspace.update(airspace_update, buffer_duration);
 
             let tracks = airspace
                 .get_aircraft_track(aircraft_icao_address)
