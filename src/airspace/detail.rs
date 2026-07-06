@@ -8,91 +8,6 @@ use ogn_aprs_parser::ICAOAddress;
 use crate::airspace::errors::{AirspaceError, ProblematicAircraftUpdate};
 use crate::parser::Aircraft;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct AircraftState {
-    pub broadcasted_timestamp: chrono::DateTime<chrono::Utc>,
-    pub latitude: f64,
-    pub longitude: f64,
-    pub ground_track: f64,
-    pub ground_speed: f64,
-    pub gps_altitude: f64,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AircraftTrack {
-    icao_address: ICAOAddress,
-    history: VecDeque<AircraftState>,
-}
-impl AircraftTrack {
-    pub fn new(icao_address: ICAOAddress, current: AircraftState) -> Self {
-        Self {
-            icao_address,
-            history: VecDeque::from([current]),
-        }
-    }
-    pub fn create_with_history(
-        icao_address: ICAOAddress,
-        history: VecDeque<AircraftState>,
-    ) -> Self {
-        Self {
-            icao_address,
-            history,
-        }
-    }
-
-    pub fn insert(&mut self, state: AircraftState) {
-        // We expect that the new data is normally most recent data, so we check that we can push
-        // back into the end of the VecDeque
-        if let Some(last) = self.history.back()
-            && state.broadcasted_timestamp >= last.broadcasted_timestamp
-        {
-            self.history.push_back(state);
-            return;
-        }
-
-        // If it is not new data, try to see the data is old enough to be front of VecDeque
-        if let Some(first) = self.history.front()
-            && state.broadcasted_timestamp <= first.broadcasted_timestamp
-        {
-            self.history.push_front(state);
-            return;
-        }
-
-        // It is somewhere in between
-        let idx = self
-            .history
-            .partition_point(|x| x.broadcasted_timestamp < state.broadcasted_timestamp);
-
-        self.history.insert(idx, state);
-    }
-
-    #[must_use]
-    pub fn latest_state(&self) -> Option<&AircraftState> {
-        self.history.back()
-    }
-
-    pub fn icao_address(&self) -> ICAOAddress {
-        self.icao_address
-    }
-
-    pub fn iter_history(&self) -> vec_deque::Iter<'_, AircraftState> {
-        self.history.iter()
-    }
-}
-
-impl From<Aircraft> for AircraftState {
-    fn from(aircraft: Aircraft) -> Self {
-        Self {
-            broadcasted_timestamp: aircraft.broadcasted_timestamp,
-            latitude: aircraft.latitude,
-            longitude: aircraft.longitude,
-            ground_track: aircraft.ground_track,
-            ground_speed: aircraft.ground_speed,
-            gps_altitude: aircraft.gps_altitude,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Airspace {
     timestamp: chrono::DateTime<chrono::Utc>,
@@ -213,10 +128,95 @@ impl Default for Airspace {
         Self::new()
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct AirspaceUpdate {
     pub timestamp: DateTime<Utc>,
     pub updates: Vec<Aircraft>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AircraftTrack {
+    icao_address: ICAOAddress,
+    history: VecDeque<AircraftState>,
+}
+impl AircraftTrack {
+    pub fn new(icao_address: ICAOAddress, current: AircraftState) -> Self {
+        Self {
+            icao_address,
+            history: VecDeque::from([current]),
+        }
+    }
+    pub fn create_with_history(
+        icao_address: ICAOAddress,
+        history: VecDeque<AircraftState>,
+    ) -> Self {
+        Self {
+            icao_address,
+            history,
+        }
+    }
+
+    pub fn insert(&mut self, state: AircraftState) {
+        // We expect that the new data is normally most recent data, so we check that we can push
+        // back into the end of the VecDeque
+        if let Some(last) = self.history.back()
+            && state.broadcasted_timestamp >= last.broadcasted_timestamp
+        {
+            self.history.push_back(state);
+            return;
+        }
+
+        // If it is not new data, try to see the data is old enough to be front of VecDeque
+        if let Some(first) = self.history.front()
+            && state.broadcasted_timestamp <= first.broadcasted_timestamp
+        {
+            self.history.push_front(state);
+            return;
+        }
+
+        // It is somewhere in between
+        let idx = self
+            .history
+            .partition_point(|x| x.broadcasted_timestamp < state.broadcasted_timestamp);
+
+        self.history.insert(idx, state);
+    }
+
+    #[must_use]
+    pub fn latest_state(&self) -> Option<&AircraftState> {
+        self.history.back()
+    }
+
+    pub fn icao_address(&self) -> ICAOAddress {
+        self.icao_address
+    }
+
+    pub fn iter_history(&self) -> vec_deque::Iter<'_, AircraftState> {
+        self.history.iter()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AircraftState {
+    pub broadcasted_timestamp: chrono::DateTime<chrono::Utc>,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub ground_track: f64,
+    pub ground_speed: f64,
+    pub gps_altitude: f64,
+}
+impl From<Aircraft> for AircraftState {
+    fn from(aircraft: Aircraft) -> Self {
+        Self {
+            broadcasted_timestamp: aircraft.broadcasted_timestamp,
+            latitude: aircraft.latitude,
+            longitude: aircraft.longitude,
+            ground_track: aircraft.ground_track,
+            ground_speed: aircraft.ground_speed,
+            gps_altitude: aircraft.gps_altitude,
+        }
+    }
 }
 
 #[cfg(test)]
