@@ -12,77 +12,85 @@ use crate::core::central_disk_logger::errors::{
 use crate::core::central_disk_logger::task::CentralDiskLogger;
 use crate::ext::TryInsertExt;
 
-pub type LoggerTaskID = u8;
+pub type ChannelID = u8;
 
 const PROTO_FILE_FORMAT: &str = "pb";
 const JSONL_FILE_FORMAT: &str = "jsonl";
 #[derive(Debug)]
 pub struct DiskLoggerMessage {
-    pub logger_id: LoggerTaskID,
+    pub channel_id: ChannelID,
+    pub publish_timestamp: DateTime<Utc>,
     pub payload: Vec<u8>,
 }
 
-pub trait LogSender<Input> {
+pub trait LogSender<M> {
     type Error;
-    fn send(&self, message: Input) -> Result<(), Self::Error>;
+    fn send(&self, message: M) -> Result<(), Self::Error>;
 }
 
-pub trait AsProtoMessage<T> {
-    fn proto_message(self) -> Result<impl prost::Message, ProtoLoggingError<T>>;
+pub trait IntoLogMessage<M> {
+    type Error;
+    fn into_message(self) -> Result<M, Self::Error>;
     fn message_timestamp(&self) -> DateTime<Utc>;
 }
+
 #[derive(Debug)]
 pub struct LoggerHandle<F, M: ?Sized> {
-    logger_id: LoggerTaskID,
+    channel_id: ChannelID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     _marker: PhantomData<(F, M)>,
 }
 
 impl<F, M> LoggerHandle<F, M> {
     pub fn new(
-        logger_id: LoggerTaskID,
+        channel_id: ChannelID,
         sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     ) -> Self {
         Self {
-            logger_id,
+            channel_id,
             sender,
             _marker: PhantomData,
         }
     }
 
-    pub fn logger_id(&self) -> LoggerTaskID {
-        self.logger_id
+    pub fn channel_id(&self) -> ChannelID {
+        self.channel_id
     }
 }
 
-impl<M, T, E> LogSender<T> for LoggerHandle<ProtoFormat, M>
+impl<M, T> LogSender<T> for LoggerHandle<ProtoFormat, M>
 where
-    T: TryInto<M, Error = E>,
+    T: IntoLogMessage<M>,
     M: prost::Message,
+    ProtoLoggingError<T>: From<T::Error>,
 {
-    type Error = ProtoLoggingError<E>;
+    type Error = ProtoLoggingError<T>;
 
-    fn send(&self, message: T) -> Result<(), Self::Error> {
-        let proto_message: M = message.try_into().map_err(ProtoLoggingError::Conversion)?;
+    fn send(&self, message: T) -> Result<(), ProtoLoggingError<T>> {
+        let publish_timestamp = message.message_timestamp();
+        let proto_message: M = message.into_message()?;
 
         let payload = proto_message.encode_length_delimited_to_vec();
 
         Ok(self.sender.send(DiskLoggerMessage {
-            logger_id: self.logger_id,
+            channel_id: self.channel_id,
+            publish_timestamp,
             payload,
         })?)
     }
 }
 
-impl<M, T, E> LogSender<T> for LoggerHandle<JsonlFormat, M>
+impl<M, T> LogSender<T> for LoggerHandle<JsonlFormat, M>
 where
-    T: TryInto<M, Error = E>,
+    T: IntoLogMessage<M>,
     M: serde::Serialize,
+    JsonLoggingError<T>: From<T::Error>,
 {
-    type Error = JsonLoggingError<E>;
+    type Error = JsonLoggingError<T>;
 
-    fn send(&self, message: T) -> Result<(), Self::Error> {
-        let json_message: M = message.try_into().map_err(JsonLoggingError::Conversion)?;
+    fn send(&self, message: T) -> Result<(), JsonLoggingError<T>> {
+        let publish_timestamp = message.message_timestamp();
+        let json_message: M = message.into_message()?;
 
         let mut payload =
             serde_json::to_vec(&json_message).map_err(JsonLoggingError::Serialization)?;
@@ -91,7 +99,8 @@ where
 
         self.sender
             .send(DiskLoggerMessage {
-                logger_id: self.logger_id,
+                channel_id: self.channel_id,
+                publish_timestamp,
                 payload,
             })
             .map_err(JsonLoggingError::SendError)?;
@@ -102,10 +111,10 @@ where
 
 #[derive(Debug)]
 pub struct DiskLoggerRegistry {
-    current_logger_id: LoggerTaskID,
+    current_logger_id: ChannelID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
-    task_to_path_mapping: HashMap<LoggerTaskID, (PathBuf, BufWriter<File>)>,
+    task_to_path_mapping: HashMap<ChannelID, (PathBuf, BufWriter<File>)>,
 }
 impl DiskLoggerRegistry {
     pub fn new() -> Self {
@@ -162,7 +171,7 @@ impl DiskLoggerRegistry {
             })?;
 
         let handle = LoggerHandle {
-            logger_id,
+            channel_id: logger_id,
             sender: self.sender.clone(),
             _marker: PhantomData,
         };
@@ -215,7 +224,7 @@ mod tests {
             let res = handler.send(message);
             assert!(matches!(
                 res.err().unwrap(),
-                ProtoLoggingError::Conversion(MockConversionError)
+                ProtoLoggingError::Conversion(_message)
             ));
             assert!(receiver.try_recv().is_err());
         }

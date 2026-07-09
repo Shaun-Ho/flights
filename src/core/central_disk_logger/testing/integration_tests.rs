@@ -1,8 +1,11 @@
+use std::convert::Infallible;
 use std::fs;
 
+use chrono::Utc;
 use prost::Message;
 
 use super::test_helpers::*;
+use crate::core::central_disk_logger::interface::IntoLogMessage;
 use crate::core::central_disk_logger::interface::LogSender;
 use crate::core::central_disk_logger::*;
 use crate::core::thread_manager::*;
@@ -92,6 +95,20 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
     assert_eq!(fs::read(&file_path_2).unwrap(), expected_2);
 }
 
+#[derive(Debug)]
+struct JsonMessage {
+    pub contents: Vec<String>,
+}
+impl IntoLogMessage<Vec<String>> for JsonMessage {
+    type Error = Infallible;
+    fn into_message(self) -> Result<Vec<String>, Self::Error> {
+        Ok(self.contents)
+    }
+    fn message_timestamp(&self) -> chrono::prelude::DateTime<chrono::prelude::Utc> {
+        Utc::now()
+    }
+}
+
 #[test]
 fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_disk() {
     let temp_dir = tempfile::tempdir().unwrap();
@@ -103,7 +120,9 @@ fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_d
         .expect("Failed to register jsonl logger");
     let mut central_logger = registry.build();
 
-    let domain_message = vec!["app_started".to_string(), "disk_ok".to_string()];
+    let domain_message = JsonMessage {
+        contents: vec!["app_started".to_string(), "disk_ok".to_string()],
+    };
 
     handle
         .send(domain_message)
@@ -144,7 +163,10 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
         })
         .unwrap();
 
-    let json_msg = vec!["concurrent_test".to_string()];
+    let json_msg = JsonMessage {
+        contents: vec!["concurrent_test".to_string()],
+    };
+
     jsonl_handle.send(json_msg).unwrap();
 
     central_logger.step();

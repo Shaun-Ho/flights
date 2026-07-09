@@ -1,7 +1,28 @@
+use chrono::Utc;
+
+use crate::core::central_disk_logger::{errors::ProtoLoggingError, interface::IntoLogMessage};
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MockTaskStruct {
     pub larger_than_zero: i32,
 }
+impl IntoLogMessage<MockTaskProto> for MockTaskStruct {
+    type Error = ProtoLoggingError<MockTaskStruct>;
+
+    fn message_timestamp(&self) -> chrono::prelude::DateTime<chrono::prelude::Utc> {
+        Utc::now()
+    }
+    fn into_message(self) -> Result<MockTaskProto, Self::Error> {
+        if self.larger_than_zero <= 0 {
+            Err(ProtoLoggingError::Conversion(self))
+        } else {
+            Ok(MockTaskProto {
+                larger_than_zero: self.larger_than_zero,
+            })
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct MockConversionError;
 
@@ -9,18 +30,4 @@ pub struct MockConversionError;
 pub struct MockTaskProto {
     #[prost(int32, tag = "1")]
     pub larger_than_zero: i32,
-}
-
-impl TryFrom<MockTaskStruct> for MockTaskProto {
-    type Error = MockConversionError;
-
-    fn try_from(task_struct: MockTaskStruct) -> Result<Self, Self::Error> {
-        if task_struct.larger_than_zero <= 0 {
-            Err(MockConversionError)
-        } else {
-            Ok(MockTaskProto {
-                larger_than_zero: task_struct.larger_than_zero,
-            })
-        }
-    }
 }

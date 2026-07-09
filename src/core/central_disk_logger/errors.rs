@@ -1,7 +1,7 @@
-use std::io;
 use std::path::PathBuf;
+use std::{convert::Infallible, io};
 
-use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerTaskID};
+use crate::core::central_disk_logger::interface::{ChannelID, DiskLoggerMessage};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProtoLoggingError<T> {
@@ -9,6 +9,11 @@ pub enum ProtoLoggingError<T> {
     Conversion(T),
     #[error("Failed to send: {0}")]
     SendError(#[from] crossbeam_channel::SendError<DiskLoggerMessage>),
+}
+impl<T> From<Infallible> for ProtoLoggingError<T> {
+    fn from(err: Infallible) -> Self {
+        match err {}
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -19,6 +24,11 @@ pub enum JsonLoggingError<T> {
     SendError(#[from] crossbeam_channel::SendError<DiskLoggerMessage>),
     #[error("Failed to send: {0}")]
     Serialization(#[from] serde_json::Error),
+}
+impl<T> From<std::convert::Infallible> for JsonLoggingError<T> {
+    fn from(err: std::convert::Infallible) -> Self {
+        match err {}
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -40,7 +50,7 @@ pub enum DiskloggerRegistryError {
 #[derive(Debug, thiserror::Error)]
 pub enum CentralDiskLoggerError {
     #[error("TaskID not registered: {0}")]
-    TaskNotRegistered(LoggerTaskID),
+    TaskNotRegistered(ChannelID),
 
     #[error("Unable to write data to log file: {path}")]
     WriteError {

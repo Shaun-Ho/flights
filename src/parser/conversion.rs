@@ -1,9 +1,11 @@
+use std::convert::Infallible;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
 use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use serde::{Deserialize, Serialize};
 
+use crate::core::central_disk_logger::interface::IntoLogMessage;
 use crate::parser::errors::AircraftConversionError;
 use crate::pb::parser::PbAircraft;
 
@@ -87,6 +89,16 @@ impl TryFrom<PbAircraft> for Aircraft {
             ground_speed: pb_aircraft.ground_speed,
             gps_altitude: pb_aircraft.gps_altitude,
         })
+    }
+}
+
+impl IntoLogMessage<Aircraft> for Aircraft {
+    type Error = Infallible;
+    fn message_timestamp(&self) -> DateTime<Utc> {
+        Utc::now()
+    }
+    fn into_message(self) -> Result<Aircraft, Self::Error> {
+        Ok(self)
     }
 }
 

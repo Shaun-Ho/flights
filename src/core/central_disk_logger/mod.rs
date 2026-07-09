@@ -6,7 +6,7 @@ pub mod task;
 pub mod testing;
 
 pub use interface::{
-    DiskLoggerMessage, DiskLoggerRegistry, JsonlLoggerHandle, LogSender, LoggerTaskID,
+    ChannelID, DiskLoggerMessage, DiskLoggerRegistry, JsonlLoggerHandle, LogSender,
     ProtoLoggerHandle,
 };
 pub use task::CentralDiskLogger;
