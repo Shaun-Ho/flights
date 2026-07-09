@@ -18,16 +18,15 @@ pub struct DiskLoggerMessage {
     pub payload: Vec<u8>,
 }
 
+pub trait LogSender<Input> {
+    type Error;
+    fn send(&self, message: Input) -> Result<(), Self::Error>;
+}
 #[derive(Debug)]
 pub struct LoggerHandle<F, M: ?Sized> {
     logger_id: LoggerTaskID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     _marker: PhantomData<(F, M)>,
-}
-
-pub trait LogSender<Input> {
-    type Error;
-    fn send(&self, message: Input) -> Result<(), Self::Error>;
 }
 
 impl<F, M> LoggerHandle<F, M> {
