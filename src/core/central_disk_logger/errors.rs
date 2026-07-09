@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{convert::Infallible, io};
 
-use crate::core::central_disk_logger::interface::{ChannelID, DiskLoggerMessage};
+use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerID};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProtoLoggingError<T> {
@@ -50,7 +50,7 @@ pub enum DiskloggerRegistryError {
 #[derive(Debug, thiserror::Error)]
 pub enum CentralDiskLoggerError {
     #[error("TaskID not registered: {0}")]
-    TaskNotRegistered(ChannelID),
+    TaskNotRegistered(LoggerID),
 
     #[error("Unable to write data to log file: {path}")]
     WriteError {

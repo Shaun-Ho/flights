@@ -12,29 +12,27 @@ use crate::core::central_disk_logger::{
 };
 use crate::ext::TryInsertExt;
 
-pub type ChannelID = u8;
+pub type LoggerID = u8;
 
 const PROTO_FILE_FORMAT: &str = "pb";
 const JSONL_FILE_FORMAT: &str = "jsonl";
+
 #[derive(Debug)]
 pub struct DiskLoggerMessage {
-    pub channel_id: ChannelID,
+    pub logger_id: LoggerID,
     pub publish_timestamp: DateTime<Utc>,
     pub payload: Vec<u8>,
 }
 
 #[derive(Debug)]
 pub struct LoggerHandle<F, M: ?Sized> {
-    channel_id: ChannelID,
+    channel_id: LoggerID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     _marker: PhantomData<(F, M)>,
 }
 
 impl<F, M> LoggerHandle<F, M> {
-    pub fn new(
-        channel_id: ChannelID,
-        sender: crossbeam_channel::Sender<DiskLoggerMessage>,
-    ) -> Self {
+    pub fn new(channel_id: LoggerID, sender: crossbeam_channel::Sender<DiskLoggerMessage>) -> Self {
         Self {
             channel_id,
             sender,
@@ -42,7 +40,7 @@ impl<F, M> LoggerHandle<F, M> {
         }
     }
 
-    pub fn channel_id(&self) -> ChannelID {
+    pub fn channel_id(&self) -> LoggerID {
         self.channel_id
     }
 }
@@ -62,7 +60,7 @@ where
         let payload = proto_message.encode_length_delimited_to_vec();
 
         Ok(self.sender.send(DiskLoggerMessage {
-            channel_id: self.channel_id,
+            logger_id: self.channel_id,
             publish_timestamp,
             payload,
         })?)
@@ -88,7 +86,7 @@ where
 
         self.sender
             .send(DiskLoggerMessage {
-                channel_id: self.channel_id,
+                logger_id: self.channel_id,
                 publish_timestamp,
                 payload,
             })
@@ -100,10 +98,10 @@ where
 
 #[derive(Debug)]
 pub struct DiskLoggerRegistry {
-    current_logger_id: ChannelID,
+    current_logger_id: LoggerID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
-    task_to_path_mapping: HashMap<ChannelID, (PathBuf, BufWriter<File>)>,
+    task_to_path_mapping: HashMap<LoggerID, (PathBuf, BufWriter<File>)>,
 }
 impl DiskLoggerRegistry {
     pub fn new() -> Self {

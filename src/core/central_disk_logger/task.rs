@@ -4,18 +4,18 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
 use crate::core::central_disk_logger::errors;
-use crate::core::central_disk_logger::interface::{ChannelID, DiskLoggerMessage};
+use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerID};
 use crate::core::thread_manager::{SteppableTask, TaskState};
 
 #[derive(Debug)]
 pub struct CentralDiskLogger {
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
-    id_to_path_writer_pair_mapping: HashMap<ChannelID, (PathBuf, BufWriter<File>)>,
+    id_to_path_writer_pair_mapping: HashMap<LoggerID, (PathBuf, BufWriter<File>)>,
 }
 impl CentralDiskLogger {
     pub fn new(
         receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
-        id_to_path_writer_pair_mapping: HashMap<ChannelID, (PathBuf, BufWriter<File>)>,
+        id_to_path_writer_pair_mapping: HashMap<LoggerID, (PathBuf, BufWriter<File>)>,
     ) -> Self {
         Self {
             receiver,
@@ -30,9 +30,9 @@ impl SteppableTask for CentralDiskLogger {
             Ok(message) => {
                 match self
                     .id_to_path_writer_pair_mapping
-                    .get_mut(&message.channel_id)
+                    .get_mut(&message.logger_id)
                     .ok_or(errors::CentralDiskLoggerError::TaskNotRegistered(
-                        message.channel_id,
+                        message.logger_id,
                     )) {
                     Ok((path, writer)) => {
                         let _ = writer.write_all(&message.payload).map_err(|err| {
@@ -83,7 +83,7 @@ mod tests {
         let expected_payload = b"test payload bytes".to_vec();
         sender
             .send(DiskLoggerMessage {
-                channel_id: task_id,
+                logger_id: task_id,
                 publish_timestamp: Utc::now(),
                 payload: expected_payload.clone(),
             })
@@ -173,7 +173,7 @@ mod tests {
 
         sender
             .send(DiskLoggerMessage {
-                channel_id: 99,
+                logger_id: 99,
                 publish_timestamp: Utc::now(),
                 payload: b"ghost payload".to_vec(),
             })

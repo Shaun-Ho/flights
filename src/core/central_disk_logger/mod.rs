@@ -10,7 +10,7 @@ pub use errors::{
     CentralDiskLoggerError, DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError,
 };
 pub use interface::{
-    ChannelID, DiskLoggerMessage, DiskLoggerRegistry, JsonlLoggerHandle, ProtoLoggerHandle,
+    DiskLoggerMessage, DiskLoggerRegistry, JsonlLoggerHandle, LoggerID, ProtoLoggerHandle,
 };
 pub use task::CentralDiskLogger;
 pub use traits::{IntoLogMessage, LogSender};
