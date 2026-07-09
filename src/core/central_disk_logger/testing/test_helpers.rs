@@ -1,6 +1,6 @@
 use chrono::Utc;
 
-use crate::core::central_disk_logger::{errors::ProtoLoggingError, interface::IntoLogMessage};
+use crate::core::central_disk_logger::{IntoLogMessage, ProtoLoggingError};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MockTaskStruct {

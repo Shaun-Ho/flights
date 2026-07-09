@@ -5,8 +5,6 @@ use chrono::Utc;
 use prost::Message;
 
 use super::test_helpers::*;
-use crate::core::central_disk_logger::interface::IntoLogMessage;
-use crate::core::central_disk_logger::interface::LogSender;
 use crate::core::central_disk_logger::*;
 use crate::core::thread_manager::*;
 

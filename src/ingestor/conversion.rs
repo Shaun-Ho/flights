@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use crate::core::central_disk_logger::interface::IntoLogMessage;
+use crate::core::central_disk_logger::IntoLogMessage;
 use crate::ingestor::errors::APRSPacketConversionError;
 use crate::ingestor::task::AprsPacket;
 use crate::pb::ingestor::PbAprsPacket;

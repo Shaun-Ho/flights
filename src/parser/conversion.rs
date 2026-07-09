@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use serde::{Deserialize, Serialize};
 
-use crate::core::central_disk_logger::interface::IntoLogMessage;
+use crate::core::central_disk_logger::IntoLogMessage;
 use crate::parser::errors::AircraftConversionError;
 use crate::pb::parser::PbAircraft;
 

@@ -6,10 +6,10 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 
-use crate::core::central_disk_logger::errors::{
-    DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError,
+use crate::core::central_disk_logger::{
+    CentralDiskLogger, DiskloggerRegistryError, IntoLogMessage, JsonLoggingError, LogSender,
+    ProtoLoggingError,
 };
-use crate::core::central_disk_logger::task::CentralDiskLogger;
 use crate::ext::TryInsertExt;
 
 pub type ChannelID = u8;
@@ -21,17 +21,6 @@ pub struct DiskLoggerMessage {
     pub channel_id: ChannelID,
     pub publish_timestamp: DateTime<Utc>,
     pub payload: Vec<u8>,
-}
-
-pub trait LogSender<M> {
-    type Error;
-    fn send(&self, message: M) -> Result<(), Self::Error>;
-}
-
-pub trait IntoLogMessage<M> {
-    type Error;
-    fn into_message(self) -> Result<M, Self::Error>;
-    fn message_timestamp(&self) -> DateTime<Utc>;
 }
 
 #[derive(Debug)]
