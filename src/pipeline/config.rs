@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use serde;
+use std::time::Duration;
 use toml;
 
 use crate::ingestor::config::GliderNetConfig;
@@ -43,8 +44,14 @@ pub struct ParserConfig {
 }
 #[derive(serde::Deserialize)]
 pub struct AirspaceConfig {
+    #[serde(default = "default_refresh_period")]
+    pub refresh_period: Duration,
     pub time_buffer_seconds: u8,
     pub write_path: Option<PathBuf>,
+}
+
+fn default_refresh_period() -> Duration {
+    Duration::from_millis(200)
 }
 
 pub mod errors {

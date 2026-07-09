@@ -1,21 +1,23 @@
-use crate::airspace::detail::Airspace;
+use chrono::Utc;
+
+use crate::airspace::detail::{Airspace, AirspaceUpdate};
 use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
 use crate::core::thread_manager::{SteppableTask, TaskState};
 use crate::parser::Aircraft;
-use crate::pb::airspace::PbAirspace;
+use crate::pb::airspace::PbAirspaceUpdate;
 
 pub struct AirspaceStore {
     inner: std::sync::Arc<std::sync::RwLock<Airspace>>,
     aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
     airspace_time_buffer: chrono::TimeDelta,
-    logger: Option<ProtoLoggerHandle<PbAirspace>>,
+    logger: Option<ProtoLoggerHandle<PbAirspaceUpdate>>,
 }
 impl AirspaceStore {
     #[must_use]
     pub fn new(
         aircraft_receiver: crossbeam_channel::Receiver<Aircraft>,
         airspace_time_buffer: chrono::TimeDelta,
-        logger: Option<ProtoLoggerHandle<PbAirspace>>,
+        logger: Option<ProtoLoggerHandle<PbAirspaceUpdate>>,
     ) -> Self {
         let empty_airspace = Airspace::new();
         AirspaceStore {
@@ -55,13 +57,19 @@ impl SteppableTask for AirspaceStore {
             }
         }
 
-        if !aircrafts.is_empty()
-            && let Ok(mut airspace) = self.inner.write()
-        {
-            airspace.update(aircrafts, self.airspace_time_buffer);
-            if let Some(logger) = &self.logger {
-                let _ = logger.send((*airspace).clone());
-            }
+        let airspace_update = AirspaceUpdate {
+            timestamp: Utc::now(),
+            updates: aircrafts,
+        };
+        if let Some(logger) = &self.logger {
+            let _ = logger.send(airspace_update.clone());
+        }
+
+        if let Ok(mut airspace) = self.inner.write() {
+            match airspace.update(airspace_update, self.airspace_time_buffer) {
+                Ok(_) => (),
+                Err(e) => log::error!("{e}"),
+            };
         }
 
         if is_disconnected {
@@ -89,7 +97,7 @@ mod tests {
     use ogn_aprs_parser::ICAOAddress;
 
     use super::*;
-    use crate::test_utilities::create_dummy_aircraft_at_time;
+    use crate::{airspace::detail::AircraftTrack, test_utilities::create_dummy_aircraft_at_time};
 
     fn setup_store() -> (crossbeam_channel::Sender<Aircraft>, AirspaceStore) {
         let (sender, receiver) = crossbeam_channel::unbounded();
@@ -126,7 +134,10 @@ mod tests {
 
         let expected_mapping = HashMap::from([(
             dummy_aircraft.icao_address,
-            VecDeque::from([dummy_aircraft.clone()]),
+            AircraftTrack::create_with_history(
+                dummy_aircraft.icao_address,
+                VecDeque::from([dummy_aircraft.clone().into()]),
+            ),
         )]);
         sender.send(dummy_aircraft).unwrap();
         drop(sender);
@@ -134,7 +145,7 @@ mod tests {
         assert!(matches!(store.step(), TaskState::Completed));
         let viewer = store.get_airspace_viewer();
         let airspace = viewer.read();
-        let mapping = airspace.icao_to_aircraft_mapping();
+        let mapping = airspace.get_tracks();
         assert_eq!(mapping, &expected_mapping);
     }
 }

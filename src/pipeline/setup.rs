@@ -4,7 +4,7 @@ use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
 use crate::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use crate::parser::{Aircraft, AircraftParser};
-use crate::pb::airspace::PbAirspace;
+use crate::pb::airspace::PbAirspaceUpdate;
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 
 pub struct AirspaceDataPipeline {
@@ -78,7 +78,7 @@ impl AirspaceDataPipeline {
         let airspace_logger_handle = pipeline_config
             .airspace
             .write_path
-            .map(|path| disk_logger_registry.register_proto::<PbAirspace>(path))
+            .map(|path| disk_logger_registry.register_proto::<PbAirspaceUpdate>(path))
             .transpose()?;
 
         let airspace_store = AirspaceStore::new(
@@ -95,7 +95,7 @@ impl AirspaceDataPipeline {
         Ok(Self::new(
             task_order,
             airspace_store,
-            std::time::Duration::from_micros(16667),
+            pipeline_config.airspace.refresh_period,
         ))
     }
     #[must_use]
@@ -125,6 +125,9 @@ pub enum AircraftDataPipelineError {
 
 #[cfg(test)]
 mod test {
+
+    use std::time::Duration;
+
     use super::*;
     use crate::pipeline::config::{AirspaceConfig, IngestorConfig, ParserConfig};
     use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
@@ -151,6 +154,7 @@ mod test {
         let airspace_config = AirspaceConfig {
             time_buffer_seconds: 1,
             write_path: None,
+            refresh_period: Duration::from_millis(500),
         };
         let parser_config = ParserConfig { write_path: None };
         let pipeline_config = PipelineConfig {
