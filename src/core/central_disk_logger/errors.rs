@@ -4,7 +4,15 @@ use std::path::PathBuf;
 use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerTaskID};
 
 #[derive(Debug, thiserror::Error)]
-pub enum LoggingError<T> {
+pub enum ProtoLoggingError<T> {
+    #[error("Packet Conversion Error: {0}")]
+    Conversion(T),
+    #[error("Failed to send: {0}")]
+    SendError(#[from] crossbeam_channel::SendError<DiskLoggerMessage>),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum JsonLoggingError<T> {
     #[error("Packet Conversion Error: {0}")]
     Conversion(T),
     #[error("Failed to send: {0}")]

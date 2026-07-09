@@ -4,7 +4,11 @@ use std::io::BufWriter;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use crate::core::central_disk_logger::errors;
+use chrono::{DateTime, Utc};
+
+use crate::core::central_disk_logger::errors::{
+    DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError,
+};
 use crate::core::central_disk_logger::task::CentralDiskLogger;
 use crate::ext::TryInsertExt;
 
@@ -21,6 +25,11 @@ pub struct DiskLoggerMessage {
 pub trait LogSender<Input> {
     type Error;
     fn send(&self, message: Input) -> Result<(), Self::Error>;
+}
+
+pub trait AsProtoMessage<T> {
+    fn proto_message(self) -> Result<impl prost::Message, ProtoLoggingError<T>>;
+    fn message_timestamp(&self) -> DateTime<Utc>;
 }
 #[derive(Debug)]
 pub struct LoggerHandle<F, M: ?Sized> {
@@ -51,12 +60,10 @@ where
     T: TryInto<M, Error = E>,
     M: prost::Message,
 {
-    type Error = errors::LoggingError<E>;
+    type Error = ProtoLoggingError<E>;
 
     fn send(&self, message: T) -> Result<(), Self::Error> {
-        let proto_message: M = message
-            .try_into()
-            .map_err(errors::LoggingError::Conversion)?;
+        let proto_message: M = message.try_into().map_err(ProtoLoggingError::Conversion)?;
 
         let payload = proto_message.encode_length_delimited_to_vec();
 
@@ -72,15 +79,13 @@ where
     T: TryInto<M, Error = E>,
     M: serde::Serialize,
 {
-    type Error = errors::LoggingError<E>;
+    type Error = JsonLoggingError<E>;
 
     fn send(&self, message: T) -> Result<(), Self::Error> {
-        let json_message: M = message
-            .try_into()
-            .map_err(errors::LoggingError::Conversion)?;
+        let json_message: M = message.try_into().map_err(JsonLoggingError::Conversion)?;
 
         let mut payload =
-            serde_json::to_vec(&json_message).map_err(errors::LoggingError::Serialization)?;
+            serde_json::to_vec(&json_message).map_err(JsonLoggingError::Serialization)?;
 
         payload.push(b'\n');
 
@@ -89,7 +94,7 @@ where
                 logger_id: self.logger_id,
                 payload,
             })
-            .map_err(errors::LoggingError::SendError)?;
+            .map_err(JsonLoggingError::SendError)?;
 
         Ok(())
     }
@@ -116,9 +121,9 @@ impl DiskLoggerRegistry {
     pub fn register_proto<M>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle<ProtoFormat, M>, errors::DiskloggerRegistryError> {
+    ) -> Result<LoggerHandle<ProtoFormat, M>, DiskloggerRegistryError> {
         if path.extension().is_none_or(|ext| ext != PROTO_FILE_FORMAT) {
-            return Err(errors::DiskloggerRegistryError::InvalidPath(path));
+            return Err(DiskloggerRegistryError::InvalidPath(path));
         }
         self.register::<ProtoFormat, M>(path)
     }
@@ -126,9 +131,9 @@ impl DiskLoggerRegistry {
     pub fn register_jsonl<M>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle<JsonlFormat, M>, errors::DiskloggerRegistryError> {
+    ) -> Result<LoggerHandle<JsonlFormat, M>, DiskloggerRegistryError> {
         if path.extension().is_none_or(|ext| ext != JSONL_FILE_FORMAT) {
-            return Err(errors::DiskloggerRegistryError::InvalidPath(path));
+            return Err(DiskloggerRegistryError::InvalidPath(path));
         }
         self.register::<JsonlFormat, M>(path)
     }
@@ -140,14 +145,11 @@ impl DiskLoggerRegistry {
     fn register<F, M>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle<F, M>, errors::DiskloggerRegistryError> {
+    ) -> Result<LoggerHandle<F, M>, DiskloggerRegistryError> {
         let file = match File::create_new(&path) {
             Ok(f) => f,
             Err(err) => {
-                return Err(errors::DiskloggerRegistryError::LogFileCreationError {
-                    path,
-                    source: err,
-                });
+                return Err(DiskloggerRegistryError::LogFileCreationError { path, source: err });
             }
         };
         let writer = BufWriter::new(file);
@@ -156,7 +158,7 @@ impl DiskLoggerRegistry {
         let _ = TryInsertExt::try_insert(&mut self.task_to_path_mapping, logger_id, (path, writer))
             .map_err(|err| {
                 let (rejected_path, _rejected_writer) = err.value;
-                errors::DiskloggerRegistryError::PathAlreadyRegisteredError(rejected_path)
+                DiskloggerRegistryError::PathAlreadyRegisteredError(rejected_path)
             })?;
 
         let handle = LoggerHandle {
@@ -213,7 +215,7 @@ mod tests {
             let res = handler.send(message);
             assert!(matches!(
                 res.err().unwrap(),
-                errors::LoggingError::Conversion(MockConversionError)
+                ProtoLoggingError::Conversion(MockConversionError)
             ));
             assert!(receiver.try_recv().is_err());
         }
@@ -226,10 +228,7 @@ mod tests {
             let handler = LoggerHandle::<ProtoFormat, MockTaskProto>::new(1, sender);
             drop(receiver);
             let res = handler.send(message);
-            assert!(matches!(
-                res.unwrap_err(),
-                errors::LoggingError::SendError(_)
-            ));
+            assert!(matches!(res.unwrap_err(), ProtoLoggingError::SendError(_)));
         }
     }
 
