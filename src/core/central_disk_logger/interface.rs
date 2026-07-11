@@ -26,22 +26,22 @@ pub struct DiskLoggerMessage {
 
 #[derive(Debug)]
 pub struct LoggerHandle<F, M: ?Sized> {
-    channel_id: LoggerID,
+    logger_id: LoggerID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     _marker: PhantomData<(F, M)>,
 }
 
 impl<F, M> LoggerHandle<F, M> {
-    pub fn new(channel_id: LoggerID, sender: crossbeam_channel::Sender<DiskLoggerMessage>) -> Self {
+    pub fn new(logger_id: LoggerID, sender: crossbeam_channel::Sender<DiskLoggerMessage>) -> Self {
         Self {
-            channel_id,
+            logger_id,
             sender,
             _marker: PhantomData,
         }
     }
 
-    pub fn channel_id(&self) -> LoggerID {
-        self.channel_id
+    pub fn logger_id(&self) -> LoggerID {
+        self.logger_id
     }
 }
 
@@ -60,7 +60,7 @@ where
         let payload = proto_message.encode_length_delimited_to_vec();
 
         Ok(self.sender.send(DiskLoggerMessage {
-            logger_id: self.channel_id,
+            logger_id: self.logger_id,
             publish_timestamp,
             payload,
         })?)
@@ -86,7 +86,7 @@ where
 
         self.sender
             .send(DiskLoggerMessage {
-                logger_id: self.channel_id,
+                logger_id: self.logger_id,
                 publish_timestamp,
                 payload,
             })
@@ -158,7 +158,7 @@ impl DiskLoggerRegistry {
             })?;
 
         let handle = LoggerHandle {
-            channel_id: logger_id,
+            logger_id,
             sender: self.sender.clone(),
             _marker: PhantomData,
         };
