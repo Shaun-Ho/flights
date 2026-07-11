@@ -3,16 +3,16 @@ use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
 use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::core::central_disk_logger::IntoLogMessage;
+use crate::core::central_disk_logger::{IntoLogMessage, McapSchemaDescriptor};
 use crate::parser::errors::AircraftConversionError;
 use crate::pb::parser::PbAircraft;
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Aircraft {
     pub callsign: String,
-    #[serde(with = "icao_serde")]
     pub icao_address: ICAOAddress,
     pub broadcasted_timestamp: chrono::DateTime<chrono::Utc>,
     pub latitude: f64,
@@ -20,6 +20,58 @@ pub struct Aircraft {
     pub ground_track: f64,
     pub ground_speed: f64,
     pub gps_altitude: f64,
+}
+impl IntoLogMessage<AircraftJson> for Aircraft {
+    type Error = Infallible;
+    fn into_message(self) -> Result<AircraftJson, Self::Error> {
+        Ok(AircraftJson {
+            callsign: self.callsign,
+            icao_address: self.icao_address,
+            broadcasted_timestamp: self.broadcasted_timestamp,
+            latitude: self.latitude,
+            longitude: self.longitude,
+            gps_altitude: self.gps_altitude,
+            ground_speed: self.ground_speed,
+            ground_track: self.ground_track,
+        })
+    }
+    fn message_timestamp(&self) -> DateTime<Utc> {
+        Utc::now()
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Clone, JsonSchema)]
+pub struct AircraftJson {
+    pub callsign: String,
+    #[serde(with = "icao_serde")]
+    #[schemars(with = "u32")]
+    pub icao_address: ICAOAddress,
+    pub broadcasted_timestamp: DateTime<Utc>,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub ground_track: f64,
+    pub ground_speed: f64,
+    pub gps_altitude: f64,
+}
+impl McapSchemaDescriptor for AircraftJson {
+    fn schema_name() -> String {
+        "AircraftJson".to_string()
+    }
+    fn encoding() -> &'static str {
+        "jsonschema"
+    }
+
+    fn schema_bytes() -> Vec<u8> {
+        let schema = schemars::schema_for!(AircraftJson);
+
+        let schema_json_string =
+            serde_json::to_string(&schema).expect("Failed to serialize JSON schema");
+
+        schema_json_string.into_bytes()
+    }
+    fn topic() -> String {
+        "aircraft_json".to_string()
+    }
 }
 
 pub fn convert_ogn_aprs_beacon_to_aircraft(

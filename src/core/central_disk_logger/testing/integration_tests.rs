@@ -106,6 +106,20 @@ impl IntoLogMessage<Vec<String>> for JsonMessage {
         Utc::now()
     }
 }
+impl McapSchemaDescriptor for Vec<String> {
+    fn encoding() -> &'static str {
+        "json"
+    }
+    fn schema_bytes() -> Vec<u8> {
+        b"mock_bytes".to_vec()
+    }
+    fn schema_name() -> String {
+        "tests.json_message".to_string()
+    }
+    fn topic() -> String {
+        "some".to_string()
+    }
+}
 
 #[test]
 fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_disk() {

@@ -1,6 +1,6 @@
 use chrono::Utc;
 
-use crate::core::central_disk_logger::{IntoLogMessage, ProtoLoggingError};
+use crate::core::central_disk_logger::{IntoLogMessage, McapSchemaDescriptor, ProtoLoggingError};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MockTaskStruct {
@@ -30,4 +30,18 @@ pub struct MockConversionError;
 pub struct MockTaskProto {
     #[prost(int32, tag = "1")]
     pub larger_than_zero: i32,
+}
+impl McapSchemaDescriptor for MockTaskProto {
+    fn encoding() -> &'static str {
+        "protobuf"
+    }
+    fn schema_bytes() -> Vec<u8> {
+        b"mock_protobuf_descriptor_set_bytes".to_vec()
+    }
+    fn schema_name() -> String {
+        "tests.MockTaskProto".to_string()
+    }
+    fn topic() -> String {
+        "/test/mock_task".to_string()
+    }
 }

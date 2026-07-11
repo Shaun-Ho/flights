@@ -3,7 +3,7 @@ use crate::core::central_disk_logger::DiskLoggerRegistry;
 use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
 use crate::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
-use crate::parser::{Aircraft, AircraftParser};
+use crate::parser::{Aircraft, AircraftJson, AircraftParser};
 use crate::pb::airspace::PbAirspaceUpdate;
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 
@@ -70,7 +70,7 @@ impl AirspaceDataPipeline {
         let parser_logger_handle = pipeline_config
             .parser
             .write_path
-            .map(|path| disk_logger_registry.register_jsonl::<Aircraft>(path))
+            .map(|path| disk_logger_registry.register_jsonl::<AircraftJson>(path))
             .transpose()?;
 
         let parser = AircraftParser::new(ingestor_receiver, parser_sender, parser_logger_handle);

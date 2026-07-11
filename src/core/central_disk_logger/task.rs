@@ -7,7 +7,6 @@ use crate::core::central_disk_logger::errors;
 use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerID};
 use crate::core::thread_manager::{SteppableTask, TaskState};
 
-#[derive(Debug)]
 pub struct CentralDiskLogger {
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
     id_to_path_writer_pair_mapping: HashMap<LoggerID, (PathBuf, BufWriter<File>)>,

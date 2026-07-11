@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 
+use crate::core::central_disk_logger::traits::McapSchemaDescriptor;
 use crate::core::central_disk_logger::{
     CentralDiskLogger, DiskloggerRegistryError, IntoLogMessage, JsonLoggingError, LogSender,
     ProtoLoggingError,
@@ -48,7 +49,7 @@ impl<F, M> LoggerHandle<F, M> {
 impl<M, T> LogSender<T> for LoggerHandle<ProtoFormat, M>
 where
     T: IntoLogMessage<M>,
-    M: prost::Message,
+    M: prost::Message + McapSchemaDescriptor,
     ProtoLoggingError<T>: From<T::Error>,
 {
     type Error = ProtoLoggingError<T>;
@@ -67,10 +68,10 @@ where
     }
 }
 
-impl<M, T> LogSender<T> for LoggerHandle<JsonlFormat, M>
+impl<M, T> LogSender<T> for LoggerHandle<JsonFormat, M>
 where
     T: IntoLogMessage<M>,
-    M: serde::Serialize,
+    M: serde::Serialize + McapSchemaDescriptor,
     JsonLoggingError<T>: From<T::Error>,
 {
     type Error = JsonLoggingError<T>;
@@ -127,11 +128,11 @@ impl DiskLoggerRegistry {
     pub fn register_jsonl<M>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle<JsonlFormat, M>, DiskloggerRegistryError> {
+    ) -> Result<LoggerHandle<JsonFormat, M>, DiskloggerRegistryError> {
         if path.extension().is_none_or(|ext| ext != JSONL_FILE_FORMAT) {
             return Err(DiskloggerRegistryError::InvalidPath(path));
         }
-        self.register::<JsonlFormat, M>(path)
+        self.register::<JsonFormat, M>(path)
     }
 
     pub fn build(self) -> CentralDiskLogger {
@@ -173,11 +174,11 @@ impl Default for DiskLoggerRegistry {
     }
 }
 
-pub struct JsonlFormat {}
-pub struct ProtoFormat {}
+pub struct JsonFormat;
+pub struct ProtoFormat;
 
 pub type ProtoLoggerHandle<M> = LoggerHandle<ProtoFormat, M>;
-pub type JsonlLoggerHandle<M> = LoggerHandle<JsonlFormat, M>;
+pub type JsonlLoggerHandle<M> = LoggerHandle<JsonFormat, M>;
 
 #[cfg(test)]
 mod tests {
