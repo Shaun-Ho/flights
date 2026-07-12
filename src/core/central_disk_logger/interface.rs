@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 
-use crate::core::central_disk_logger::traits::McapSchemaDescriptor;
+use crate::core::central_disk_logger::traits::{JsonToMcapSchema, ProtoToMcapSchema};
 use crate::core::central_disk_logger::{
     CentralDiskLogger, DiskloggerRegistryError, IntoLogMessage, JsonLoggingError, LogSender,
     ProtoLoggingError,
@@ -49,7 +49,7 @@ impl<F, M> LoggerHandle<F, M> {
 impl<M, T> LogSender<T> for LoggerHandle<ProtoFormat, M>
 where
     T: IntoLogMessage<M>,
-    M: prost::Message + McapSchemaDescriptor,
+    M: prost::Message + ProtoToMcapSchema,
     ProtoLoggingError<T>: From<T::Error>,
 {
     type Error = ProtoLoggingError<T>;
@@ -71,7 +71,7 @@ where
 impl<M, T> LogSender<T> for LoggerHandle<JsonFormat, M>
 where
     T: IntoLogMessage<M>,
-    M: serde::Serialize + McapSchemaDescriptor,
+    M: serde::Serialize + JsonToMcapSchema,
     JsonLoggingError<T>: From<T::Error>,
 {
     type Error = JsonLoggingError<T>;

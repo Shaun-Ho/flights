@@ -20,6 +20,7 @@ fn main() -> Result<()> {
     let descriptor_path = out_dir.join("file_descriptor_set.bin");
 
     let mut config = prost_build::Config::new();
+    config.enable_type_names();
     config.bytes(["."]);
     config.file_descriptor_set_path(&descriptor_path);
     config.compile_protos(&proto_files, &["."])?;

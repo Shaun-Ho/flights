@@ -6,7 +6,7 @@ use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::core::central_disk_logger::{IntoLogMessage, McapSchemaDescriptor};
+use crate::core::central_disk_logger::IntoLogMessage;
 use crate::parser::errors::AircraftConversionError;
 use crate::pb::parser::PbAircraft;
 
@@ -52,26 +52,6 @@ pub struct AircraftJson {
     pub ground_track: f64,
     pub ground_speed: f64,
     pub gps_altitude: f64,
-}
-impl McapSchemaDescriptor for AircraftJson {
-    fn schema_name() -> String {
-        "AircraftJson".to_string()
-    }
-    fn encoding() -> &'static str {
-        "jsonschema"
-    }
-
-    fn schema_bytes() -> Vec<u8> {
-        let schema = schemars::schema_for!(AircraftJson);
-
-        let schema_json_string =
-            serde_json::to_string(&schema).expect("Failed to serialize JSON schema");
-
-        schema_json_string.into_bytes()
-    }
-    fn topic() -> String {
-        "aircraft_json".to_string()
-    }
 }
 
 pub fn convert_ogn_aprs_beacon_to_aircraft(

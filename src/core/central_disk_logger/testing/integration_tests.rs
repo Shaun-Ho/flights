@@ -3,6 +3,8 @@ use std::fs;
 
 use chrono::Utc;
 use prost::Message;
+use schemars::JsonSchema;
+use serde::Serialize;
 
 use super::test_helpers::*;
 use crate::core::central_disk_logger::*;
@@ -93,7 +95,7 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
     assert_eq!(fs::read(&file_path_2).unwrap(), expected_2);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, JsonSchema)]
 struct JsonMessage {
     pub contents: Vec<String>,
 }
@@ -104,20 +106,6 @@ impl IntoLogMessage<Vec<String>> for JsonMessage {
     }
     fn message_timestamp(&self) -> chrono::prelude::DateTime<chrono::prelude::Utc> {
         Utc::now()
-    }
-}
-impl McapSchemaDescriptor for Vec<String> {
-    fn encoding() -> &'static str {
-        "json"
-    }
-    fn schema_bytes() -> Vec<u8> {
-        b"mock_bytes".to_vec()
-    }
-    fn schema_name() -> String {
-        "tests.json_message".to_string()
-    }
-    fn topic() -> String {
-        "some".to_string()
     }
 }
 
