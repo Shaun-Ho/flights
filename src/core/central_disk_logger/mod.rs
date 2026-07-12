@@ -1,14 +1,11 @@
 pub mod errors;
-pub mod interface;
-pub mod task;
-pub mod traits;
+mod interface;
+mod task;
+mod traits;
 
 #[cfg(test)]
-pub mod testing;
+mod testing;
 
-pub use errors::{
-    CentralDiskLoggerError, DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError,
-};
 pub use interface::{
     DiskLoggerMessage, DiskLoggerRegistry, JsonlLoggerHandle, LoggerID, ProtoLoggerHandle,
 };

@@ -6,11 +6,11 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 
-use crate::core::central_disk_logger::traits::{JsonToMcapSchema, ProtoToMcapSchema};
-use crate::core::central_disk_logger::{
-    CentralDiskLogger, DiskloggerRegistryError, IntoLogMessage, JsonLoggingError, LogSender,
-    ProtoLoggingError,
+use crate::core::central_disk_logger::errors::{
+    DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError,
 };
+use crate::core::central_disk_logger::traits::{JsonToMcapSchema, ProtoToMcapSchema};
+use crate::core::central_disk_logger::{CentralDiskLogger, IntoLogMessage, LogSender};
 use crate::ext::TryInsertExt;
 
 pub type LoggerID = u8;
