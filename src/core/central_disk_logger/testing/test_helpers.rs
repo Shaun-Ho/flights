@@ -24,9 +24,6 @@ impl IntoLogMessage<MockTaskProto> for MockTaskStruct {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct MockConversionError;
-
 #[derive(Clone, PartialEq, prost::Message)]
 pub struct MockTaskProto {
     #[prost(int32, tag = "1")]
