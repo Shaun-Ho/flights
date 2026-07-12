@@ -9,8 +9,10 @@ use chrono::{DateTime, Utc};
 use crate::core::central_disk_logger::errors::{
     DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError,
 };
-use crate::core::central_disk_logger::traits::{JsonToMcapSchema, ProtoToMcapSchema};
-use crate::core::central_disk_logger::{CentralDiskLogger, IntoLogMessage, LogSender};
+use crate::core::central_disk_logger::task::{CentralDiskLogger, WriteTarget};
+use crate::core::central_disk_logger::traits::{
+    IntoLogMessage, JsonToMcapSchema, LogSender, ProtoToMcapSchema,
+};
 use crate::ext::TryInsertExt;
 
 pub type LoggerID = u8;
@@ -102,7 +104,7 @@ pub struct DiskLoggerRegistry {
     current_logger_id: LoggerID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
-    task_to_path_mapping: HashMap<LoggerID, (PathBuf, BufWriter<File>)>,
+    id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
 impl DiskLoggerRegistry {
     pub fn new() -> Self {
@@ -111,7 +113,7 @@ impl DiskLoggerRegistry {
             current_logger_id: 0,
             sender,
             receiver,
-            task_to_path_mapping: HashMap::new(),
+            id_to_target_mapping: HashMap::new(),
         }
     }
 
@@ -136,7 +138,7 @@ impl DiskLoggerRegistry {
     }
 
     pub fn build(self) -> CentralDiskLogger {
-        CentralDiskLogger::new(self.receiver, self.task_to_path_mapping)
+        CentralDiskLogger::new(self.receiver, self.id_to_target_mapping)
     }
 
     fn register<F, M>(
@@ -152,11 +154,15 @@ impl DiskLoggerRegistry {
         let writer = BufWriter::new(file);
 
         let logger_id = self.current_logger_id;
-        let _ = TryInsertExt::try_insert(&mut self.task_to_path_mapping, logger_id, (path, writer))
-            .map_err(|err| {
-                let (rejected_path, _rejected_writer) = err.value;
-                DiskloggerRegistryError::PathAlreadyRegisteredError(rejected_path)
-            })?;
+        let _ = TryInsertExt::try_insert(
+            &mut self.id_to_target_mapping,
+            logger_id,
+            WriteTarget { path, writer },
+        )
+        .map_err(|err| {
+            let target = err.value;
+            DiskloggerRegistryError::PathAlreadyRegisteredError(target.path)
+        })?;
 
         let handle = LoggerHandle {
             logger_id,

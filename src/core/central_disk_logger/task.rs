@@ -7,18 +7,23 @@ use crate::core::central_disk_logger::errors;
 use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerID};
 use crate::core::thread_manager::{SteppableTask, TaskState};
 
+#[derive(Debug)]
+pub struct WriteTarget {
+    pub path: PathBuf,
+    pub writer: BufWriter<File>,
+}
 pub struct CentralDiskLogger {
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
-    id_to_path_writer_pair_mapping: HashMap<LoggerID, (PathBuf, BufWriter<File>)>,
+    id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
 impl CentralDiskLogger {
     pub fn new(
         receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
-        id_to_path_writer_pair_mapping: HashMap<LoggerID, (PathBuf, BufWriter<File>)>,
+        id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
     ) -> Self {
         Self {
             receiver,
-            id_to_path_writer_pair_mapping,
+            id_to_target_mapping,
         }
     }
 }
@@ -27,16 +32,13 @@ impl SteppableTask for CentralDiskLogger {
     fn step(&mut self) -> TaskState {
         match self.receiver.try_recv() {
             Ok(message) => {
-                match self
-                    .id_to_path_writer_pair_mapping
-                    .get_mut(&message.logger_id)
-                    .ok_or(errors::CentralDiskLoggerError::TaskNotRegistered(
-                        message.logger_id,
-                    )) {
-                    Ok((path, writer)) => {
-                        let _ = writer.write_all(&message.payload).map_err(|err| {
+                match self.id_to_target_mapping.get_mut(&message.logger_id).ok_or(
+                    errors::CentralDiskLoggerError::TaskNotRegistered(message.logger_id),
+                ) {
+                    Ok(target) => {
+                        let _ = target.writer.write_all(&message.payload).map_err(|err| {
                             let write_error = errors::CentralDiskLoggerError::WriteError {
-                                path: path.clone(),
+                                path: target.path.clone(),
                                 payload: message.payload,
                                 source: err,
                             };
@@ -67,15 +69,15 @@ mod tests {
         let task_id = 42;
         mapping.insert(
             task_id,
-            (
-                file_path.clone(),
-                BufWriter::new(File::create_new(&file_path).unwrap()),
-            ),
+            WriteTarget {
+                path: file_path.clone(),
+                writer: BufWriter::new(File::create_new(&file_path).unwrap()),
+            },
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut logger = CentralDiskLogger {
-            id_to_path_writer_pair_mapping: mapping,
+            id_to_target_mapping: mapping,
             receiver,
         };
 
@@ -107,15 +109,15 @@ mod tests {
         let mut mapping = HashMap::new();
         mapping.insert(
             1,
-            (
-                file_path.clone(),
-                BufWriter::new(File::create_new(&file_path).unwrap()),
-            ),
+            WriteTarget {
+                path: file_path.clone(),
+                writer: BufWriter::new(File::create_new(&file_path).unwrap()),
+            },
         );
 
         let (_sender, receiver) = crossbeam_channel::unbounded();
         let mut logger = CentralDiskLogger {
-            id_to_path_writer_pair_mapping: mapping,
+            id_to_target_mapping: mapping,
             receiver,
         };
 
@@ -131,15 +133,15 @@ mod tests {
         let mut mapping = HashMap::new();
         mapping.insert(
             1,
-            (
-                file_path.clone(),
-                BufWriter::new(File::create_new(&file_path).unwrap()),
-            ),
+            WriteTarget {
+                path: file_path.clone(),
+                writer: BufWriter::new(File::create_new(&file_path).unwrap()),
+            },
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut logger = CentralDiskLogger {
-            id_to_path_writer_pair_mapping: mapping,
+            id_to_target_mapping: mapping,
             receiver,
         };
 
@@ -158,15 +160,15 @@ mod tests {
         let mut mapping = HashMap::new();
         mapping.insert(
             1,
-            (
-                file_path.clone(),
-                BufWriter::new(File::create_new(&file_path).unwrap()),
-            ),
+            WriteTarget {
+                path: file_path.clone(),
+                writer: BufWriter::new(File::create_new(&file_path).unwrap()),
+            },
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut logger = CentralDiskLogger {
-            id_to_path_writer_pair_mapping: mapping,
+            id_to_target_mapping: mapping,
             receiver,
         };
 
