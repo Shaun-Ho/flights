@@ -24,7 +24,7 @@ use crate::pb::ALL_PROTOS_DESCRIPTOR;
 impl<T: prost::Name> ProtoToMcapSchema for T {
     fn translate_schema() -> mcap::Schema<'static> {
         mcap::Schema {
-            id: 0,
+            id: 1,
             name: format!("{}.{}", T::PACKAGE, T::NAME),
             encoding: "protobuf".to_string(),
             data: ALL_PROTOS_DESCRIPTOR.to_vec().into(),
@@ -39,7 +39,7 @@ impl<T: schemars::JsonSchema> JsonToMcapSchema for T {
 
         let schema_name = std::any::type_name::<T>().replace("::", ".");
         mcap::Schema {
-            id: 0,
+            id: 1,
             name: schema_name,
             encoding: "json".to_string(),
             data: Cow::Owned(schema_bytes),

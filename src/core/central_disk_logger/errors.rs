@@ -45,6 +45,9 @@ pub enum DiskloggerRegistryError {
         #[source]
         source: io::Error,
     },
+
+    #[error("Unable to create Mcap writer: {0}")]
+    WriterCreationError(#[from] mcap::McapError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -52,11 +55,6 @@ pub enum CentralDiskLoggerError {
     #[error("TaskID not registered: {0}")]
     TaskNotRegistered(LoggerID),
 
-    #[error("Unable to write data to log file: {path}")]
-    WriteError {
-        path: PathBuf,
-        payload: Vec<u8>,
-        #[source]
-        source: io::Error,
-    },
+    #[error("Unable to write data to log file: {0}")]
+    WriteError(#[from] mcap::McapError),
 }

@@ -32,7 +32,7 @@ pub struct MockTaskProto {
 impl ProtoToMcapSchema for MockTaskProto {
     fn translate_schema() -> mcap::Schema<'static> {
         mcap::Schema {
-            id: 0,
+            id: 1,
             name: "test".to_string(),
             encoding: "protobuf".to_string(),
             data: (&[1, 2]).into(),
