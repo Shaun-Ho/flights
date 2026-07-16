@@ -1,12 +1,13 @@
 pub mod errors;
-pub mod interface;
-pub mod task;
+mod interface;
+mod task;
+mod traits;
 
 #[cfg(test)]
-pub mod testing;
+mod testing;
 
 pub use interface::{
-    DiskLoggerMessage, DiskLoggerRegistry, JsonlLoggerHandle, LogSender, LoggerTaskID,
-    ProtoLoggerHandle,
+    DiskLoggerMessage, DiskLoggerRegistry, JsonlLoggerHandle, LoggerID, ProtoLoggerHandle,
 };
 pub use task::CentralDiskLogger;
+pub use traits::{IntoLogMessage, LogSender, ProtoToMcapSchema};

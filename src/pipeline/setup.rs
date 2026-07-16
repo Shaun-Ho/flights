@@ -3,7 +3,7 @@ use crate::core::central_disk_logger::DiskLoggerRegistry;
 use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
 use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
 use crate::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
-use crate::parser::{Aircraft, AircraftParser};
+use crate::parser::{Aircraft, AircraftJson, AircraftParser};
 use crate::pb::airspace::PbAirspaceUpdate;
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 
@@ -46,7 +46,9 @@ impl AirspaceDataPipeline {
         let ingestor_logger_handle = pipeline_config
             .ingestor
             .write_path
-            .map(|path| disk_logger_registry.register_proto::<PbAprsPacket>(path))
+            .map(|path| {
+                disk_logger_registry.register_proto::<PbAprsPacket>(path, "ingestor".to_string())
+            })
             .transpose()?;
 
         let ingestor = match pipeline_config.ingestor.source {
@@ -70,7 +72,9 @@ impl AirspaceDataPipeline {
         let parser_logger_handle = pipeline_config
             .parser
             .write_path
-            .map(|path| disk_logger_registry.register_jsonl::<Aircraft>(path))
+            .map(|path| {
+                disk_logger_registry.register_jsonl::<AircraftJson>(path, "parser".to_string())
+            })
             .transpose()?;
 
         let parser = AircraftParser::new(ingestor_receiver, parser_sender, parser_logger_handle);
@@ -78,7 +82,10 @@ impl AirspaceDataPipeline {
         let airspace_logger_handle = pipeline_config
             .airspace
             .write_path
-            .map(|path| disk_logger_registry.register_proto::<PbAirspaceUpdate>(path))
+            .map(|path| {
+                disk_logger_registry
+                    .register_proto::<PbAirspaceUpdate>(path, "airspace".to_string())
+            })
             .transpose()?;
 
         let airspace_store = AirspaceStore::new(
@@ -144,7 +151,7 @@ mod test {
             timestamp: Some(timestamp),
             message,
         };
-        let read_path = test_path.path.join("test_ingestor_log.pb");
+        let read_path = test_path.path.join("test_ingestor_log.mcap");
         let mut writer = std::io::BufWriter::new(std::fs::File::create(&read_path).unwrap());
         let _ = write_pb_message_to_disk(&mut writer, &packet);
         let ingestor_config = IngestorConfig {

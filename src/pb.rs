@@ -1,3 +1,6 @@
+pub const ALL_PROTOS_DESCRIPTOR: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/file_descriptor_set.bin"));
+
 pub mod ingestor {
     include!(concat!(env!("OUT_DIR"), "/ingestor.rs"));
 }

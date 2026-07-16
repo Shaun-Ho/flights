@@ -1,8 +1,24 @@
 use std::time::SystemTime;
 
+use crate::core::central_disk_logger::IntoLogMessage;
 use crate::ingestor::errors::APRSPacketConversionError;
 use crate::ingestor::task::AprsPacket;
 use crate::pb::ingestor::PbAprsPacket;
+
+impl IntoLogMessage<PbAprsPacket> for AprsPacket {
+    type Error = std::convert::Infallible;
+    fn message_timestamp(&self) -> chrono::prelude::DateTime<chrono::prelude::Utc> {
+        self.timestamp
+    }
+    fn into_message(self) -> Result<PbAprsPacket, Self::Error> {
+        let sys_time: SystemTime = self.timestamp.into();
+
+        Ok(PbAprsPacket {
+            timestamp: Some(sys_time.into()),
+            message: self.message,
+        })
+    }
+}
 
 impl TryFrom<PbAprsPacket> for AprsPacket {
     type Error = APRSPacketConversionError;
@@ -18,16 +34,5 @@ impl TryFrom<PbAprsPacket> for AprsPacket {
             timestamp,
             message: pb_packet.message,
         })
-    }
-}
-
-impl From<AprsPacket> for PbAprsPacket {
-    fn from(packet: AprsPacket) -> Self {
-        let sys_time: SystemTime = packet.timestamp.into();
-
-        Self {
-            timestamp: Some(sys_time.into()),
-            message: packet.message,
-        }
     }
 }

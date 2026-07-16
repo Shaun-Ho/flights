@@ -356,7 +356,7 @@ mod test {
     fn when_ingestor_reads_from_log_file_then_sender_receives_expected_aprs_packet(
         test_path: TestPath,
     ) {
-        let log_path = &test_path.path.join("test_ingestor_log.pb");
+        let log_path = &test_path.path.join("test_ingestor_log.mcap");
 
         let now = std::time::SystemTime::now();
         let timestamp = prost_types::Timestamp::from(now);
@@ -394,7 +394,7 @@ mod test {
 
     #[rstest::rstest]
     fn when_reading_from_replay_source_then_delays_are_applied_correctly(test_path: TestPath) {
-        let log_path = test_path.path.join("test_replay_delay.pb");
+        let log_path = test_path.path.join("test_replay_delay.mcap");
 
         let base_time = std::time::SystemTime::now();
         let time_p1 = base_time;

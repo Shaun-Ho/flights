@@ -1,20 +1,22 @@
-use std::fs;
+use std::convert::Infallible;
 
+use chrono::Utc;
 use prost::Message;
+use schemars::JsonSchema;
+use serde::Serialize;
 
 use super::test_helpers::*;
-use crate::core::central_disk_logger::interface::LogSender;
 use crate::core::central_disk_logger::*;
 use crate::core::thread_manager::*;
 
 #[test]
 fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_disk() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let file_path = temp_dir.path().join("system_log.pb");
+    let file_path = temp_dir.path().join("system_log.mcap");
 
     let mut registry = DiskLoggerRegistry::new();
     let handle = registry
-        .register_proto::<MockTaskProto>(file_path.clone())
+        .register_proto::<MockTaskProto>(file_path.clone(), "test".to_string())
         .expect("Failed to register logger");
     let mut central_logger = registry.build();
 
@@ -35,23 +37,29 @@ fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_dis
     };
     let expected_bytes = expected_proto.encode_length_delimited_to_vec();
 
-    let disk_contents = fs::read(&file_path).unwrap();
-    assert_eq!(disk_contents, expected_bytes);
+    let contents = std::fs::read(&file_path).unwrap();
+    let mcap_message = mcap::MessageStream::new(&contents)
+        .unwrap()
+        .next()
+        .expect("Expected at least one MCAP message in the file")
+        .unwrap();
+
+    assert_eq!(mcap_message.data, expected_bytes);
 }
 
 #[test]
 fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_correctly() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let file_path_1 = temp_dir.path().join("flight_data.pb");
-    let file_path_2 = temp_dir.path().join("engine_data.pb");
+    let file_path_1 = temp_dir.path().join("flight_data.mcap");
+    let file_path_2 = temp_dir.path().join("engine_data.mcap");
 
     let mut registry = DiskLoggerRegistry::new();
 
     let log_handle_1 = registry
-        .register_proto::<MockTaskProto>(file_path_1.clone())
+        .register_proto::<MockTaskProto>(file_path_1.clone(), "test".to_string())
         .unwrap();
     let log_handle_2 = registry
-        .register_proto::<MockTaskProto>(file_path_2.clone())
+        .register_proto::<MockTaskProto>(file_path_2.clone(), "test".to_string())
         .unwrap();
 
     let mut central_logger = registry.build();
@@ -83,27 +91,59 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
         larger_than_zero: 111,
     }
     .encode_length_delimited_to_vec();
+
+    let contents_1 = std::fs::read(&file_path_1).unwrap();
+    let mcap_message_1 = mcap::MessageStream::new(&contents_1)
+        .unwrap()
+        .next()
+        .expect("Expected at least one MCAP message in the file")
+        .unwrap();
+
+    assert_eq!(mcap_message_1.data, expected_1);
+
+    let contents_2 = std::fs::read(&file_path_2).unwrap();
+    let mcap_message_2 = mcap::MessageStream::new(&contents_2)
+        .unwrap()
+        .next()
+        .expect("Expected at least one MCAP message in the file")
+        .unwrap();
+
     let expected_2 = MockTaskProto {
         larger_than_zero: 222,
     }
     .encode_length_delimited_to_vec();
+    assert_eq!(mcap_message_2.data, expected_2);
+}
 
-    assert_eq!(fs::read(&file_path_1).unwrap(), expected_1);
-    assert_eq!(fs::read(&file_path_2).unwrap(), expected_2);
+#[derive(Debug, Serialize, JsonSchema, Clone)]
+struct JsonMessage {
+    pub contents: Vec<String>,
+}
+impl IntoLogMessage<JsonMessage> for JsonMessage {
+    type Error = Infallible;
+    fn into_message(self) -> Result<JsonMessage, Self::Error> {
+        Ok(self)
+    }
+    fn message_timestamp(&self) -> chrono::prelude::DateTime<chrono::prelude::Utc> {
+        Utc::now()
+    }
 }
 
 #[test]
 fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_disk() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let file_path = temp_dir.path().join("events_log.jsonl");
+    let file_path = temp_dir.path().join("events_log.mcap");
 
     let mut registry = DiskLoggerRegistry::new();
     let handle = registry
-        .register_jsonl::<Vec<String>>(file_path.clone())
+        .register_jsonl::<JsonMessage>(file_path.clone(), "test".to_string())
         .expect("Failed to register jsonl logger");
     let mut central_logger = registry.build();
 
-    let domain_message = vec!["app_started".to_string(), "disk_ok".to_string()];
+    let domain_message = JsonMessage {
+        contents: vec!["app_started".to_string(), "disk_ok".to_string()],
+    };
+    let expected_bytes = serde_json::to_vec(&domain_message).unwrap();
 
     handle
         .send(domain_message)
@@ -114,26 +154,30 @@ fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_d
 
     drop(central_logger);
 
-    let expected_jsonl = "[\"app_started\",\"disk_ok\"]\n";
+    let contents = std::fs::read(&file_path).unwrap();
+    let mcap_message = mcap::MessageStream::new(&contents)
+        .unwrap()
+        .next()
+        .expect("Expected at least one MCAP message in the file")
+        .unwrap();
 
-    let disk_contents = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(disk_contents, expected_jsonl);
+    assert_eq!(mcap_message.data, expected_bytes);
 }
 
 #[test]
 fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correctly() {
     let temp_dir = tempfile::tempdir().unwrap();
 
-    let proto_path = temp_dir.path().join("flight_data.pb");
-    let jsonl_path = temp_dir.path().join("system_events.jsonl");
+    let proto_path = temp_dir.path().join("flight_data.mcap");
+    let jsonl_path = temp_dir.path().join("system_events.mcap");
 
     let mut registry = DiskLoggerRegistry::new();
 
     let proto_handle = registry
-        .register_proto::<MockTaskProto>(proto_path.clone())
+        .register_proto::<MockTaskProto>(proto_path.clone(), "test".to_string())
         .unwrap();
     let jsonl_handle = registry
-        .register_jsonl::<Vec<String>>(jsonl_path.clone())
+        .register_jsonl::<JsonMessage>(jsonl_path.clone(), "test".to_string())
         .unwrap();
 
     let mut central_logger = registry.build();
@@ -144,8 +188,11 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
         })
         .unwrap();
 
-    let json_msg = vec!["concurrent_test".to_string()];
-    jsonl_handle.send(json_msg).unwrap();
+    let json_msg = JsonMessage {
+        contents: vec!["concurrent_test".to_string()],
+    };
+
+    jsonl_handle.send(json_msg.clone()).unwrap();
 
     central_logger.step();
     central_logger.step();
@@ -156,8 +203,23 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
         larger_than_zero: 333,
     }
     .encode_length_delimited_to_vec();
-    assert_eq!(fs::read(&proto_path).unwrap(), expected_proto);
 
-    let expected_jsonl = "[\"concurrent_test\"]\n";
-    assert_eq!(fs::read_to_string(&jsonl_path).unwrap(), expected_jsonl);
+    let proto_contents = std::fs::read(&proto_path).unwrap();
+    let proto_mcap_message = mcap::MessageStream::new(&proto_contents)
+        .unwrap()
+        .next()
+        .expect("Expected at least one MCAP message in the file")
+        .unwrap();
+
+    assert_eq!(proto_mcap_message.data, expected_proto);
+
+    let expected_jsonl = serde_json::to_vec(&json_msg).unwrap();
+    let jsonl_contents = std::fs::read(&jsonl_path).unwrap();
+    let jsonl_mcap_message = mcap::MessageStream::new(&jsonl_contents)
+        .unwrap()
+        .next()
+        .expect("Expected at least one MCAP message in the file")
+        .unwrap();
+
+    assert_eq!(jsonl_mcap_message.data, expected_jsonl);
 }

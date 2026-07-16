@@ -4,19 +4,19 @@ use crate::core::central_disk_logger::{JsonlLoggerHandle, LogSender};
 use crate::core::thread_manager::{SteppableTask, TaskState};
 use crate::ingestor::AprsPacket;
 use crate::parser::Aircraft;
-use crate::parser::conversion::convert_ogn_aprs_beacon_to_aircraft;
+use crate::parser::conversion::{AircraftJson, convert_ogn_aprs_beacon_to_aircraft};
 
 pub struct AircraftParser {
     receiver: crossbeam_channel::Receiver<AprsPacket>,
     sender: crossbeam_channel::Sender<Aircraft>,
-    logger: Option<JsonlLoggerHandle<Aircraft>>,
+    logger: Option<JsonlLoggerHandle<AircraftJson>>,
 }
 impl AircraftParser {
     #[must_use]
     pub fn new(
         messages_receiver: crossbeam_channel::Receiver<AprsPacket>,
         aircraft_sender: crossbeam_channel::Sender<Aircraft>,
-        logger: Option<JsonlLoggerHandle<Aircraft>>,
+        logger: Option<JsonlLoggerHandle<AircraftJson>>,
     ) -> Self {
         AircraftParser {
             receiver: messages_receiver,

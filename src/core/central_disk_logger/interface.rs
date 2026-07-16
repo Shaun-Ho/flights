@@ -1,40 +1,41 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::BufWriter;
 use std::marker::PhantomData;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use crate::core::central_disk_logger::errors;
-use crate::core::central_disk_logger::task::CentralDiskLogger;
+use chrono::{DateTime, Utc};
+
+use crate::core::central_disk_logger::errors::{
+    DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError,
+};
+use crate::core::central_disk_logger::task::{CentralDiskLogger, WriteTarget};
+use crate::core::central_disk_logger::traits::{
+    IntoLogMessage, JsonToMcapSchema, LogSender, ProtoToMcapSchema,
+};
 use crate::ext::TryInsertExt;
 
-pub type LoggerTaskID = u8;
+pub type LoggerID = u8;
 
-const PROTO_FILE_FORMAT: &str = "pb";
-const JSONL_FILE_FORMAT: &str = "jsonl";
+const MCAP_FILE_SUFFIX: &str = "mcap";
+
 #[derive(Debug)]
 pub struct DiskLoggerMessage {
-    pub logger_id: LoggerTaskID,
+    pub logger_id: LoggerID,
+    pub publish_timestamp: DateTime<Utc>,
     pub payload: Vec<u8>,
 }
 
 #[derive(Debug)]
 pub struct LoggerHandle<F, M: ?Sized> {
-    logger_id: LoggerTaskID,
+    logger_id: LoggerID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     _marker: PhantomData<(F, M)>,
 }
 
-pub trait LogSender<Input> {
-    type Error;
-    fn send(&self, message: Input) -> Result<(), Self::Error>;
-}
-
 impl<F, M> LoggerHandle<F, M> {
-    pub fn new(
-        logger_id: LoggerTaskID,
-        sender: crossbeam_channel::Sender<DiskLoggerMessage>,
-    ) -> Self {
+    pub fn new(logger_id: LoggerID, sender: crossbeam_channel::Sender<DiskLoggerMessage>) -> Self {
         Self {
             logger_id,
             sender,
@@ -42,66 +43,64 @@ impl<F, M> LoggerHandle<F, M> {
         }
     }
 
-    pub fn logger_id(&self) -> LoggerTaskID {
+    pub fn logger_id(&self) -> LoggerID {
         self.logger_id
     }
 }
 
-impl<M, T, E> LogSender<T> for LoggerHandle<ProtoFormat, M>
+impl<M, T> LogSender<T> for LoggerHandle<ProtoFormat, M>
 where
-    T: TryInto<M, Error = E>,
-    M: prost::Message,
+    T: IntoLogMessage<M>,
+    M: prost::Message + ProtoToMcapSchema,
+    ProtoLoggingError<T>: From<T::Error>,
 {
-    type Error = errors::LoggingError<E>;
+    type Error = ProtoLoggingError<T>;
 
-    fn send(&self, message: T) -> Result<(), Self::Error> {
-        let proto_message: M = message
-            .try_into()
-            .map_err(errors::LoggingError::Conversion)?;
+    fn send(&self, message: T) -> Result<(), ProtoLoggingError<T>> {
+        let publish_timestamp = message.message_timestamp();
+        let proto_message: M = message.into_message()?;
 
         let payload = proto_message.encode_length_delimited_to_vec();
 
         Ok(self.sender.send(DiskLoggerMessage {
             logger_id: self.logger_id,
+            publish_timestamp,
             payload,
         })?)
     }
 }
 
-impl<M, T, E> LogSender<T> for LoggerHandle<JsonlFormat, M>
+impl<M, T> LogSender<T> for LoggerHandle<JsonFormat, M>
 where
-    T: TryInto<M, Error = E>,
-    M: serde::Serialize,
+    T: IntoLogMessage<M>,
+    M: serde::Serialize + JsonToMcapSchema,
+    JsonLoggingError<T>: From<T::Error>,
 {
-    type Error = errors::LoggingError<E>;
+    type Error = JsonLoggingError<T>;
 
-    fn send(&self, message: T) -> Result<(), Self::Error> {
-        let json_message: M = message
-            .try_into()
-            .map_err(errors::LoggingError::Conversion)?;
+    fn send(&self, message: T) -> Result<(), JsonLoggingError<T>> {
+        let publish_timestamp = message.message_timestamp();
+        let json_message: M = message.into_message()?;
 
-        let mut payload =
-            serde_json::to_vec(&json_message).map_err(errors::LoggingError::Serialization)?;
-
-        payload.push(b'\n');
+        let payload = serde_json::to_vec(&json_message).map_err(JsonLoggingError::Serialization)?;
 
         self.sender
             .send(DiskLoggerMessage {
                 logger_id: self.logger_id,
+                publish_timestamp,
                 payload,
             })
-            .map_err(errors::LoggingError::SendError)?;
+            .map_err(JsonLoggingError::SendError)?;
 
         Ok(())
     }
 }
 
-#[derive(Debug)]
 pub struct DiskLoggerRegistry {
-    current_logger_id: LoggerTaskID,
+    current_logger_id: LoggerID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
-    task_to_path_mapping: HashMap<LoggerTaskID, (PathBuf, BufWriter<File>)>,
+    id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
 impl DiskLoggerRegistry {
     pub fn new() -> Self {
@@ -110,55 +109,84 @@ impl DiskLoggerRegistry {
             current_logger_id: 0,
             sender,
             receiver,
-            task_to_path_mapping: HashMap::new(),
+            id_to_target_mapping: HashMap::new(),
         }
     }
 
-    pub fn register_proto<M>(
+    pub fn register_proto<M: ProtoToMcapSchema>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle<ProtoFormat, M>, errors::DiskloggerRegistryError> {
-        if path.extension().is_none_or(|ext| ext != PROTO_FILE_FORMAT) {
-            return Err(errors::DiskloggerRegistryError::InvalidPath(path));
+        topic: String,
+    ) -> Result<LoggerHandle<ProtoFormat, M>, DiskloggerRegistryError> {
+        if path.extension().is_none_or(|ext| ext != MCAP_FILE_SUFFIX) {
+            return Err(DiskloggerRegistryError::InvalidPath(path));
         }
-        self.register::<ProtoFormat, M>(path)
+        let schema = M::translate_schema();
+        let channel = Arc::new(mcap::Channel {
+            id: 0,
+            topic,
+            schema: Some(Arc::new(schema)),
+            message_encoding: "protobuf".to_string(),
+            metadata: BTreeMap::new(),
+        });
+        self.register::<ProtoFormat, M>(path, channel)
     }
 
-    pub fn register_jsonl<M>(
+    pub fn register_jsonl<M: JsonToMcapSchema>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle<JsonlFormat, M>, errors::DiskloggerRegistryError> {
-        if path.extension().is_none_or(|ext| ext != JSONL_FILE_FORMAT) {
-            return Err(errors::DiskloggerRegistryError::InvalidPath(path));
+        topic: String,
+    ) -> Result<LoggerHandle<JsonFormat, M>, DiskloggerRegistryError> {
+        if path.extension().is_none_or(|ext| ext != MCAP_FILE_SUFFIX) {
+            return Err(DiskloggerRegistryError::InvalidPath(path));
         }
-        self.register::<JsonlFormat, M>(path)
+
+        let schema = M::translate_schema();
+
+        let channel = Arc::new(mcap::Channel {
+            id: 0,
+            topic,
+            schema: Some(Arc::new(schema)),
+            message_encoding: "json".to_string(),
+            metadata: BTreeMap::new(),
+        });
+
+        self.register::<JsonFormat, M>(path, channel)
     }
 
     pub fn build(self) -> CentralDiskLogger {
-        CentralDiskLogger::new(self.receiver, self.task_to_path_mapping)
+        CentralDiskLogger::new(self.receiver, self.id_to_target_mapping)
     }
 
     fn register<F, M>(
         &mut self,
         path: PathBuf,
-    ) -> Result<LoggerHandle<F, M>, errors::DiskloggerRegistryError> {
-        let file = match File::create_new(&path) {
-            Ok(f) => f,
-            Err(err) => {
-                return Err(errors::DiskloggerRegistryError::LogFileCreationError {
-                    path,
-                    source: err,
-                });
+        channel: Arc<mcap::Channel<'static>>,
+    ) -> Result<LoggerHandle<F, M>, DiskloggerRegistryError> {
+        let file = File::create_new(&path).map_err(|err| {
+            DiskloggerRegistryError::LogFileCreationError {
+                path: path.clone(),
+                source: err,
             }
-        };
-        let writer = BufWriter::new(file);
+        })?;
+        let writer = mcap::Writer::new(BufWriter::new(file))
+            .map_err(DiskloggerRegistryError::WriterCreationError)?;
 
         let logger_id = self.current_logger_id;
-        let _ = TryInsertExt::try_insert(&mut self.task_to_path_mapping, logger_id, (path, writer))
-            .map_err(|err| {
-                let (rejected_path, _rejected_writer) = err.value;
-                errors::DiskloggerRegistryError::PathAlreadyRegisteredError(rejected_path)
-            })?;
+
+        let _ = TryInsertExt::try_insert(
+            &mut self.id_to_target_mapping,
+            logger_id,
+            WriteTarget {
+                path,
+                writer,
+                channel,
+            },
+        )
+        .map_err(|err| {
+            let target = err.value;
+            DiskloggerRegistryError::PathAlreadyRegisteredError(target.path)
+        })?;
 
         let handle = LoggerHandle {
             logger_id,
@@ -176,11 +204,11 @@ impl Default for DiskLoggerRegistry {
     }
 }
 
-pub struct JsonlFormat {}
-pub struct ProtoFormat {}
+pub struct JsonFormat;
+pub struct ProtoFormat;
 
 pub type ProtoLoggerHandle<M> = LoggerHandle<ProtoFormat, M>;
-pub type JsonlLoggerHandle<M> = LoggerHandle<JsonlFormat, M>;
+pub type JsonlLoggerHandle<M> = LoggerHandle<JsonFormat, M>;
 
 #[cfg(test)]
 mod tests {
@@ -214,7 +242,7 @@ mod tests {
             let res = handler.send(message);
             assert!(matches!(
                 res.err().unwrap(),
-                errors::LoggingError::Conversion(MockConversionError)
+                ProtoLoggingError::Conversion(_message)
             ));
             assert!(receiver.try_recv().is_err());
         }
@@ -227,10 +255,7 @@ mod tests {
             let handler = LoggerHandle::<ProtoFormat, MockTaskProto>::new(1, sender);
             drop(receiver);
             let res = handler.send(message);
-            assert!(matches!(
-                res.unwrap_err(),
-                errors::LoggingError::SendError(_)
-            ));
+            assert!(matches!(res.unwrap_err(), ProtoLoggingError::SendError(_)));
         }
     }
 
@@ -240,10 +265,19 @@ mod tests {
         #[test]
         fn given_valid_paths_when_creating_logger_then_files_are_created() {
             let temp_dir = tempfile::tempdir().unwrap();
-            let file_path = temp_dir.path().join("test_log_1.bin");
+            let file_path = temp_dir.path().join("test_log_1.mcap");
+
+            let channel = Arc::new(mcap::Channel {
+                id: 0,
+                topic: "test".to_string(),
+                schema: Some(Arc::new(MockTaskProto::translate_schema())),
+                message_encoding: "protobuf".to_string(),
+                metadata: BTreeMap::new(),
+            });
 
             let mut registry = DiskLoggerRegistry::new();
-            let handle = registry.register::<ProtoFormat, MockTaskProto>(file_path.clone());
+            let handle =
+                registry.register::<ProtoFormat, MockTaskProto>(file_path.clone(), channel);
             assert!(handle.is_ok());
             assert!(file_path.exists());
         }
@@ -254,8 +288,17 @@ mod tests {
             let file_path = temp_dir.path().join("already_exists.bin");
             fs::File::create(&file_path).unwrap();
 
+            let channel = Arc::new(mcap::Channel {
+                id: 0,
+                topic: "test".to_string(),
+                schema: Some(Arc::new(MockTaskProto::translate_schema())),
+                message_encoding: "protobuf".to_string(),
+                metadata: BTreeMap::new(),
+            });
+
             let mut register = DiskLoggerRegistry::new();
-            let handle = register.register::<ProtoFormat, MockTaskProto>(file_path.clone());
+            let handle =
+                register.register::<ProtoFormat, MockTaskProto>(file_path.clone(), channel);
 
             assert!(handle.is_err());
         }
