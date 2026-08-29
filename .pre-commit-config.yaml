@@ -43,7 +43,7 @@ repos:
       # Fast: runs on every commit
       - id: rust-fmt
         name: Rust fmt
-        entry: cargo fmt --all --
+        entry: cargo fmt --all --check --
         pass_filenames: true
         types: [file, rust]
         language: system
