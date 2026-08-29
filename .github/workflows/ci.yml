@@ -12,39 +12,18 @@ env:
   CARGO_TERM_COLOR: always
   PROTOC_VERSION: "34.0"
 jobs:
-  typos-cli:
-    name: typos
+  pre-commit:
+    name: pre-commit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@v2
+      - uses: actions/setup-python@v5
         with:
-          tool: typos-cli
-      - run: typos
-  taplo-toml-fmt:
-    name: taplo fmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: taplo-cli
-      - run: taplo fmt --check --diff
-  yamlfmt:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-          cache: false
-      - run: go install github.com/google/yamlfmt/cmd/yamlfmt@latest
-      - run: yamlfmt -lint .
-  protolint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: plexsystems/protolint-action@v0.7.0
+          python-version: "3.12"
+      # Skip rust-specific jobs to use caching from build step
+      - uses: pre-commit/action@v3.0.1
+        env:
+          SKIP: rust-fmt,rust-clippy
   cargo-fmt:
     name: Cargo fmt
     runs-on: ubuntu-latest
@@ -67,6 +46,7 @@ jobs:
           version: ${{ env.PROTOC_VERSION }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo build --workspace --all-targets --all-features
+  # ---- Depend on build; reuse its cache ----
   cargo-clippy:
     name: Cargo clippy
     needs: cargo-build
