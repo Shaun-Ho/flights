@@ -102,7 +102,7 @@ impl walkers::Plugin for AirspacePlugin {
                 .collect();
             ui.painter().line(
                 points,
-                egui::epaint::Stroke::new(1.0, epaint::Color32::BLUE),
+                egui::epaint::Stroke::new(1.0_f32, epaint::Color32::BLUE),
             );
         }
     }
@@ -136,7 +136,7 @@ fn build_aircraft_path_shape(
         points: aircraft_shape_points,
         closed: true,
         fill: fill_color,
-        stroke: egui::epaint::PathStroke::new(0.3, epaint::Color32::BLACK),
+        stroke: egui::epaint::PathStroke::new(0.3_f32, epaint::Color32::BLACK),
     }
 }
 
