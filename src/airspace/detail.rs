@@ -350,7 +350,8 @@ mod tests {
                 tracks: existing,
             };
 
-            let aircraft_updates = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let aircraft_updates =
+                vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
             let airspace_update = AirspaceUpdate {
                 timestamp: now,
@@ -400,7 +401,8 @@ mod tests {
                 timestamp: to_datetime("00:01:00"),
                 tracks: existing,
             };
-            let aircraft_updates = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
+            let aircraft_updates =
+                vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
 
             let airspace_update = AirspaceUpdate {
                 timestamp: now,
@@ -454,7 +456,8 @@ mod tests {
                 timestamp: to_datetime("00:01:00"),
                 tracks: existing,
             };
-            let aircraft_updates = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let aircraft_updates =
+                vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
             let airspace_update = AirspaceUpdate {
                 timestamp: now,
