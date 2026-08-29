@@ -137,13 +137,12 @@ mod test {
 
     use super::*;
     use crate::pipeline::config::{AirspaceConfig, IngestorConfig, ParserConfig};
-    use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
+    use crate::test_utilities::write_pb_message_to_disk;
 
     #[rstest::rstest]
     #[test_log::test]
-    fn given_pipeline_setup_with_ingestor_reading_from_file_when_ingestor_terminates_then_entire_pipeline_shuts_down_gracefully(
-        test_path: TestPath,
-    ) {
+    fn given_pipeline_setup_with_ingestor_reading_from_file_when_ingestor_terminates_then_entire_pipeline_shuts_down_gracefully()
+     {
         let now = std::time::SystemTime::now();
         let timestamp = prost_types::Timestamp::from(now);
         let message = "ICA020113>OGADSB,qAS,AVX1081:/190558h5050.73N/00413.19E^222/262/A=007246 !W06! id25020113 +2880fpm FL079.69 A3:RAM831F Sq7122".into();
@@ -151,7 +150,7 @@ mod test {
             timestamp: Some(timestamp),
             message,
         };
-        let read_path = test_path.path.join("test_ingestor_log.mcap");
+        let read_path = testdir::testdir!().join("test_ingestor_log.mcap");
         let mut writer = std::io::BufWriter::new(std::fs::File::create(&read_path).unwrap());
         let _ = write_pb_message_to_disk(&mut writer, &packet);
         let ingestor_config = IngestorConfig {

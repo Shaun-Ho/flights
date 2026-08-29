@@ -79,8 +79,8 @@ mod tests {
 
     #[test]
     fn given_valid_message_when_stepped_then_writes_payload_to_file() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("data_log.bin");
+        let test_dir = testdir::testdir!();
+        let file_path = test_dir.join("data_log.bin");
         let mut mapping = HashMap::new();
         let task_id = 42;
 
@@ -149,8 +149,8 @@ mod tests {
 
     #[test]
     fn given_empty_channel_when_stepped_then_returns_running() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("empty_test.bin");
+        let test_dir = testdir::testdir!();
+        let file_path = test_dir.join("empty_test.bin");
         let mut mapping = HashMap::new();
 
         let logger_id = 1;
@@ -185,8 +185,8 @@ mod tests {
 
     #[test]
     fn given_disconnected_channel_when_stepped_then_returns_completed() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("disconnect_test.bin");
+        let test_dir = testdir::testdir!();
+        let file_path = test_dir.join("disconnect_test.bin");
         let mut mapping = HashMap::new();
 
         let logger_id = 1;
@@ -224,8 +224,8 @@ mod tests {
 
     #[test]
     fn given_unregistered_logger_id_when_stepped_then_ignores_and_returns_running() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("unregistered_test.bin");
+        let test_dir = testdir::testdir!();
+        let file_path = test_dir.join("unregistered_test.bin");
         let mut mapping = HashMap::new();
 
         let logger_id = 1;
