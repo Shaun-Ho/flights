@@ -33,7 +33,7 @@ impl Airspace {
         airspace_update: AirspaceUpdate,
         buffer_duration: chrono::Duration,
     ) -> Result<(), AirspaceError> {
-        let mut aircrafts = airspace_update.updates;
+        let mut aircraft_vec = airspace_update.updates;
 
         if self.timestamp > airspace_update.timestamp {
             return Err(AirspaceError::InvalidUpdateTimestamp(
@@ -44,7 +44,7 @@ impl Airspace {
 
         let mut problematic = Vec::new();
 
-        while let Some(aircraft) = aircrafts.pop() {
+        while let Some(aircraft) = aircraft_vec.pop() {
             // if aircraft broadcasted timestamp is greater than airspace timestamp,
             // we discard it
             if aircraft.broadcasted_timestamp - self.timestamp > Duration::milliseconds(500) {
@@ -235,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn when_adding_aircrafts_to_empty_entries_then_correct_histories_are_created() {
+    fn when_adding_aircraft_to_empty_entries_then_correct_histories_are_created() {
         let now_datetime = chrono::Utc::now();
         let buffer_duration = chrono::TimeDelta::seconds(5);
         let mut airspace = Airspace {
@@ -250,13 +250,13 @@ mod tests {
         let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
 
         #[rustfmt::skip]
-        let aircrafts = vec![
+        let aircraft_updates = vec![
             create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
         let airspace_update = AirspaceUpdate {
             timestamp: now_datetime,
-            updates: aircrafts,
+            updates: aircraft_updates,
         };
 
         let _ = airspace.update(airspace_update, buffer_duration);
@@ -286,7 +286,7 @@ mod tests {
         );
     }
     #[test]
-    fn when_adding_aircrafts_to_empty_entries_then_airspace_datetime_is_correctly_updated() {
+    fn when_adding_aircraft_to_empty_entries_then_airspace_datetime_is_correctly_updated() {
         let buffer_duration = chrono::TimeDelta::seconds(5);
         let mut airspace = Airspace::new();
         let now_datetime = chrono::Utc::now();
@@ -298,13 +298,13 @@ mod tests {
         let expected_aircraft_2_datetime = now_datetime - chrono::TimeDelta::seconds(1);
 
         #[rustfmt::skip]
-        let aircrafts = vec![
+        let aircraft_updates = vec![
             create_dummy_aircraft_at_time(expected_aircraft_1_datetime, expected_aircraft_1_icao_address),
             create_dummy_aircraft_at_time(expected_aircraft_2_datetime, expected_aircraft_2_icao_address),
         ];
         let airspace_update = AirspaceUpdate {
             timestamp: now_datetime,
-            updates: aircrafts,
+            updates: aircraft_updates,
         };
 
         let _ = airspace.update(airspace_update, buffer_duration);
@@ -312,7 +312,7 @@ mod tests {
     }
 
     #[cfg(test)]
-    mod when_adding_aircrafts_to_existing_entries {
+    mod when_adding_aircraft_to_existing_entries {
 
         use crate::airspace::detail::AircraftTrack;
 
@@ -350,11 +350,11 @@ mod tests {
                 tracks: existing,
             };
 
-            let aircrafts = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let aircraft_updates = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
             let airspace_update = AirspaceUpdate {
                 timestamp: now,
-                updates: aircrafts,
+                updates: aircraft_updates,
             };
 
             let _ = airspace.update(airspace_update, buffer_duration);
@@ -400,11 +400,11 @@ mod tests {
                 timestamp: to_datetime("00:01:00"),
                 tracks: existing,
             };
-            let aircrafts = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
+            let aircraft_updates = vec![create_dummy_aircraft_at_time(time_a, aircraft_icao_address)];
 
             let airspace_update = AirspaceUpdate {
                 timestamp: now,
-                updates: aircrafts,
+                updates: aircraft_updates,
             };
 
             let _ = airspace.update(airspace_update, buffer_duration);
@@ -454,11 +454,11 @@ mod tests {
                 timestamp: to_datetime("00:01:00"),
                 tracks: existing,
             };
-            let aircrafts = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
+            let aircraft_updates = vec![create_dummy_aircraft_at_time(time_c, aircraft_icao_address)];
 
             let airspace_update = AirspaceUpdate {
                 timestamp: now,
-                updates: aircrafts,
+                updates: aircraft_updates,
             };
 
             let _ = airspace.update(airspace_update, buffer_duration);
