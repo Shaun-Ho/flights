@@ -33,6 +33,7 @@ repos:
     rev: v1.28.4
     hooks:
       - id: typos
+        args: []
   - repo: https://github.com/yoheimuta/protolint
     rev: v0.56.3
     hooks:
