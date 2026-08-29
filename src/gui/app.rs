@@ -22,10 +22,10 @@ impl RadarApp {
 }
 
 impl eframe::App for RadarApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 let my_position = walkers::Position::new(0.0, 0.0);
 
                 let mut map =
