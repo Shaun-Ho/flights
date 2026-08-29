@@ -37,14 +37,14 @@ impl AirspaceStore {
 
 impl SteppableTask for AirspaceStore {
     fn step(&mut self) -> TaskState {
-        let mut aircrafts = Vec::new();
+        let mut aircraft_vec = Vec::new();
         let mut is_disconnected = false;
 
         // drain the channel to check status of channel
         loop {
             match self.aircraft_receiver.try_recv() {
                 Ok(aircraft) => {
-                    aircrafts.push(aircraft);
+                    aircraft_vec.push(aircraft);
                 }
                 Err(crossbeam_channel::TryRecvError::Empty) => {
                     break;
@@ -59,7 +59,7 @@ impl SteppableTask for AirspaceStore {
 
         let airspace_update = AirspaceUpdate {
             timestamp: Utc::now(),
-            updates: aircrafts,
+            updates: aircraft_vec,
         };
         if let Some(logger) = &self.logger {
             let _ = logger.send(airspace_update.clone());
