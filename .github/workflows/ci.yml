@@ -5,140 +5,127 @@ name: CI
 on:
     pull_request:
     push:
+        branches: [main]
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
     cancel-in-progress: true
 
+env:
+    CARGO_TERM_COLOR: always
+    PROTOC_VERSION: '34.0'
+
 jobs:
-    cargo-build:
-        name: Cargo Build
-        runs-on: ubuntu-latest
-        steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
-            - name: Install stable toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-            - name: Install Protoc
-              uses: arduino/setup-protoc@v3
-              with:
-                  version: '34.0'
-                  repo-token: ${{ secrets.GITHUB_TOKEN }}
-            - name: cargo build
-              run: cargo b --workspace --all-targets --all-features
-    cargo-fmt:
-        name: Cargo fmt
-        runs-on: ubuntu-latest
-        steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
-            - name: Install stable toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-              with:
-                  components: rustfmt
-            - name: Install Protoc
-              uses: arduino/setup-protoc@v3
-              with:
-                  version: '34.0'
-                  repo-token: ${{ secrets.GITHUB_TOKEN }}
-            - name: Rustfmt Check
-              run: cargo fmt --all --check
-    cargo-clippy:
-        name: Cargo clippy
-        runs-on: ubuntu-latest
-        steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
-            - name: Install stable toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-              with:
-                  components: clippy
-            - name: Install Protoc
-              uses: arduino/setup-protoc@v3
-              with:
-                  version: '34.0'
-                  repo-token: ${{ secrets.GITHUB_TOKEN }}
-            - name: Clippy Check
-              run: cargo clippy --all-targets
-    cargo-doc:
-        name: Cargo doc
-        runs-on: ubuntu-latest
-        steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
-            - name: Install stable toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-            - name: Install Protoc
-              uses: arduino/setup-protoc@v3
-              with:
-                  version: '34.0'
-                  repo-token: ${{ secrets.GITHUB_TOKEN }}
-            - name: Cargo doc test
-              run: cargo doc --workspace --all-features --no-deps
-    cargo-next-test:
-        name: Cargo test
-        runs-on: ubuntu-latest
-        steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
-            - name: Install stable toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-            - name: Install cargo-nextest
-              uses: taiki-e/install-action@v2
-              with:
-                  tool: cargo-nextest
-            - name: Install Protoc
-              uses: arduino/setup-protoc@v3
-              with:
-                  version: '34.0'
-                  repo-token: ${{ secrets.GITHUB_TOKEN }}
-            - name: Cargo test
-              run: >-
-                  cargo nextest run --workspace --all-targets
-                  --all-features --no-tests=pass
     typos-cli:
         name: typos
         runs-on: ubuntu-latest
         steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
-            - name: Install Typos
-              uses: taiki-e/install-action@v2
+            - uses: actions/checkout@v4
+            - uses: taiki-e/install-action@v2
               with:
                   tool: typos-cli
-            - name: run typos
-              run: typos
+            - run: typos
+
     taplo-toml-fmt:
         name: taplo fmt
         runs-on: ubuntu-latest
         steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
-            - name: Install Taplo
-              uses: taiki-e/install-action@v2
+            - uses: actions/checkout@v4
+            - uses: taiki-e/install-action@v2
               with:
                   tool: taplo-cli
-            - name: Run Taplo
-              id: taplo
-              run: taplo fmt --check --diff
+            - run: taplo fmt --check --diff
+
     yamlfmt:
         runs-on: ubuntu-latest
         steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
+            - uses: actions/checkout@v4
             - uses: actions/setup-go@v5
               with:
                   go-version: stable
                   cache: false
-            - name: Install yamlfmt
-              run: go install github.com/google/yamlfmt/cmd/yamlfmt@latest
-            - name: Run yamlfmt
-              run: yamlfmt .
+            - run: go install github.com/google/yamlfmt/cmd/yamlfmt@latest
+            - run: yamlfmt -lint .
 
     protolint:
         runs-on: ubuntu-latest
         steps:
-            - name: Fetch Repository
-              uses: actions/checkout@v4
-            - name: run protolint
-              uses: plexsystems/protolint-action@v0.7.0
+            - uses: actions/checkout@v4
+            - uses: plexsystems/protolint-action@v0.7.0
+
+    cargo-fmt:
+        name: Cargo fmt
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  components: rustfmt
+            - run: cargo fmt --all --check
+
+    cargo-build:
+        name: Cargo Build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  cache-shared-key: ci-shared
+            - uses: arduino/setup-protoc@v3
+              with:
+                  version: ${{ env.PROTOC_VERSION }}
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - run: cargo build --workspace --all-targets --all-features
+
+    cargo-clippy:
+        name: Cargo clippy
+        needs: cargo-build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  components: clippy
+                  cache-shared-key: ci-shared
+            - uses: arduino/setup-protoc@v3
+              with:
+                  version: ${{ env.PROTOC_VERSION }}
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - run: cargo clippy --workspace --all-targets --all-features
+
+    cargo-doc:
+        name: Cargo doc
+        needs: cargo-build
+        runs-on: ubuntu-latest
+        env:
+            RUSTDOCFLAGS: -D warnings
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  cache-shared-key: ci-shared
+            - uses: arduino/setup-protoc@v3
+              with:
+                  version: ${{ env.PROTOC_VERSION }}
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - run: cargo doc --workspace --all-features --no-deps
+
+    cargo-next-test:
+        name: Cargo test
+        needs: cargo-build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  cache-shared-key: ci-shared
+            - uses: taiki-e/install-action@v2
+              with:
+                  tool: cargo-nextest
+            - uses: arduino/setup-protoc@v3
+              with:
+                  version: ${{ env.PROTOC_VERSION }}
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - run: >-
+                  cargo nextest run --workspace --all-targets
+                  --all-features --no-tests=pass
