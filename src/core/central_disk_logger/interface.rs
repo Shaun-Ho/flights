@@ -259,13 +259,14 @@ mod tests {
         }
     }
 
-    mod disk_logger_registrt {
+    mod disk_logger_registry {
         use super::*;
+        use testdir;
 
         #[test]
         fn given_valid_paths_when_creating_logger_then_files_are_created() {
-            let temp_dir = tempfile::tempdir().unwrap();
-            let file_path = temp_dir.path().join("test_log_1.mcap");
+            let test_dir = testdir::testdir!();
+            let file_path = test_dir.join("test_log_1.mcap");
 
             let channel = Arc::new(mcap::Channel {
                 id: 0,
@@ -284,8 +285,8 @@ mod tests {
 
         #[test]
         fn given_existing_file_when_creating_logger_then_returns_io_error() {
-            let temp_dir = tempfile::tempdir().unwrap();
-            let file_path = temp_dir.path().join("already_exists.bin");
+            let test_dir = testdir::testdir!();
+            let file_path = test_dir.join("already_exists.bin");
             fs::File::create(&file_path).unwrap();
 
             let channel = Arc::new(mcap::Channel {

@@ -219,11 +219,12 @@ mod test {
     use std::io::Write;
 
     use rstest;
+    use testdir;
 
     use crate::core::thread_manager::{SteppableTask, TaskState};
     use crate::ingestor::task::{APRSDataSource, Ingestor, LiveSource, ReplaySource};
     use crate::ingestor::task::{AprsPacket, PbAprsPacket};
-    use crate::test_utilities::{TestPath, test_path, write_pb_message_to_disk};
+    use crate::test_utilities::write_pb_message_to_disk;
 
     struct MockStream {
         incoming_data: std::io::Cursor<Vec<u8>>,
@@ -353,10 +354,8 @@ mod test {
 
     #[rstest::rstest]
     #[test_log::test]
-    fn when_ingestor_reads_from_log_file_then_sender_receives_expected_aprs_packet(
-        test_path: TestPath,
-    ) {
-        let log_path = &test_path.path.join("test_ingestor_log.mcap");
+    fn when_ingestor_reads_from_log_file_then_sender_receives_expected_aprs_packet() {
+        let log_path = &testdir::testdir!().join("test_ingestor_log.mcap");
 
         let now = std::time::SystemTime::now();
         let timestamp = prost_types::Timestamp::from(now);
@@ -393,8 +392,8 @@ mod test {
     }
 
     #[rstest::rstest]
-    fn when_reading_from_replay_source_then_delays_are_applied_correctly(test_path: TestPath) {
-        let log_path = test_path.path.join("test_replay_delay.mcap");
+    fn when_reading_from_replay_source_then_delays_are_applied_correctly() {
+        let log_path = testdir::testdir!().join("test_replay_delay.mcap");
 
         let base_time = std::time::SystemTime::now();
         let time_p1 = base_time;

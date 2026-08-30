@@ -27,8 +27,8 @@ schemars = { version = "1.2.2", features = ["chrono04"] }
 [dev-dependencies]
 approx = "0.5.1"
 rstest = "0.26.1"
-tempfile = "3.27.0"
-test-log = "0.2.21"
+test-log = "0.2.19"
+testdir = "0.10.0"
 
 
 [build-dependencies]

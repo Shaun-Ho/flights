@@ -11,8 +11,8 @@ use crate::core::thread_manager::*;
 
 #[test]
 fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_disk() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let file_path = temp_dir.path().join("system_log.mcap");
+    let test_dir = testdir::testdir!();
+    let file_path = test_dir.join("system_log.mcap");
 
     let mut registry = DiskLoggerRegistry::new();
     let handle = registry
@@ -49,9 +49,9 @@ fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_dis
 
 #[test]
 fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_correctly() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let file_path_1 = temp_dir.path().join("flight_data.mcap");
-    let file_path_2 = temp_dir.path().join("engine_data.mcap");
+    let test_dir = testdir::testdir!();
+    let file_path_1 = test_dir.join("flight_data.mcap");
+    let file_path_2 = test_dir.join("engine_data.mcap");
 
     let mut registry = DiskLoggerRegistry::new();
 
@@ -131,8 +131,8 @@ impl IntoLogMessage<JsonMessage> for JsonMessage {
 
 #[test]
 fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_disk() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let file_path = temp_dir.path().join("events_log.mcap");
+    let test_dir = testdir::testdir!();
+    let file_path = test_dir.join("events_log.mcap");
 
     let mut registry = DiskLoggerRegistry::new();
     let handle = registry
@@ -166,10 +166,10 @@ fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_d
 
 #[test]
 fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correctly() {
-    let temp_dir = tempfile::tempdir().unwrap();
+    let test_dir = testdir::testdir!();
 
-    let proto_path = temp_dir.path().join("flight_data.mcap");
-    let jsonl_path = temp_dir.path().join("system_events.mcap");
+    let proto_path = test_dir.join("flight_data.mcap");
+    let jsonl_path = test_dir.join("system_events.mcap");
 
     let mut registry = DiskLoggerRegistry::new();
 
