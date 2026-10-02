@@ -1,7 +1,10 @@
 use crate::airspace::{AirspaceStore, AirspaceViewer};
 use crate::core::central_disk_logger::DiskLoggerRegistry;
 use crate::core::central_disk_logger::errors::DiskloggerRegistryError;
-use crate::core::thread_manager::{SteppableTask, TaskID, ThreadManager};
+use crate::core::thread_manager::{
+    OverrunPolicy, PeriodicTask, SteppableTask, TaskID, TaskSchedule, ThreadManager,
+    ZeroPeriodError,
+};
 use crate::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use crate::parser::{Aircraft, AircraftJson, AircraftParser};
 use crate::pb::airspace::PbAirspaceUpdate;
@@ -15,17 +18,17 @@ pub struct AirspaceDataPipeline {
 impl AirspaceDataPipeline {
     #[must_use]
     pub fn new(
-        task_order: Vec<(Box<dyn SteppableTask>, std::time::Duration)>,
+        tasks: Vec<(Box<dyn SteppableTask>, TaskSchedule)>,
         airspace_store: AirspaceStore,
-        update_tick: std::time::Duration,
+        airspace_task_schedule: TaskSchedule,
     ) -> Self {
         let mut thread_manager = ThreadManager::new();
 
-        for (task, duration) in task_order {
-            thread_manager.add_task(task, duration);
+        for (task, schedule) in tasks {
+            thread_manager.add_task(task, schedule);
         }
         let renderer_viewer = airspace_store.get_airspace_viewer();
-        let end_chain_task_id = thread_manager.add_task(airspace_store, update_tick);
+        let end_chain_task_id = thread_manager.add_task(airspace_store, airspace_task_schedule);
         Self {
             thread_manager,
             end_chain_task_id,
@@ -94,16 +97,16 @@ impl AirspaceDataPipeline {
             airspace_logger_handle,
         );
         let disk_logger = disk_logger_registry.build();
-        let task_order: Vec<(Box<dyn SteppableTask>, std::time::Duration)> = vec![
-            (Box::new(disk_logger), std::time::Duration::ZERO),
-            (Box::new(ingestor), std::time::Duration::ZERO),
-            (Box::new(parser), std::time::Duration::ZERO),
+        let tasks: Vec<(Box<dyn SteppableTask>, TaskSchedule)> = vec![
+            (Box::new(disk_logger), TaskSchedule::Continuous),
+            (Box::new(ingestor), TaskSchedule::Continuous),
+            (Box::new(parser), TaskSchedule::Continuous),
         ];
-        Ok(Self::new(
-            task_order,
-            airspace_store,
+        let airspace_schedule = TaskSchedule::Periodic(PeriodicTask::new(
             pipeline_config.airspace.refresh_period,
-        ))
+            OverrunPolicy::Drop,
+        )?);
+        Ok(Self::new(tasks, airspace_store, airspace_schedule))
     }
     #[must_use]
     pub fn get_airspace_viewer(&self) -> AirspaceViewer {
@@ -128,6 +131,8 @@ pub enum AircraftDataPipelineError {
     },
     #[error("Failed to register to disk_logger : {0}")]
     CentralDiskLogger(#[from] DiskloggerRegistryError),
+    #[error("Invalid airspace refresh_period: {0}")]
+    InvalidRefreshPeriod(#[from] ZeroPeriodError),
 }
 
 #[cfg(test)]
