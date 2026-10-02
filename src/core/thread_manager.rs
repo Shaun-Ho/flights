@@ -17,6 +17,11 @@ pub trait SteppableTask: Send + 'static {
     fn step(&mut self) -> TaskState;
 }
 
+pub enum TaskSchedule {
+    Continuous,
+    // Periodic { period: std::time::Duration },
+}
+
 impl<T: SteppableTask + ?Sized> SteppableTask for Box<T> {
     fn step(&mut self) -> TaskState {
         (**self).step()
@@ -57,7 +62,7 @@ impl ThreadManager {
     /// # Panics
     ///
     /// Will panic if thread does not spawn successfully.
-    pub fn add_task<T>(&mut self, task: T, period: std::time::Duration) -> TaskID
+    pub fn add_task<T>(&mut self, task: T, task_speed: TaskSchedule) -> TaskID
     where
         T: SteppableTask,
     {
@@ -67,14 +72,13 @@ impl ThreadManager {
         let worker_status = task_status.clone();
         let (stop_sender, stop_receiver) = crossbeam_channel::bounded::<()>(1);
 
-        let thread_task: Box<dyn FnOnce() + Send> = if period.is_zero() {
-            Box::new(move || {
+        let thread_task: Box<dyn FnOnce() + Send> = match task_speed {
+            TaskSchedule::Continuous => Box::new(move || {
                 run_task_continuously(task, &stop_receiver, worker_status);
-            })
-        } else {
-            Box::new(move || {
-                run_task_with_period(task, period, &stop_receiver, worker_status);
-            })
+            }),
+            // TaskSchedule::Periodic { period } => Box::new(move || {
+            //     run_task_with_period(task, period, &stop_receiver, worker_status);
+            // }),
         };
 
         let handle = std::thread::Builder::new()
@@ -310,219 +314,208 @@ fn log_task_finished_status(task: ManagedTask) {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::thread_manager::TaskState;
+    use super::*;
+    mod threadmanager_setup_and_shutdown_ordering {
+        use super::*;
 
-    use super::{SteppableTask, ThreadManager};
+        // A simple runnable task for counting and self-stopping
+        #[derive(Debug)]
+        struct CountingTask {
+            count: std::sync::Arc<std::sync::Mutex<usize>>,
+            limit: usize,
+            sender: std::sync::mpsc::Sender<usize>,
+        }
 
-    // A simple runnable task for counting and self-stopping
-    #[derive(Debug)]
-    struct CountingTask {
-        count: std::sync::Arc<std::sync::Mutex<usize>>,
-        limit: usize,
-        sender: std::sync::mpsc::Sender<usize>,
-    }
-
-    impl CountingTask {
-        fn new(limit: usize, sender: std::sync::mpsc::Sender<usize>) -> Self {
-            Self {
-                count: std::sync::Arc::new(std::sync::Mutex::new(0)),
-                limit,
-                sender,
+        impl CountingTask {
+            fn new(limit: usize, sender: std::sync::mpsc::Sender<usize>) -> Self {
+                Self {
+                    count: std::sync::Arc::new(std::sync::Mutex::new(0)),
+                    limit,
+                    sender,
+                }
             }
         }
-    }
 
-    impl SteppableTask for CountingTask {
-        fn step(&mut self) -> TaskState {
-            let mut count = self.count.lock().unwrap();
-            *count += 1;
-            self.sender.send(*count).unwrap();
-            if *count < self.limit {
+        impl SteppableTask for CountingTask {
+            fn step(&mut self) -> TaskState {
+                let mut count = self.count.lock().unwrap();
+                *count += 1;
+                self.sender.send(*count).unwrap();
+                if *count < self.limit {
+                    TaskState::Running
+                } else {
+                    TaskState::Completed
+                }
+            }
+        }
+
+        // A runnable task that runs indefinitely until stopped externally
+        #[derive(Debug)]
+        struct LoopingTask {
+            sender: std::sync::mpsc::Sender<usize>,
+            executions: std::sync::Arc<std::sync::Mutex<usize>>,
+        }
+
+        impl LoopingTask {
+            fn new(sender: std::sync::mpsc::Sender<usize>) -> Self {
+                Self {
+                    sender,
+                    executions: std::sync::Arc::new(std::sync::Mutex::new(0)),
+                }
+            }
+        }
+
+        impl SteppableTask for LoopingTask {
+            fn step(&mut self) -> TaskState {
+                let mut executions = self.executions.lock().unwrap();
+                *executions += 1;
+                self.sender.send(*executions).unwrap();
                 TaskState::Running
-            } else {
-                TaskState::Completed
             }
         }
-    }
 
-    // A runnable task that runs indefinitely until stopped externally
-    #[derive(Debug)]
-    struct LoopingTask {
-        sender: std::sync::mpsc::Sender<usize>,
-        executions: std::sync::Arc<std::sync::Mutex<usize>>,
-    }
+        #[test]
+        fn when_multiple_tasks_self_ending_tasks_added_then_graceful_shutdown_when_all_tasks_completed()
+         {
+            let mut manager = ThreadManager::new();
+            let (counter_1_sender, counter_1_receiver) = std::sync::mpsc::channel();
+            let (counter_2_sender, counter_2_receiver) = std::sync::mpsc::channel();
 
-    impl LoopingTask {
-        fn new(sender: std::sync::mpsc::Sender<usize>) -> Self {
-            Self {
-                sender,
-                executions: std::sync::Arc::new(std::sync::Mutex::new(0)),
-            }
+            let counter_1_limit = 5;
+            let counter_2_limit = 10;
+            let task_1 = CountingTask::new(counter_1_limit, counter_1_sender);
+            let task_2 = CountingTask::new(counter_2_limit, counter_2_sender);
+            let task_1_id = manager.add_task(task_1, TaskSchedule::Continuous);
+            let task_2_id = manager.add_task(task_2, TaskSchedule::Continuous);
+
+            manager.wait_on_task_finish(task_2_id);
+            manager.wait_on_task_finish(task_1_id);
+
+            // check that all tasks have been run
+            assert!(manager.tasks.is_empty());
+
+            // check that all tasks executed
+            let counter_2_messages: Vec<usize> = counter_2_receiver.try_iter().collect();
+            let counter_1_messages: Vec<usize> = counter_1_receiver.try_iter().collect();
+            assert_eq!(counter_1_messages.len(), counter_1_limit);
+            assert_eq!(counter_2_messages.len(), counter_2_limit);
         }
-    }
 
-    impl SteppableTask for LoopingTask {
-        fn step(&mut self) -> TaskState {
-            let mut executions = self.executions.lock().unwrap();
-            *executions += 1;
-            self.sender.send(*executions).unwrap();
-            TaskState::Running
+        #[test]
+        fn given_never_ending_task_is_running_when_stop_all_tasks_called_then_tasks_are_shutdown_gracefully()
+         {
+            let mut manager = ThreadManager::new();
+            let (counter_sender, counter_receiver) = std::sync::mpsc::channel();
+            let (looper_sender, _) = std::sync::mpsc::channel();
+
+            let counter_limit = 5;
+            let counter_task = CountingTask::new(counter_limit, counter_sender);
+            let looping_task = LoopingTask::new(looper_sender);
+            let counter_task_id = manager.add_task(counter_task, TaskSchedule::Continuous);
+            let looping_task_id = manager.add_task(looping_task, TaskSchedule::Continuous);
+
+            // give ample time for counter to be executed
+            std::thread::sleep(std::time::Duration::from_millis(counter_limit as u64 * 100));
+            manager.stop_all_tasks();
+            manager.wait_on_task_finish(counter_task_id);
+            manager.wait_on_task_finish(looping_task_id);
+
+            assert!(manager.tasks.is_empty());
+
+            let counter_messages: Vec<usize> = counter_receiver.try_iter().collect();
+            assert_eq!(counter_messages.len(), counter_limit);
         }
-    }
 
-    #[test]
-    fn when_multiple_tasks_added_then_all_tasks_completed() {
-        let mut manager = ThreadManager::new();
-        let (counter_1_sender, counter_1_receiver) = std::sync::mpsc::channel();
-        let (counter_2_sender, counter_2_receiver) = std::sync::mpsc::channel();
+        #[test]
+        fn when_wait_on_task_finish_called_then_task_id_removed() {
+            let mut manager = ThreadManager::new();
+            let (sender, _receiver) = std::sync::mpsc::channel();
 
-        let counter_1_limit = 5;
-        let counter_2_limit = 10;
-        let task_1 = CountingTask::new(counter_1_limit, counter_1_sender);
-        let task_2 = CountingTask::new(counter_2_limit, counter_2_sender);
-        let task_1_id = manager.add_task(task_1, std::time::Duration::from_millis(50));
-        let task_2_id = manager.add_task(task_2, std::time::Duration::from_millis(50));
+            let task_id1 =
+                manager.add_task(LoopingTask::new(sender.clone()), TaskSchedule::Continuous);
+            let task_id2 =
+                manager.add_task(LoopingTask::new(sender.clone()), TaskSchedule::Continuous);
 
-        manager.wait_on_task_finish(task_2_id);
-        manager.wait_on_task_finish(task_1_id);
+            assert_eq!(manager.tasks.len(), 2);
 
-        // check that all tasks have been run
-        assert!(manager.tasks.is_empty());
+            manager.stop_all_tasks();
+            manager.wait_on_task_finish(task_id1);
 
-        // check that all tasks executed
-        let counter_2_messages: Vec<usize> = counter_2_receiver.try_iter().collect();
-        let counter_1_messages: Vec<usize> = counter_1_receiver.try_iter().collect();
-        assert_eq!(counter_1_messages.len(), counter_1_limit);
-        assert_eq!(counter_2_messages.len(), counter_2_limit);
-    }
+            assert_eq!(manager.tasks.len(), 1);
+            assert!(manager.tasks.contains_key(&task_id2));
+            assert!(!manager.tasks.contains_key(&task_id1));
 
-    #[test]
-    fn when_stop_all_tasks_is_called() {
-        let mut manager = ThreadManager::new();
-        let (counter_sender, counter_receiver) = std::sync::mpsc::channel();
-        let (looper_sender, _) = std::sync::mpsc::channel();
+            manager.wait_on_task_finish(task_id2);
+            assert!(manager.tasks.is_empty()); // No tasks left
+        }
 
-        let counter_limit = 5;
-        let counter_task = CountingTask::new(counter_limit, counter_sender);
-        let looping_task = LoopingTask::new(looper_sender);
-        let counter_task_id = manager.add_task(counter_task, std::time::Duration::from_millis(50));
-        let looping_task_id = manager.add_task(looping_task, std::time::Duration::from_millis(50));
+        #[test]
+        fn when_specific_task_is_stopped_then_task_is_removed_from_threadmanager() {
+            let mut manager = ThreadManager::new();
+            let (looper_1_sender, looper_1_receiver) = std::sync::mpsc::channel();
+            let (looper_2_sender, looper_2_receiver) = std::sync::mpsc::channel();
 
-        // give ample time for counter to be executed
-        std::thread::sleep(std::time::Duration::from_millis(counter_limit as u64 * 100));
-        manager.stop_all_tasks();
-        manager.wait_on_task_finish(counter_task_id);
-        manager.wait_on_task_finish(looping_task_id);
+            let task_1_id =
+                manager.add_task(LoopingTask::new(looper_1_sender), TaskSchedule::Continuous);
+            let task_2_id =
+                manager.add_task(LoopingTask::new(looper_2_sender), TaskSchedule::Continuous);
 
-        assert!(manager.tasks.is_empty());
+            // Give them a moment to start executing
+            std::thread::sleep(std::time::Duration::from_millis(50));
 
-        let counter_messages: Vec<usize> = counter_receiver.try_iter().collect();
-        assert_eq!(counter_messages.len(), counter_limit);
-    }
+            let stop_result = manager.stop_task(task_1_id);
+            assert!(stop_result.is_ok(), "Stopping existing task should succeed");
+            manager.wait_on_task_finish(task_1_id);
 
-    #[test]
-    fn when_wait_on_task_finish_called_then_task_id_removed() {
-        let mut manager = ThreadManager::new();
-        let (sender, _receiver) = std::sync::mpsc::channel();
+            let executions_task_1: Vec<usize> = looper_1_receiver.try_iter().collect();
 
-        let task_id1 = manager.add_task(
-            LoopingTask::new(sender.clone()),
-            std::time::Duration::from_millis(100),
-        );
-        let task_id2 = manager.add_task(
-            LoopingTask::new(sender.clone()),
-            std::time::Duration::from_millis(100),
-        );
+            assert!(
+                !executions_task_1.is_empty(),
+                "Task 1 should have executed at least once after asking to stop"
+            );
+            // check that task no longer exists
+            assert!(!manager.tasks.contains_key(&task_1_id));
 
-        assert_eq!(manager.tasks.len(), 2);
+            // Verify the other task is still running (or can be stopped)
+            println!("Verifying task {task_2_id} is still running (or stoppable)");
+            std::thread::sleep(std::time::Duration::from_millis(50));
 
-        manager.stop_all_tasks();
-        manager.wait_on_task_finish(task_id1);
+            let stop_result_2 = manager.stop_task(task_2_id);
+            assert!(stop_result_2.is_ok(), "Stopping task 2 should succeed");
 
-        assert_eq!(manager.tasks.len(), 1);
-        assert!(manager.tasks.contains_key(&task_id2));
-        assert!(!manager.tasks.contains_key(&task_id1));
+            manager.wait_on_task_finish(task_2_id);
+            let executions_task2: Vec<usize> = looper_2_receiver.try_iter().collect();
 
-        manager.wait_on_task_finish(task_id2);
-        assert!(manager.tasks.is_empty()); // No tasks left
-    }
+            assert!(
+                !executions_task2.is_empty(),
+                "Task 2 should have executed at least once after asking to stop"
+            );
+            assert!(!manager.tasks.contains_key(&task_2_id));
 
-    #[test]
-    fn when_specific_task_is_stopped_then_task_is_removed_from_threadmanager() {
-        let mut manager = ThreadManager::new();
-        let (looper_1_sender, looper_1_receiver) = std::sync::mpsc::channel();
-        let (looper_2_sender, looper_2_receiver) = std::sync::mpsc::channel();
+            assert!(manager.tasks.is_empty());
+        }
+        #[test]
+        fn when_non_existent_task_is_stopped_then_task_is_removed_from_threadmanager() {
+            let mut manager = ThreadManager::new();
+            let (looper_1_sender, _looper_1_receiver) = std::sync::mpsc::channel();
+            let (looper_2_sender, _looper_2_receiver) = std::sync::mpsc::channel();
 
-        let task_1_id = manager.add_task(
-            LoopingTask::new(looper_1_sender),
-            std::time::Duration::from_millis(10),
-        );
-        let task_2_id = manager.add_task(
-            LoopingTask::new(looper_2_sender),
-            std::time::Duration::from_millis(10),
-        );
+            let _ = manager.add_task(LoopingTask::new(looper_1_sender), TaskSchedule::Continuous);
+            let _ = manager.add_task(LoopingTask::new(looper_2_sender), TaskSchedule::Continuous);
 
-        // Give them a moment to start executing
-        std::thread::sleep(std::time::Duration::from_millis(50));
+            std::thread::sleep(std::time::Duration::from_millis(50));
 
-        let stop_result = manager.stop_task(task_1_id);
-        assert!(stop_result.is_ok(), "Stopping existing task should succeed");
-        manager.wait_on_task_finish(task_1_id);
-
-        let executions_task_1: Vec<usize> = looper_1_receiver.try_iter().collect();
-
-        assert!(
-            !executions_task_1.is_empty(),
-            "Task 1 should have executed at least once after asking to stop"
-        );
-        // check that task no longer exists
-        assert!(!manager.tasks.contains_key(&task_1_id));
-
-        // Verify the other task is still running (or can be stopped)
-        println!("Verifying task {task_2_id} is still running (or stoppable)");
-        std::thread::sleep(std::time::Duration::from_millis(50));
-
-        let stop_result_2 = manager.stop_task(task_2_id);
-        assert!(stop_result_2.is_ok(), "Stopping task 2 should succeed");
-
-        manager.wait_on_task_finish(task_2_id);
-        let executions_task2: Vec<usize> = looper_2_receiver.try_iter().collect();
-
-        assert!(
-            !executions_task2.is_empty(),
-            "Task 2 should have executed at least once after asking to stop"
-        );
-        assert!(!manager.tasks.contains_key(&task_2_id));
-
-        assert!(manager.tasks.is_empty());
-    }
-    #[test]
-    fn when_non_existent_task_is_stopped_then_task_is_removed_from_threadmanager() {
-        let mut manager = ThreadManager::new();
-        let (looper_1_sender, _looper_1_receiver) = std::sync::mpsc::channel();
-        let (looper_2_sender, _looper_2_receiver) = std::sync::mpsc::channel();
-
-        let _ = manager.add_task(
-            LoopingTask::new(looper_1_sender),
-            std::time::Duration::from_millis(10),
-        );
-        let _ = manager.add_task(
-            LoopingTask::new(looper_2_sender),
-            std::time::Duration::from_millis(10),
-        );
-
-        std::thread::sleep(std::time::Duration::from_millis(50));
-
-        let non_existent_task_id = 999;
-        let stop_non_existent_result = manager.stop_task(non_existent_task_id);
-        assert!(
-            stop_non_existent_result.is_err(),
-            "Stopping a non-existent task should return an error"
-        );
-        assert_eq!(
-            stop_non_existent_result.unwrap_err(),
-            crossbeam_channel::SendError(()),
-            "Error for non-existent task should be SendError(())"
-        );
+            let non_existent_task_id = 999;
+            let stop_non_existent_result = manager.stop_task(non_existent_task_id);
+            assert!(
+                stop_non_existent_result.is_err(),
+                "Stopping a non-existent task should return an error"
+            );
+            assert_eq!(
+                stop_non_existent_result.unwrap_err(),
+                crossbeam_channel::SendError(()),
+                "Error for non-existent task should be SendError(())"
+            );
+        }
     }
 }
