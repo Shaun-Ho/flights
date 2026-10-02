@@ -67,9 +67,9 @@ impl SteppableTask for AirspaceStore {
 
         if let Ok(mut airspace) = self.inner.write() {
             match airspace.update(airspace_update, self.airspace_time_buffer) {
-                Ok(_) => (),
+                Ok(()) => (),
                 Err(e) => log::error!("{e}"),
-            };
+            }
         }
 
         if is_disconnected {

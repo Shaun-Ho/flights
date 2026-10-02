@@ -82,6 +82,7 @@ mod icao_serde {
     use serde::de::Error;
     use serde::{Deserialize, Deserializer, Serializer};
 
+    #[allow(clippy::trivially_copy_pass_by_ref)] // signature required by `#[serde(with)]`
     pub fn serialize<S>(icao: &ICAOAddress, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

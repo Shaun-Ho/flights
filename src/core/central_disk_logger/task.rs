@@ -18,6 +18,7 @@ pub struct CentralDiskLogger {
     id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
 impl CentralDiskLogger {
+    #[must_use]
     pub fn new(
         receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
         id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
@@ -37,13 +38,23 @@ impl SteppableTask for CentralDiskLogger {
                     errors::CentralDiskLoggerError::TaskNotRegistered(message.logger_id),
                 ) {
                     Ok(target) => {
+                        // MCAP timestamps are unsigned nanoseconds since the epoch
+                        let Some(timestamp_nanos) = message
+                            .publish_timestamp
+                            .timestamp_nanos_opt()
+                            .and_then(|nanos| u64::try_from(nanos).ok())
+                        else {
+                            log::warn!(
+                                "Timestamp {} not representable in MCAP, dropping message",
+                                message.publish_timestamp
+                            );
+                            return TaskState::Running;
+                        };
                         let mcap_message = mcap::Message {
                             channel: target.channel.clone(),
                             sequence: 0,
-                            log_time: message.publish_timestamp.timestamp_nanos_opt().unwrap()
-                                as u64,
-                            publish_time: message.publish_timestamp.timestamp_nanos_opt().unwrap()
-                                as u64,
+                            log_time: timestamp_nanos,
+                            publish_time: timestamp_nanos,
                             data: message.payload.into(),
                         };
                         if let Err(err) = target
@@ -51,11 +62,11 @@ impl SteppableTask for CentralDiskLogger {
                             .write(&mcap_message)
                             .map_err(errors::CentralDiskLoggerError::WriteError)
                         {
-                            log::warn!("{err}")
+                            log::warn!("{err}");
                         }
                     }
                     Err(err) => log::warn!("{err}"),
-                };
+                }
                 TaskState::Running
             }
             Err(crossbeam_channel::TryRecvError::Empty) => TaskState::Running,
