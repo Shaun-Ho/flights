@@ -77,9 +77,7 @@ impl ThreadManager {
     /// # Arguments
     ///
     /// - `task` (`T`) - Task to be added - this type must implement the `SteppableTask` trait.
-    /// - `schedule` (`TaskSchedule`) - How often the task is stepped: back-to-back
-    ///   (`Continuous`) or once per `period` (`Periodic`), where the `overrun_policy`
-    ///   decides what happens to ticks missed because a step ran late.
+    /// - `schedule` (`TaskSchedule`) - How often the task is run.
     ///
     /// # Returns
     ///
@@ -167,8 +165,6 @@ impl Default for ThreadManager {
 
 impl Drop for ThreadManager {
     fn drop(&mut self) {
-        // If the developer used your API correctly (wait_on_all_tasks),
-        // this is empty and Drop does absolutely nothing.
         if self.tasks.is_empty() {
             return;
         }
@@ -355,8 +351,7 @@ fn log_task_finished_status(task: ManagedTask) {
 mod tests {
     use super::*;
 
-    // A simple runnable task for counting and self-stopping.
-    // Sends the time each step started, so tests can assert on scheduling.
+    // A simple runnable task for counting and self-stopping
     #[derive(Debug)]
     struct CountingTask {
         count: std::sync::Arc<std::sync::Mutex<usize>>,
@@ -407,8 +402,7 @@ mod tests {
         }
     }
 
-    // A runnable task that runs indefinitely until stopped externally.
-    // Sends the time each step started, so tests can assert on scheduling.
+    // A runnable task that runs indefinitely until stopped externally
     #[derive(Debug)]
     struct LoopingTask {
         sender: std::sync::mpsc::Sender<std::time::Instant>,
@@ -615,9 +609,7 @@ mod tests {
                 let period = std::time::Duration::from_millis(40);
                 let limit = 4;
 
-                // Each step takes 1.5 periods, so it always misses the next tick. Dropping that
-                // tick puts step `k` on tick `2k`; catching up would instead run steps
-                // back-to-back, 1.5 periods apart
+                // Each step takes 1.5 periods, so every other tick is dropped
                 let start = std::time::Instant::now();
 
                 let task_id = manager.add_task(
@@ -665,8 +657,7 @@ mod tests {
                     );
                 }
 
-                // Loose upper bound (a whole period of slack): the last step must not have
-                // skipped past its tick, i.e. the normal period resumed after the overrun
+                // Check the period resumes after the overrun
                 let last_tick = expected_ticks[expected_ticks.len() - 1];
                 let last_step_offset = step_times[step_times.len() - 1].duration_since(start);
                 assert!(
@@ -706,7 +697,7 @@ mod tests {
                     next_deadline_after(base, period, base + std::time::Duration::from_millis(25));
                 assert_eq!(next, base + std::time::Duration::from_millis(30));
 
-                // Exactly on a tick boundary: that tick has passed, so skip to the following one
+                // On a tick boundary
                 let next = next_deadline_after(base, period, base + period);
                 assert_eq!(next, base + period * 2);
             }
