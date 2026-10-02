@@ -19,16 +19,15 @@ impl AirspaceDataPipeline {
     #[must_use]
     pub fn new(
         tasks: Vec<(Box<dyn SteppableTask>, TaskSchedule)>,
-        airspace_store: AirspaceStore,
-        airspace_task_schedule: TaskSchedule,
+        airspace_store: (AirspaceStore, TaskSchedule),
     ) -> Self {
         let mut thread_manager = ThreadManager::new();
 
         for (task, schedule) in tasks {
             thread_manager.add_task(task, schedule);
         }
-        let renderer_viewer = airspace_store.get_airspace_viewer();
-        let end_chain_task_id = thread_manager.add_task(airspace_store, airspace_task_schedule);
+        let renderer_viewer = airspace_store.0.get_airspace_viewer();
+        let end_chain_task_id = thread_manager.add_task(airspace_store.0, airspace_store.1);
         Self {
             thread_manager,
             end_chain_task_id,
@@ -106,7 +105,7 @@ impl AirspaceDataPipeline {
             pipeline_config.airspace.refresh_period,
             OverrunPolicy::Drop,
         )?);
-        Ok(Self::new(tasks, airspace_store, airspace_schedule))
+        Ok(Self::new(tasks, (airspace_store, airspace_schedule)))
     }
     #[must_use]
     pub fn get_airspace_viewer(&self) -> AirspaceViewer {
