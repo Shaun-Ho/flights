@@ -4,6 +4,7 @@ use ogn_aprs_parser::ICAOAddress;
 
 use crate::parser::Aircraft;
 
+#[must_use]
 pub fn create_dummy_aircraft_at_time(
     timestamp: chrono::DateTime<chrono::Utc>,
     icao_address: ICAOAddress,

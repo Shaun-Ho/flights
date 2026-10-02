@@ -21,6 +21,7 @@ impl Airspace {
             tracks: HashMap::new(),
         }
     }
+    #[must_use]
     pub fn create_with_state(
         timestamp: DateTime<Utc>,
         tracks: HashMap<ICAOAddress, AircraftTrack>,
@@ -97,7 +98,7 @@ impl Airspace {
             Vacant(entry) => {
                 entry.insert(AircraftTrack::new(aircraft.icao_address, aircraft.into()));
             }
-        };
+        }
     }
 
     #[must_use]

@@ -25,7 +25,7 @@ impl<E, V> fmt::Display for TryInsertError<E, V> {
 
 impl<E: fmt::Debug, V: fmt::Debug> Error for TryInsertError<E, V> {}
 
-/// Extension trait to add `try_insert` to standard library HashMap.
+/// Extension trait to add `try_insert` to standard library `HashMap`.
 pub trait TryInsertExt<K, V> {
     type Occupied<'a>
     where

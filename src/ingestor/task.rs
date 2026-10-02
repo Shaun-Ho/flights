@@ -208,7 +208,7 @@ fn authentication_handshake<W: std::io::Write>(
     writer: &mut W,
     filter: &str,
 ) -> std::io::Result<()> {
-    let login = format!("user N0CALL pass -1 vers AirspaceRadar 0.1.0 filter {filter}\r\n",);
+    let login = format!("user N0CALL pass -1 vers AirspaceRadar 0.1.0 filter {filter}\r\n");
     writer.write_all(login.as_bytes())?;
     writer.flush()?;
     Ok(())
@@ -384,7 +384,7 @@ mod test {
         drop(ingestor);
 
         let vec: Vec<AprsPacket> = receiver.iter().collect();
-        assert!(vec.len() == 1);
+        assert_eq!(vec.len(), 1);
         assert_eq!(
             *vec.first().unwrap(),
             expected_aprs_packet.try_into().unwrap()

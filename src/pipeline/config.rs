@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde;
 use std::time::Duration;
@@ -14,9 +14,7 @@ pub struct PipelineConfig {
 }
 
 impl PipelineConfig {
-    pub fn construct_from_path(
-        path: &PathBuf,
-    ) -> Result<PipelineConfig, errors::PipelineConfigError> {
+    pub fn construct_from_path(path: &Path) -> Result<PipelineConfig, errors::PipelineConfigError> {
         let string =
             std::fs::read_to_string(path).map_err(|error| errors::PipelineConfigError::Io {
                 source: error,

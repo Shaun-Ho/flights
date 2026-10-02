@@ -103,6 +103,7 @@ pub struct DiskLoggerRegistry {
     id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
 impl DiskLoggerRegistry {
+    #[must_use]
     pub fn new() -> Self {
         let (sender, receiver) = crossbeam_channel::unbounded();
         Self {
@@ -154,6 +155,7 @@ impl DiskLoggerRegistry {
         self.register::<JsonFormat, M>(path, channel)
     }
 
+    #[must_use]
     pub fn build(self) -> CentralDiskLogger {
         CentralDiskLogger::new(self.receiver, self.id_to_target_mapping)
     }

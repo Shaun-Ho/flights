@@ -98,10 +98,10 @@ impl ThreadManager {
 
         let thread_task: Box<dyn FnOnce() + Send> = match task_schedule {
             TaskSchedule::Continuous => Box::new(move || {
-                run_task_continuously(task, &stop_receiver, worker_status);
+                run_task_continuously(task, &stop_receiver, &worker_status);
             }),
             TaskSchedule::Periodic(periodic_task) => Box::new(move || {
-                run_task_periodically(task, periodic_task, &stop_receiver, worker_status);
+                run_task_periodically(task, periodic_task, &stop_receiver, &worker_status);
             }),
         };
 
@@ -190,7 +190,7 @@ impl Drop for ThreadManager {
                 if remaining_tasks[i].1.is_finished() {
                     let (id, handle) = remaining_tasks.remove(i);
                     match handle.join() {
-                        Ok(_) => log::debug!("Task {} completed during drop period.", id),
+                        Ok(()) => log::debug!("Task {id} completed during drop period."),
                         Err(e) => log::error!("Task {id} panicked during drop: {e:?}"),
                     }
                 } else {
@@ -230,7 +230,7 @@ struct ManagedTask {
 fn run_task_continuously<T: SteppableTask>(
     mut task: T,
     stop_receiver: &crossbeam_channel::Receiver<()>,
-    task_status: std::sync::Arc<std::sync::RwLock<ThreadStatus>>,
+    task_status: &std::sync::RwLock<ThreadStatus>,
 ) {
     loop {
         // Check if we are interrupted
@@ -262,7 +262,7 @@ fn run_task_periodically<T: SteppableTask>(
     mut task: T,
     periodic_task: PeriodicTask,
     stop_receiver: &crossbeam_channel::Receiver<()>,
-    task_status: std::sync::Arc<std::sync::RwLock<ThreadStatus>>,
+    task_status: &std::sync::RwLock<ThreadStatus>,
 ) {
     let PeriodicTask {
         period,
@@ -324,20 +324,20 @@ fn log_task_finished_status(task: ManagedTask) {
         ..
     } = task;
     match handle.join() {
-        Ok(_) => {
+        Ok(()) => {
             let final_status = status.read().unwrap();
             match &*final_status {
                 ThreadStatus::Active => {
-                    log::warn!("Task {task_id} exited abnormally without updating its status.")
+                    log::warn!("Task {task_id} exited abnormally without updating its status.");
                 }
                 ThreadStatus::Interrupted => {
-                    log::info!("Task {task_id}: was interrupted.")
+                    log::info!("Task {task_id}: was interrupted.");
                 }
                 ThreadStatus::Completed => {
-                    log::info!("Task {task_id} completed successfully")
+                    log::info!("Task {task_id} completed successfully");
                 }
                 ThreadStatus::Errored(err) => {
-                    log::error!("Task was interrupted due to error: {err}")
+                    log::error!("Task was interrupted due to error: {err}");
                 }
             }
         }

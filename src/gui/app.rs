@@ -74,6 +74,7 @@ impl walkers::Plugin for AirspacePlugin {
         for track in airspace.get_tracks().values() {
             // draw shape for most recent position
             if let Some(state) = track.latest_state() {
+                #[allow(clippy::cast_possible_truncation)]
                 let position_heading_pair = (
                     projector
                         .project(walkers::lat_lon(state.latitude, state.longitude))
@@ -148,7 +149,6 @@ fn draw_aircraft(
     color: epaint::Color32,
 ) {
     // calculate shape of aircraft drawn on screen based on the actual point
-    #[allow(clippy::cast_possible_truncation)]
     let shape = build_aircraft_path_shape(
         position_heading_pair.0,
         scale_factor,
