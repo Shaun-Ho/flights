@@ -137,11 +137,13 @@ pub enum AircraftDataPipelineError {
 #[cfg(test)]
 mod test {
 
+    use std::io::Write;
     use std::time::Duration;
+
+    use prost::Message;
 
     use super::*;
     use crate::pipeline::config::{AirspaceConfig, IngestorConfig, ParserConfig};
-    use crate::test_utilities::write_pb_message_to_disk;
 
     #[rstest::rstest]
     #[test_log::test]
@@ -156,7 +158,8 @@ mod test {
         };
         let read_path = testdir::testdir!().join("test_ingestor_log.mcap");
         let mut writer = std::io::BufWriter::new(std::fs::File::create(&read_path).unwrap());
-        let _ = write_pb_message_to_disk(&mut writer, &packet);
+        let _ = writer.write(&packet.encode_to_vec());
+
         let ingestor_config = IngestorConfig {
             source: IngestorSource::FilePath(FilePathConfig { read_path }),
             write_path: None,

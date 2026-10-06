@@ -35,7 +35,6 @@ fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_dis
     let expected_proto = MockTaskProto {
         larger_than_zero: 5,
     };
-    let expected_bytes = expected_proto.encode_length_delimited_to_vec();
 
     let contents = std::fs::read(&file_path).unwrap();
     let mcap_message = mcap::MessageStream::new(&contents)
@@ -44,7 +43,8 @@ fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_dis
         .expect("Expected at least one MCAP message in the file")
         .unwrap();
 
-    assert_eq!(mcap_message.data, expected_bytes);
+    let decoded_message = MockTaskProto::decode(&*mcap_message.data).unwrap();
+    assert_eq!(decoded_message, expected_proto);
 }
 
 #[test]
@@ -89,8 +89,7 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
 
     let expected_1 = MockTaskProto {
         larger_than_zero: 111,
-    }
-    .encode_length_delimited_to_vec();
+    };
 
     let contents_1 = std::fs::read(&file_path_1).unwrap();
     let mcap_message_1 = mcap::MessageStream::new(&contents_1)
@@ -98,8 +97,8 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
         .next()
         .expect("Expected at least one MCAP message in the file")
         .unwrap();
-
-    assert_eq!(mcap_message_1.data, expected_1);
+    let decoded_message_1 = MockTaskProto::decode(&*mcap_message_1.data).unwrap();
+    assert_eq!(decoded_message_1, expected_1);
 
     let contents_2 = std::fs::read(&file_path_2).unwrap();
     let mcap_message_2 = mcap::MessageStream::new(&contents_2)
@@ -110,9 +109,10 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
 
     let expected_2 = MockTaskProto {
         larger_than_zero: 222,
-    }
-    .encode_length_delimited_to_vec();
-    assert_eq!(mcap_message_2.data, expected_2);
+    };
+
+    let decoded_message_2 = MockTaskProto::decode(&*mcap_message_2.data).unwrap();
+    assert_eq!(decoded_message_2, expected_2);
 }
 
 #[derive(Debug, Serialize, JsonSchema, Clone)]
@@ -201,8 +201,7 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
 
     let expected_proto = MockTaskProto {
         larger_than_zero: 333,
-    }
-    .encode_length_delimited_to_vec();
+    };
 
     let proto_contents = std::fs::read(&proto_path).unwrap();
     let proto_mcap_message = mcap::MessageStream::new(&proto_contents)
@@ -211,7 +210,8 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
         .expect("Expected at least one MCAP message in the file")
         .unwrap();
 
-    assert_eq!(proto_mcap_message.data, expected_proto);
+    let decoded_proto = MockTaskProto::decode(&*proto_mcap_message.data).unwrap();
+    assert_eq!(decoded_proto, expected_proto);
 
     let expected_jsonl = serde_json::to_vec(&json_msg).unwrap();
     let jsonl_contents = std::fs::read(&jsonl_path).unwrap();
