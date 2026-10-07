@@ -128,7 +128,7 @@ mod tests {
             .send(DiskLoggerMessage {
                 logger_id: task_id,
                 publish_timestamp: Utc::now(),
-                payload: expected_payload.encode_length_delimited_to_vec(),
+                payload: expected_payload.encode_to_vec(),
             })
             .unwrap();
 
@@ -150,10 +150,7 @@ mod tests {
             .unwrap();
 
         // Check that the data stripped from the MCAP framing matches our raw protobuf bytes
-        assert_eq!(
-            mcap_message.data,
-            expected_payload.encode_length_delimited_to_vec()
-        );
+        assert_eq!(mcap_message.data, expected_payload.encode_to_vec());
 
         assert!(mcap_stream.next().is_none());
     }

@@ -60,7 +60,7 @@ where
         let publish_timestamp = message.message_timestamp();
         let proto_message: M = message.into_message()?;
 
-        let payload = proto_message.encode_length_delimited_to_vec();
+        let payload = proto_message.encode_to_vec();
 
         Ok(self.sender.send(DiskLoggerMessage {
             logger_id: self.logger_id,
