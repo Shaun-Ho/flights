@@ -1586,6 +1586,7 @@ dependencies = [
  "crossbeam-channel",
  "eframe",
  "env_logger",
+ "flights-core",
  "glob",
  "log",
  "mcap",
@@ -1596,12 +1597,27 @@ dependencies = [
  "rstest",
  "schemars",
  "serde",
- "serde_json",
  "test-log",
  "testdir",
  "thiserror 2.0.20",
  "toml",
  "walkers",
+]
+
+[[package]]
+name = "flights-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "crossbeam-channel",
+ "log",
+ "mcap",
+ "prost",
+ "schemars",
+ "serde",
+ "serde_json",
+ "testdir",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
