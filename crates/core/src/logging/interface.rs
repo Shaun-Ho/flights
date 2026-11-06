@@ -7,14 +7,10 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
-use crate::core::central_disk_logger::errors::{
-    DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError,
-};
-use crate::core::central_disk_logger::task::{CentralDiskLogger, WriteTarget};
-use crate::core::central_disk_logger::traits::{
-    IntoLogMessage, JsonToMcapSchema, LogSender, ProtoToMcapSchema,
-};
 use crate::ext::TryInsertExt;
+use crate::logging::errors::{DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError};
+use crate::logging::task::{CentralDiskLogger, WriteTarget};
+use crate::logging::traits::{IntoLogMessage, JsonToMcapSchema, LogSender, ProtoToMcapSchema};
 
 pub type LoggerID = u8;
 
@@ -217,7 +213,7 @@ mod tests {
     use std::fs;
 
     use super::*;
-    use crate::core::central_disk_logger::testing::test_helpers::*;
+    use crate::logging::testing::test_helpers::*;
 
     mod logger_handle {
         use super::*;

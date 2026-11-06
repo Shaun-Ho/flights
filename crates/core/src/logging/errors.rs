@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{convert::Infallible, io};
 
-use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerID};
+use crate::logging::interface::{DiskLoggerMessage, LoggerID};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProtoLoggingError<T> {

@@ -20,14 +20,18 @@ pub trait JsonToMcapSchema {
     fn translate_schema() -> mcap::Schema<'static>;
 }
 
-use crate::pb::ALL_PROTOS_DESCRIPTOR;
-impl<T: prost::Name> ProtoToMcapSchema for T {
+/// Provides the encoded `FileDescriptorSet` containing a protobuf message's definition,
+/// which is embedded as the MCAP schema for that message.
+pub trait ProtoFileDescriptor {
+    const FILE_DESCRIPTOR_SET: &'static [u8];
+}
+impl<T: prost::Name + ProtoFileDescriptor> ProtoToMcapSchema for T {
     fn translate_schema() -> mcap::Schema<'static> {
         mcap::Schema {
             id: 1,
             name: format!("{}.{}", T::PACKAGE, T::NAME),
             encoding: "protobuf".to_string(),
-            data: ALL_PROTOS_DESCRIPTOR.to_vec().into(),
+            data: T::FILE_DESCRIPTOR_SET.into(),
         }
     }
 }

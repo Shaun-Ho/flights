@@ -4,9 +4,9 @@ use std::io::BufWriter;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::core::central_disk_logger::errors;
-use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerID};
-use crate::core::thread_manager::{SteppableTask, TaskState};
+use crate::logging::errors;
+use crate::logging::interface::{DiskLoggerMessage, LoggerID};
+use crate::thread_manager::{SteppableTask, TaskState};
 
 pub struct WriteTarget {
     pub path: PathBuf,
@@ -82,9 +82,7 @@ mod tests {
     use chrono::Utc;
     use prost::Message;
 
-    use crate::core::central_disk_logger::{
-        ProtoToMcapSchema, testing::test_helpers::MockTaskProto,
-    };
+    use crate::logging::{ProtoToMcapSchema, testing::test_helpers::MockTaskProto};
 
     use super::*;
 

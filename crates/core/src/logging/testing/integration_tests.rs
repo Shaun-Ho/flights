@@ -6,8 +6,8 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 use super::test_helpers::*;
-use crate::core::central_disk_logger::*;
-use crate::core::thread_manager::*;
+use crate::logging::*;
+use crate::thread_manager::*;
 
 #[test]
 fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_disk() {
