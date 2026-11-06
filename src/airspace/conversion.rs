@@ -1,8 +1,9 @@
 use std::convert::Infallible;
 use std::time::SystemTime;
 
+use flights_core::logging::IntoLogMessage;
+
 use crate::airspace::detail::AirspaceUpdate;
-use crate::core::central_disk_logger::IntoLogMessage;
 use crate::pb::airspace::PbAirspaceUpdate;
 
 impl IntoLogMessage<PbAirspaceUpdate> for AirspaceUpdate {

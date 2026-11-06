@@ -2,11 +2,11 @@ use std::convert::Infallible;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
+use flights_core::logging::IntoLogMessage;
 use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::core::central_disk_logger::IntoLogMessage;
 use crate::parser::errors::AircraftConversionError;
 use crate::pb::parser::PbAircraft;
 

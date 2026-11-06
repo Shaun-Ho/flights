@@ -1,7 +1,7 @@
+use flights_core::logging::{JsonlLoggerHandle, LogSender};
+use flights_core::thread_manager::{SteppableTask, TaskState};
 use ogn_aprs_parser::parse_ogn_aprs_aircraft_beacon;
 
-use crate::core::central_disk_logger::{JsonlLoggerHandle, LogSender};
-use crate::core::thread_manager::{SteppableTask, TaskState};
 use crate::ingestor::AprsPacket;
 use crate::parser::Aircraft;
 use crate::parser::conversion::{AircraftJson, convert_ogn_aprs_beacon_to_aircraft};

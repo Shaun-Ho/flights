@@ -1,8 +1,8 @@
 use chrono::Utc;
+use flights_core::logging::{LogSender, ProtoLoggerHandle};
+use flights_core::thread_manager::{SteppableTask, TaskState};
 
 use crate::airspace::detail::{Airspace, AirspaceUpdate};
-use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
-use crate::core::thread_manager::{SteppableTask, TaskState};
 use crate::parser::Aircraft;
 use crate::pb::airspace::PbAirspaceUpdate;
 
