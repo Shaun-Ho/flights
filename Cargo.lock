@@ -1587,12 +1587,11 @@ dependencies = [
  "eframe",
  "env_logger",
  "flights-core",
- "glob",
+ "flights-proto",
  "log",
  "mcap",
  "ogn-aprs-parser",
  "prost",
- "prost-build",
  "prost-types",
  "rstest",
  "schemars",
@@ -1618,6 +1617,18 @@ dependencies = [
  "serde_json",
  "testdir",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "flights-proto"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "flights-core",
+ "glob",
+ "prost",
+ "prost-build",
+ "prost-types",
 ]
 
 [[package]]
