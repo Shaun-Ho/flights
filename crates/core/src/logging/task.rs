@@ -82,8 +82,10 @@ mod tests {
     use chrono::Utc;
     use prost::Message;
 
-    use crate::common::{LogFormat, ProtoFormat};
-    use crate::logging::{ProtoToMcapSchema, testing::test_helpers::MockTaskProto};
+    use crate::{
+        common::{LogFormat, ProtoFormat},
+        logging::{testing::test_helpers::MockTaskProto, traits::mcap_schema},
+    };
 
     use super::*;
 
@@ -104,7 +106,7 @@ mod tests {
         let channel = Arc::new(mcap::Channel {
             id: 0,
             topic: "topic".to_string(),
-            schema: Some(Arc::new(MockTaskProto::translate_schema())),
+            schema: Some(Arc::new(mcap_schema::<ProtoFormat, MockTaskProto>())),
             message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
@@ -166,7 +168,7 @@ mod tests {
         let channel = Arc::new(mcap::Channel {
             id: 0,
             topic: "topic".to_string(),
-            schema: Some(Arc::new(MockTaskProto::translate_schema())),
+            schema: Some(Arc::new(mcap_schema::<ProtoFormat, MockTaskProto>())),
             message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
@@ -202,7 +204,7 @@ mod tests {
         let channel = Arc::new(mcap::Channel {
             id: 0,
             topic: "topic".to_string(),
-            schema: Some(Arc::new(MockTaskProto::translate_schema())),
+            schema: Some(Arc::new(mcap_schema::<ProtoFormat, MockTaskProto>())),
             message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
@@ -241,7 +243,7 @@ mod tests {
         let channel = Arc::new(mcap::Channel {
             id: 0,
             topic: "topic".to_string(),
-            schema: Some(Arc::new(MockTaskProto::translate_schema())),
+            schema: Some(Arc::new(mcap_schema::<ProtoFormat, MockTaskProto>())),
             message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });

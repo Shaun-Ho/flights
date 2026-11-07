@@ -10,4 +10,4 @@ pub use interface::{
     DiskLoggerMessage, DiskLoggerRegistry, JsonlLoggerHandle, LoggerID, ProtoLoggerHandle,
 };
 pub use task::CentralDiskLogger;
-pub use traits::{IntoLogMessage, LogSender, ProtoFileDescriptor, ProtoToMcapSchema};
+pub use traits::{IntoLogMessage, LogSender, ProtoFileDescriptor};
