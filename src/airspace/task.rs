@@ -4,7 +4,7 @@ use flights_core::thread_manager::{SteppableTask, TaskState};
 
 use crate::airspace::detail::{Airspace, AirspaceUpdate};
 use crate::parser::Aircraft;
-use crate::pb::airspace::PbAirspaceUpdate;
+use flights_proto::airspace::PbAirspaceUpdate;
 
 pub struct AirspaceStore {
     inner: std::sync::Arc<std::sync::RwLock<Airspace>>,

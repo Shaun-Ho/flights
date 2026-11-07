@@ -4,7 +4,7 @@ use flights_core::logging::IntoLogMessage;
 
 use crate::ingestor::errors::APRSPacketConversionError;
 use crate::ingestor::task::AprsPacket;
-use crate::pb::ingestor::PbAprsPacket;
+use flights_proto::ingestor::PbAprsPacket;
 
 impl IntoLogMessage<PbAprsPacket> for AprsPacket {
     type Error = std::convert::Infallible;
