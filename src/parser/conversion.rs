@@ -8,7 +8,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::parser::errors::AircraftConversionError;
-use crate::pb::parser::PbAircraft;
+use flights_proto::parser::PbAircraft;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Aircraft {

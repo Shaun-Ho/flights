@@ -7,7 +7,7 @@ use prost::Message;
 
 use crate::ingestor::config::GliderNetConfig;
 use crate::ingestor::errors;
-use crate::pb::ingestor::PbAprsPacket;
+use flights_proto::ingestor::PbAprsPacket;
 
 pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 

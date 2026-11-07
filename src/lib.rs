@@ -4,7 +4,6 @@ pub mod gui;
 pub mod ingestor;
 pub mod logging;
 pub mod parser;
-pub mod pb;
 pub mod pipeline;
 
 #[cfg(test)]

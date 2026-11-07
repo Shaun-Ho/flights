@@ -8,6 +8,7 @@ rust-version = "1.98"
 
 [workspace.dependencies]
 flights-core = { path = "crates/core" }
+flights-proto = { path = "crates/proto" }
 
 bytes = "1.11.1"
 chrono = "0.4.42"
@@ -42,6 +43,7 @@ rust-version.workspace = true
 
 [dependencies]
 flights-core.workspace = true
+flights-proto.workspace = true
 
 bytes.workspace = true
 chrono = { workspace = true, features = ["serde"] }
@@ -65,11 +67,6 @@ approx.workspace = true
 rstest.workspace = true
 test-log.workspace = true
 testdir.workspace = true
-
-
-[build-dependencies]
-glob = "0.3.4"
-prost-build = "0.14.4"
 
 
 [lints]

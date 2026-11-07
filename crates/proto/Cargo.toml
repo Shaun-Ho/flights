@@ -1,0 +1,22 @@
+[package]
+name = "flights-proto"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+
+[dependencies]
+flights-core.workspace = true
+
+bytes.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+
+
+[build-dependencies]
+glob = "0.3.4"
+prost-build = "0.14.4"
+
+
+[lints]
+workspace = true

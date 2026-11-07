@@ -1,3 +1,5 @@
+//! Protobuf types generated from the workspace-level `proto/` directory.
+
 use flights_core::logging::ProtoFileDescriptor;
 
 pub const ALL_PROTOS_DESCRIPTOR: &[u8] =

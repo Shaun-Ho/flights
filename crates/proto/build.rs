@@ -3,12 +3,17 @@ use std::env;
 use std::io::Result;
 use std::path::PathBuf;
 
+/// Workspace root, relative to this crate. Used as the protoc include path so that
+/// proto imports (e.g. `import "proto/parser/aircraft.proto"`) resolve from the repo root.
+const WORKSPACE_ROOT: &str = "../..";
+
 fn main() -> Result<()> {
-    println!("cargo:rerun-if-changed=proto/");
+    println!("cargo:rerun-if-changed={WORKSPACE_ROOT}/proto");
 
     let mut proto_files = Vec::new();
 
-    let paths = glob("proto/**/*.proto").expect("Failed to read glob pattern");
+    let paths =
+        glob(&format!("{WORKSPACE_ROOT}/proto/**/*.proto")).expect("Failed to read glob pattern");
 
     for entry in paths {
         match entry {
@@ -23,7 +28,7 @@ fn main() -> Result<()> {
     config.enable_type_names();
     config.bytes(["."]);
     config.file_descriptor_set_path(&descriptor_path);
-    config.compile_protos(&proto_files, &["."])?;
+    config.compile_protos(&proto_files, &[WORKSPACE_ROOT])?;
 
     Ok(())
 }
