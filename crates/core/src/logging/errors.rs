@@ -1,34 +1,27 @@
 use std::path::PathBuf;
 use std::{convert::Infallible, io};
 
-use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerID};
+use crate::logging::logger_registry::{LoggerID, LoggerMessage};
 
 #[derive(Debug, thiserror::Error)]
-pub enum ProtoLoggingError<T> {
+pub enum LoggingError<T> {
     #[error("Packet Conversion Error: {0}")]
     Conversion(T),
+    #[error("Failed to encode: {0}")]
+    Encode(#[from] EncodeError),
     #[error("Failed to send: {0}")]
-    SendError(#[from] crossbeam_channel::SendError<DiskLoggerMessage>),
+    SendError(#[from] crossbeam_channel::SendError<LoggerMessage>),
 }
-impl<T> From<Infallible> for ProtoLoggingError<T> {
-    fn from(err: Infallible) -> Self {
-        match err {}
+impl<T> From<Infallible> for LoggingError<T> {
+    fn from(value: Infallible) -> Self {
+        match value {}
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum JsonLoggingError<T> {
-    #[error("Packet Conversion Error: {0}")]
-    Conversion(T),
-    #[error("Failed to send: {0}")]
-    SendError(#[from] crossbeam_channel::SendError<DiskLoggerMessage>),
-    #[error("Failed to send: {0}")]
-    Serialization(#[from] serde_json::Error),
-}
-impl<T> From<std::convert::Infallible> for JsonLoggingError<T> {
-    fn from(err: std::convert::Infallible) -> Self {
-        match err {}
-    }
+pub enum EncodeError {
+    #[error("JSON serialization error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, thiserror::Error)]

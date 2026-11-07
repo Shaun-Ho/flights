@@ -1,10 +1,10 @@
 use std::net::ToSocketAddrs;
 
 use chrono::{DateTime, Utc};
+use flights_core::logging::{LogSender, ProtoLoggerHandle};
+use flights_core::thread_manager::{SteppableTask, TaskState};
 use prost::Message;
 
-use crate::core::central_disk_logger::{LogSender, ProtoLoggerHandle};
-use crate::core::thread_manager::{SteppableTask, TaskState};
 use crate::ingestor::config::GliderNetConfig;
 use crate::ingestor::errors;
 use crate::pb::ingestor::PbAprsPacket;
@@ -218,11 +218,11 @@ fn authentication_handshake<W: std::io::Write>(
 mod test {
     use std::io::Write;
 
+    use flights_core::thread_manager::{SteppableTask, TaskState};
     use prost::Message;
     use rstest;
     use testdir;
 
-    use crate::core::thread_manager::{SteppableTask, TaskState};
     use crate::ingestor::task::{APRSDataSource, Ingestor, LiveSource, ReplaySource};
     use crate::ingestor::task::{AprsPacket, PbAprsPacket};
 

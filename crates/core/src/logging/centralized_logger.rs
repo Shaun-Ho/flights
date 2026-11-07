@@ -4,23 +4,23 @@ use std::io::BufWriter;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::core::central_disk_logger::errors;
-use crate::core::central_disk_logger::interface::{DiskLoggerMessage, LoggerID};
-use crate::core::thread_manager::{SteppableTask, TaskState};
+use crate::logging::errors;
+use crate::logging::logger_registry::{LoggerID, LoggerMessage};
+use crate::thread_manager::{SteppableTask, TaskState};
 
 pub struct WriteTarget {
     pub path: PathBuf,
     pub writer: mcap::Writer<BufWriter<File>>,
     pub channel: Arc<mcap::Channel<'static>>,
 }
-pub struct CentralDiskLogger {
-    receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
+pub struct CentralizedLogger {
+    receiver: crossbeam_channel::Receiver<LoggerMessage>,
     id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
-impl CentralDiskLogger {
+impl CentralizedLogger {
     #[must_use]
-    pub fn new(
-        receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
+    pub(crate) fn new(
+        receiver: crossbeam_channel::Receiver<LoggerMessage>,
         id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
     ) -> Self {
         Self {
@@ -30,7 +30,7 @@ impl CentralDiskLogger {
     }
 }
 
-impl SteppableTask for CentralDiskLogger {
+impl SteppableTask for CentralizedLogger {
     fn step(&mut self) -> TaskState {
         match self.receiver.try_recv() {
             Ok(message) => {
@@ -82,8 +82,9 @@ mod tests {
     use chrono::Utc;
     use prost::Message;
 
-    use crate::core::central_disk_logger::{
-        ProtoToMcapSchema, testing::test_helpers::MockTaskProto,
+    use crate::{
+        common::{LogFormat, ProtoFormat},
+        logging::{testing::test_helpers::MockTaskProto, traits::mcap_schema},
     };
 
     use super::*;
@@ -105,8 +106,8 @@ mod tests {
         let channel = Arc::new(mcap::Channel {
             id: 0,
             topic: "topic".to_string(),
-            schema: Some(Arc::new(MockTaskProto::translate_schema())),
-            message_encoding: "protobuf".to_string(),
+            schema: Some(Arc::new(mcap_schema::<ProtoFormat, MockTaskProto>())),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         mapping.insert(
@@ -119,13 +120,13 @@ mod tests {
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut logger = CentralDiskLogger {
+        let mut logger = CentralizedLogger {
             id_to_target_mapping: mapping,
             receiver,
         };
 
         sender
-            .send(DiskLoggerMessage {
+            .send(LoggerMessage {
                 logger_id: task_id,
                 publish_timestamp: Utc::now(),
                 payload: expected_payload.encode_to_vec(),
@@ -167,8 +168,8 @@ mod tests {
         let channel = Arc::new(mcap::Channel {
             id: 0,
             topic: "topic".to_string(),
-            schema: Some(Arc::new(MockTaskProto::translate_schema())),
-            message_encoding: "protobuf".to_string(),
+            schema: Some(Arc::new(mcap_schema::<ProtoFormat, MockTaskProto>())),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         mapping.insert(
@@ -181,7 +182,7 @@ mod tests {
         );
 
         let (_sender, receiver) = crossbeam_channel::unbounded();
-        let mut logger = CentralDiskLogger {
+        let mut logger = CentralizedLogger {
             id_to_target_mapping: mapping,
             receiver,
         };
@@ -203,8 +204,8 @@ mod tests {
         let channel = Arc::new(mcap::Channel {
             id: 0,
             topic: "topic".to_string(),
-            schema: Some(Arc::new(MockTaskProto::translate_schema())),
-            message_encoding: "protobuf".to_string(),
+            schema: Some(Arc::new(mcap_schema::<ProtoFormat, MockTaskProto>())),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         mapping.insert(
@@ -217,7 +218,7 @@ mod tests {
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut logger = CentralDiskLogger {
+        let mut logger = CentralizedLogger {
             id_to_target_mapping: mapping,
             receiver,
         };
@@ -242,8 +243,8 @@ mod tests {
         let channel = Arc::new(mcap::Channel {
             id: 0,
             topic: "topic".to_string(),
-            schema: Some(Arc::new(MockTaskProto::translate_schema())),
-            message_encoding: "protobuf".to_string(),
+            schema: Some(Arc::new(mcap_schema::<ProtoFormat, MockTaskProto>())),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         mapping.insert(
@@ -256,13 +257,13 @@ mod tests {
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut logger = CentralDiskLogger {
+        let mut logger = CentralizedLogger {
             id_to_target_mapping: mapping,
             receiver,
         };
 
         sender
-            .send(DiskLoggerMessage {
+            .send(LoggerMessage {
                 logger_id: 99,
                 publish_timestamp: Utc::now(),
                 payload: b"ghost payload".to_vec(),

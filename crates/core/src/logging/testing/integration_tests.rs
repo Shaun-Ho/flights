@@ -6,15 +6,15 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 use super::test_helpers::*;
-use crate::core::central_disk_logger::*;
-use crate::core::thread_manager::*;
+use crate::logging::*;
+use crate::thread_manager::*;
 
 #[test]
 fn given_complete_system_when_message_sent_and_stepped_then_correct_bytes_on_disk() {
     let test_dir = testdir::testdir!();
     let file_path = test_dir.join("system_log.mcap");
 
-    let mut registry = DiskLoggerRegistry::new();
+    let mut registry = LoggerRegistry::new();
     let handle = registry
         .register_proto::<MockTaskProto>(file_path.clone(), "test".to_string())
         .expect("Failed to register logger");
@@ -53,7 +53,7 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
     let file_path_1 = test_dir.join("flight_data.mcap");
     let file_path_2 = test_dir.join("engine_data.mcap");
 
-    let mut registry = DiskLoggerRegistry::new();
+    let mut registry = LoggerRegistry::new();
 
     let log_handle_1 = registry
         .register_proto::<MockTaskProto>(file_path_1.clone(), "test".to_string())
@@ -134,7 +134,7 @@ fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_d
     let test_dir = testdir::testdir!();
     let file_path = test_dir.join("events_log.mcap");
 
-    let mut registry = DiskLoggerRegistry::new();
+    let mut registry = LoggerRegistry::new();
     let handle = registry
         .register_jsonl::<JsonMessage>(file_path.clone(), "test".to_string())
         .expect("Failed to register jsonl logger");
@@ -171,7 +171,7 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
     let proto_path = test_dir.join("flight_data.mcap");
     let jsonl_path = test_dir.join("system_events.mcap");
 
-    let mut registry = DiskLoggerRegistry::new();
+    let mut registry = LoggerRegistry::new();
 
     let proto_handle = registry
         .register_proto::<MockTaskProto>(proto_path.clone(), "test".to_string())
