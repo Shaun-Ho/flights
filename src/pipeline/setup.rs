@@ -1,4 +1,4 @@
-use flights_core::logging::DiskLoggerRegistry;
+use flights_core::logging::LoggerRegistry;
 use flights_core::logging::errors::DiskloggerRegistryError;
 use flights_core::thread_manager::{
     OverrunPolicy, PeriodicTask, SteppableTask, TaskID, TaskSchedule, ThreadManager,
@@ -39,7 +39,7 @@ impl AirspaceDataPipeline {
     pub fn setup_pipeline(
         pipeline_config: PipelineConfig,
     ) -> Result<Self, AircraftDataPipelineError> {
-        let mut disk_logger_registry = DiskLoggerRegistry::new();
+        let mut disk_logger_registry = LoggerRegistry::new();
 
         let (ingestor_sender, ingestor_receiver): (
             crossbeam_channel::Sender<AprsPacket>,

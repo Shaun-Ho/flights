@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{convert::Infallible, io};
 
-use crate::logging::interface::{DiskLoggerMessage, LoggerID};
+use crate::logging::logger_registry::{LoggerID, LoggerMessage};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoggingError<T> {
@@ -10,7 +10,7 @@ pub enum LoggingError<T> {
     #[error("Failed to encode: {0}")]
     Encode(#[from] EncodeError),
     #[error("Failed to send: {0}")]
-    SendError(#[from] crossbeam_channel::SendError<DiskLoggerMessage>),
+    SendError(#[from] crossbeam_channel::SendError<LoggerMessage>),
 }
 impl<T> From<Infallible> for LoggingError<T> {
     fn from(value: Infallible) -> Self {

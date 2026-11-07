@@ -16,7 +16,7 @@ use crate::logging::traits::{EncodableMessage, IntoLogMessage, LogSender, mcap_s
 pub type LoggerID = u8;
 
 #[derive(Debug)]
-pub struct DiskLoggerMessage {
+pub struct LoggerMessage {
     pub logger_id: LoggerID,
     pub publish_timestamp: DateTime<Utc>,
     pub payload: Vec<u8>,
@@ -25,12 +25,12 @@ pub struct DiskLoggerMessage {
 #[derive(Debug)]
 pub struct LoggerHandle<F, M: Sized> {
     logger_id: LoggerID,
-    sender: crossbeam_channel::Sender<DiskLoggerMessage>,
+    sender: crossbeam_channel::Sender<LoggerMessage>,
     _marker: PhantomData<(F, M)>,
 }
 
 impl<F, M> LoggerHandle<F, M> {
-    pub fn new(logger_id: LoggerID, sender: crossbeam_channel::Sender<DiskLoggerMessage>) -> Self {
+    pub fn new(logger_id: LoggerID, sender: crossbeam_channel::Sender<LoggerMessage>) -> Self {
         Self {
             logger_id,
             sender,
@@ -56,7 +56,7 @@ where
         let publish_timestamp = message.message_timestamp();
         let payload = message.into_message()?.encode_payload()?;
 
-        Ok(self.sender.send(DiskLoggerMessage {
+        Ok(self.sender.send(LoggerMessage {
             logger_id: self.logger_id,
             publish_timestamp,
             payload,
@@ -64,13 +64,13 @@ where
     }
 }
 
-pub struct DiskLoggerRegistry {
+pub struct LoggerRegistry {
     current_logger_id: LoggerID,
-    sender: crossbeam_channel::Sender<DiskLoggerMessage>,
-    receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
+    sender: crossbeam_channel::Sender<LoggerMessage>,
+    receiver: crossbeam_channel::Receiver<LoggerMessage>,
     id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
-impl DiskLoggerRegistry {
+impl LoggerRegistry {
     #[must_use]
     pub fn new() -> Self {
         let (sender, receiver) = crossbeam_channel::unbounded();
@@ -161,7 +161,7 @@ impl DiskLoggerRegistry {
         Ok(handle)
     }
 }
-impl Default for DiskLoggerRegistry {
+impl Default for LoggerRegistry {
     fn default() -> Self {
         Self::new()
     }
@@ -236,7 +236,7 @@ mod tests {
                 metadata: BTreeMap::new(),
             });
 
-            let mut registry = DiskLoggerRegistry::new();
+            let mut registry = LoggerRegistry::new();
             let handle =
                 registry.register_channel::<ProtoFormat, MockTaskProto>(file_path.clone(), channel);
             assert!(handle.is_ok());
@@ -257,7 +257,7 @@ mod tests {
                 metadata: BTreeMap::new(),
             });
 
-            let mut register = DiskLoggerRegistry::new();
+            let mut register = LoggerRegistry::new();
             let handle =
                 register.register_channel::<ProtoFormat, MockTaskProto>(file_path.clone(), channel);
 

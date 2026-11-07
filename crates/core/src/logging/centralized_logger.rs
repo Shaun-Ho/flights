@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::logging::errors;
-use crate::logging::interface::{DiskLoggerMessage, LoggerID};
+use crate::logging::logger_registry::{LoggerID, LoggerMessage};
 use crate::thread_manager::{SteppableTask, TaskState};
 
 pub struct WriteTarget {
@@ -14,13 +14,13 @@ pub struct WriteTarget {
     pub channel: Arc<mcap::Channel<'static>>,
 }
 pub struct CentralizedLogger {
-    receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
+    receiver: crossbeam_channel::Receiver<LoggerMessage>,
     id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
 impl CentralizedLogger {
     #[must_use]
     pub(crate) fn new(
-        receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
+        receiver: crossbeam_channel::Receiver<LoggerMessage>,
         id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
     ) -> Self {
         Self {
@@ -126,7 +126,7 @@ mod tests {
         };
 
         sender
-            .send(DiskLoggerMessage {
+            .send(LoggerMessage {
                 logger_id: task_id,
                 publish_timestamp: Utc::now(),
                 payload: expected_payload.encode_to_vec(),
@@ -263,7 +263,7 @@ mod tests {
         };
 
         sender
-            .send(DiskLoggerMessage {
+            .send(LoggerMessage {
                 logger_id: 99,
                 publish_timestamp: Utc::now(),
                 payload: b"ghost payload".to_vec(),
