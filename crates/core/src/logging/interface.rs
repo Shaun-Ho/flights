@@ -9,8 +9,8 @@ use chrono::{DateTime, Utc};
 
 use crate::common::{JsonFormat, LogFormat, MCAP_FILE_SUFFIX, ProtoFormat};
 use crate::ext::TryInsertExt;
+use crate::logging::centralized_logger::{CentralizedLogger, WriteTarget};
 use crate::logging::errors::{DiskloggerRegistryError, LoggingError};
-use crate::logging::task::{CentralDiskLogger, WriteTarget};
 use crate::logging::traits::{EncodableMessage, IntoLogMessage, LogSender, mcap_schema};
 
 pub type LoggerID = u8;
@@ -117,8 +117,8 @@ impl DiskLoggerRegistry {
     }
 
     #[must_use]
-    pub fn build(self) -> CentralDiskLogger {
-        CentralDiskLogger::new(self.receiver, self.id_to_target_mapping)
+    pub fn build(self) -> CentralizedLogger {
+        CentralizedLogger::new(self.receiver, self.id_to_target_mapping)
     }
 
     fn register_channel<F, M>(

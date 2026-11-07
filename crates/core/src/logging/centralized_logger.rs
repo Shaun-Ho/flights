@@ -13,13 +13,13 @@ pub struct WriteTarget {
     pub writer: mcap::Writer<BufWriter<File>>,
     pub channel: Arc<mcap::Channel<'static>>,
 }
-pub struct CentralDiskLogger {
+pub struct CentralizedLogger {
     receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
     id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
 }
-impl CentralDiskLogger {
+impl CentralizedLogger {
     #[must_use]
-    pub fn new(
+    pub(crate) fn new(
         receiver: crossbeam_channel::Receiver<DiskLoggerMessage>,
         id_to_target_mapping: HashMap<LoggerID, WriteTarget>,
     ) -> Self {
@@ -30,7 +30,7 @@ impl CentralDiskLogger {
     }
 }
 
-impl SteppableTask for CentralDiskLogger {
+impl SteppableTask for CentralizedLogger {
     fn step(&mut self) -> TaskState {
         match self.receiver.try_recv() {
             Ok(message) => {
@@ -120,7 +120,7 @@ mod tests {
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut logger = CentralDiskLogger {
+        let mut logger = CentralizedLogger {
             id_to_target_mapping: mapping,
             receiver,
         };
@@ -182,7 +182,7 @@ mod tests {
         );
 
         let (_sender, receiver) = crossbeam_channel::unbounded();
-        let mut logger = CentralDiskLogger {
+        let mut logger = CentralizedLogger {
             id_to_target_mapping: mapping,
             receiver,
         };
@@ -218,7 +218,7 @@ mod tests {
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut logger = CentralDiskLogger {
+        let mut logger = CentralizedLogger {
             id_to_target_mapping: mapping,
             receiver,
         };
@@ -257,7 +257,7 @@ mod tests {
         );
 
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut logger = CentralDiskLogger {
+        let mut logger = CentralizedLogger {
             id_to_target_mapping: mapping,
             receiver,
         };
