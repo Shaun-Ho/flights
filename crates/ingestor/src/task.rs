@@ -18,7 +18,7 @@ pub struct Ingestor {
     logger: Option<ProtoLoggerHandle<PbAprsPacket>>,
 }
 impl Ingestor {
-    pub fn new<C: APRSDataSource + 'static>(
+    fn new<C: APRSDataSource + 'static>(
         source: C,
         sender: crossbeam_channel::Sender<AprsPacket>,
         logger: Option<ProtoLoggerHandle<PbAprsPacket>>,
@@ -103,7 +103,7 @@ pub struct AprsPacket {
     pub message: bytes::Bytes,
 }
 
-pub trait APRSDataSource: Send {
+pub(crate) trait APRSDataSource: Send {
     fn create_aprs_packet(&mut self) -> Result<AprsPacket, errors::PacketError>;
 }
 
@@ -225,8 +225,7 @@ mod test {
 
     use flights_core::thread_manager::{SteppableTask, TaskState};
 
-    use super::{APRSDataSource, Ingestor, LiveSource, ReplaySource};
-    use crate::{AprsPacket, PbAprsPacket};
+    use super::*;
 
     struct MockStream {
         incoming_data: std::io::Cursor<Vec<u8>>,
