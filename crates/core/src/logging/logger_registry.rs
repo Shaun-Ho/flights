@@ -29,8 +29,11 @@ pub struct LoggerHandle<F, M: Sized> {
     _marker: PhantomData<(F, M)>,
 }
 
-impl<F, M> LoggerHandle<F, M> {
-    pub fn new(logger_id: LoggerID, sender: crossbeam_channel::Sender<LoggerMessage>) -> Self {
+impl<F: LogFormat, M: EncodableMessage<F>> LoggerHandle<F, M> {
+    pub(crate) fn new(
+        logger_id: LoggerID,
+        sender: crossbeam_channel::Sender<LoggerMessage>,
+    ) -> Self {
         Self {
             logger_id,
             sender,
@@ -121,7 +124,7 @@ impl LoggerRegistry {
         CentralizedLogger::new(self.receiver, self.id_to_target_mapping)
     }
 
-    fn register_channel<F, M>(
+    fn register_channel<F: LogFormat, M: EncodableMessage<F>>(
         &mut self,
         path: PathBuf,
         channel: Arc<mcap::Channel<'static>>,
@@ -151,11 +154,7 @@ impl LoggerRegistry {
             DiskloggerRegistryError::PathAlreadyRegisteredError(target.path)
         })?;
 
-        let handle = LoggerHandle {
-            logger_id,
-            sender: self.sender.clone(),
-            _marker: PhantomData,
-        };
+        let handle = LoggerHandle::new(logger_id, self.sender.clone());
         self.current_logger_id += 1;
 
         Ok(handle)
