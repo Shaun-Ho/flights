@@ -82,6 +82,7 @@ mod tests {
     use chrono::Utc;
     use prost::Message;
 
+    use crate::common::{LogFormat, ProtoFormat};
     use crate::logging::{ProtoToMcapSchema, testing::test_helpers::MockTaskProto};
 
     use super::*;
@@ -104,7 +105,7 @@ mod tests {
             id: 0,
             topic: "topic".to_string(),
             schema: Some(Arc::new(MockTaskProto::translate_schema())),
-            message_encoding: "protobuf".to_string(),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         mapping.insert(
@@ -166,7 +167,7 @@ mod tests {
             id: 0,
             topic: "topic".to_string(),
             schema: Some(Arc::new(MockTaskProto::translate_schema())),
-            message_encoding: "protobuf".to_string(),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         mapping.insert(
@@ -202,7 +203,7 @@ mod tests {
             id: 0,
             topic: "topic".to_string(),
             schema: Some(Arc::new(MockTaskProto::translate_schema())),
-            message_encoding: "protobuf".to_string(),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         mapping.insert(
@@ -241,7 +242,7 @@ mod tests {
             id: 0,
             topic: "topic".to_string(),
             schema: Some(Arc::new(MockTaskProto::translate_schema())),
-            message_encoding: "protobuf".to_string(),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         mapping.insert(

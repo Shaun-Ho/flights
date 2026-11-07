@@ -7,14 +7,13 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
+use crate::common::{JsonFormat, LogFormat, MCAP_FILE_SUFFIX, ProtoFormat};
 use crate::ext::TryInsertExt;
 use crate::logging::errors::{DiskloggerRegistryError, JsonLoggingError, ProtoLoggingError};
 use crate::logging::task::{CentralDiskLogger, WriteTarget};
 use crate::logging::traits::{IntoLogMessage, JsonToMcapSchema, LogSender, ProtoToMcapSchema};
 
 pub type LoggerID = u8;
-
-const MCAP_FILE_SUFFIX: &str = "mcap";
 
 #[derive(Debug)]
 pub struct DiskLoggerMessage {
@@ -24,7 +23,7 @@ pub struct DiskLoggerMessage {
 }
 
 #[derive(Debug)]
-pub struct LoggerHandle<F, M: ?Sized> {
+pub struct LoggerHandle<F, M: Sized> {
     logger_id: LoggerID,
     sender: crossbeam_channel::Sender<DiskLoggerMessage>,
     _marker: PhantomData<(F, M)>,
@@ -123,7 +122,7 @@ impl DiskLoggerRegistry {
             id: 0,
             topic,
             schema: Some(Arc::new(schema)),
-            message_encoding: "protobuf".to_string(),
+            message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
         self.register::<ProtoFormat, M>(path, channel)
@@ -144,7 +143,7 @@ impl DiskLoggerRegistry {
             id: 0,
             topic,
             schema: Some(Arc::new(schema)),
-            message_encoding: "json".to_string(),
+            message_encoding: JsonFormat::MESSAGE_ENCODING.to_string(),
             metadata: BTreeMap::new(),
         });
 
@@ -201,9 +200,6 @@ impl Default for DiskLoggerRegistry {
         Self::new()
     }
 }
-
-pub struct JsonFormat;
-pub struct ProtoFormat;
 
 pub type ProtoLoggerHandle<M> = LoggerHandle<ProtoFormat, M>;
 pub type JsonlLoggerHandle<M> = LoggerHandle<JsonFormat, M>;
@@ -270,7 +266,7 @@ mod tests {
                 id: 0,
                 topic: "test".to_string(),
                 schema: Some(Arc::new(MockTaskProto::translate_schema())),
-                message_encoding: "protobuf".to_string(),
+                message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
                 metadata: BTreeMap::new(),
             });
 
@@ -291,7 +287,7 @@ mod tests {
                 id: 0,
                 topic: "test".to_string(),
                 schema: Some(Arc::new(MockTaskProto::translate_schema())),
-                message_encoding: "protobuf".to_string(),
+                message_encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
                 metadata: BTreeMap::new(),
             });
 

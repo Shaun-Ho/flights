@@ -2,6 +2,8 @@ use std::borrow::Cow;
 
 use chrono::{DateTime, Utc};
 
+use crate::common::{JsonFormat, LogFormat, ProtoFormat};
+
 pub trait LogSender<M> {
     type Error;
     fn send(&self, message: M) -> Result<(), Self::Error>;
@@ -30,7 +32,7 @@ impl<T: prost::Name + ProtoFileDescriptor> ProtoToMcapSchema for T {
         mcap::Schema {
             id: 1,
             name: format!("{}.{}", T::PACKAGE, T::NAME),
-            encoding: "protobuf".to_string(),
+            encoding: ProtoFormat::SCHEMA_ENCODING.to_string(),
             data: T::FILE_DESCRIPTOR_SET.into(),
         }
     }
@@ -45,7 +47,7 @@ impl<T: schemars::JsonSchema> JsonToMcapSchema for T {
         mcap::Schema {
             id: 1,
             name: schema_name,
-            encoding: "json".to_string(),
+            encoding: JsonFormat::SCHEMA_ENCODING.to_string(),
             data: Cow::Owned(schema_bytes),
         }
     }

@@ -1,5 +1,6 @@
 use chrono::Utc;
 
+use crate::common::{LogFormat, ProtoFormat};
 use crate::logging::errors::ProtoLoggingError;
 use crate::logging::{IntoLogMessage, ProtoToMcapSchema};
 
@@ -34,7 +35,7 @@ impl ProtoToMcapSchema for MockTaskProto {
         mcap::Schema {
             id: 1,
             name: "test".to_string(),
-            encoding: "protobuf".to_string(),
+            encoding: ProtoFormat::MESSAGE_ENCODING.to_string(),
             data: (&[1, 2]).into(),
         }
     }
