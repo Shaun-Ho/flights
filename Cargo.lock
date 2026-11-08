@@ -1659,13 +1659,9 @@ dependencies = [
  "ogn-aprs-parser",
  "prost",
  "prost-types",
- "rstest",
  "schemars",
  "serde",
- "test-log",
- "testdir",
  "thiserror 2.0.21",
- "toml",
 ]
 
 [[package]]
