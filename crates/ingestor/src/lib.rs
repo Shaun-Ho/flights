@@ -4,4 +4,4 @@ pub mod errors;
 pub mod task;
 
 pub use flights_proto::ingestor::PbAprsPacket;
-pub use task::{APRSDataSource, AprsPacket, Ingestor};
+pub use task::{AprsPacket, Ingestor};

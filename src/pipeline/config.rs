@@ -4,7 +4,7 @@ use serde;
 use std::time::Duration;
 use toml;
 
-use crate::ingestor::config::GliderNetConfig;
+use flights_ingestor::config::GliderNetConfig;
 
 #[derive(serde::Deserialize)]
 pub struct PipelineConfig {

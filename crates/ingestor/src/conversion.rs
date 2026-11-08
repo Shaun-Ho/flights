@@ -1,10 +1,10 @@
 use std::time::SystemTime;
 
 use flights_core::logging::IntoLogMessage;
-
-use crate::ingestor::errors::APRSPacketConversionError;
-use crate::ingestor::task::AprsPacket;
 use flights_proto::ingestor::PbAprsPacket;
+
+use crate::errors::APRSPacketConversionError;
+use crate::task::AprsPacket;
 
 impl IntoLogMessage<PbAprsPacket> for AprsPacket {
     type Error = std::convert::Infallible;

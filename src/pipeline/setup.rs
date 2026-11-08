@@ -4,12 +4,12 @@ use flights_core::thread_manager::{
     OverrunPolicy, PeriodicTask, SteppableTask, TaskID, TaskSchedule, ThreadManager,
     ZeroPeriodError,
 };
+use flights_ingestor::{AprsPacket, Ingestor, PbAprsPacket};
+use flights_proto::airspace::PbAirspaceUpdate;
 
 use crate::airspace::{AirspaceStore, AirspaceViewer};
-use crate::ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use crate::parser::{Aircraft, AircraftJson, AircraftParser};
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
-use flights_proto::airspace::PbAirspaceUpdate;
 
 pub struct AirspaceDataPipeline {
     thread_manager: ThreadManager,

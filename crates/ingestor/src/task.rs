@@ -1,13 +1,14 @@
 use std::net::ToSocketAddrs;
 
 use chrono::{DateTime, Utc};
-use flights_core::logging::{LogSender, ProtoLoggerHandle};
-use flights_core::thread_manager::{SteppableTask, TaskState};
 use prost::Message;
 
-use crate::ingestor::config::GliderNetConfig;
-use crate::ingestor::errors;
+use flights_core::logging::{LogSender, ProtoLoggerHandle};
+use flights_core::thread_manager::{SteppableTask, TaskState};
 use flights_proto::ingestor::PbAprsPacket;
+
+use crate::config::GliderNetConfig;
+use crate::errors;
 
 pub const INGESTOR_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -17,7 +18,7 @@ pub struct Ingestor {
     logger: Option<ProtoLoggerHandle<PbAprsPacket>>,
 }
 impl Ingestor {
-    pub fn new<C: APRSDataSource + 'static>(
+    fn new<C: APRSDataSource + 'static>(
         source: C,
         sender: crossbeam_channel::Sender<AprsPacket>,
         logger: Option<ProtoLoggerHandle<PbAprsPacket>>,
@@ -102,7 +103,7 @@ pub struct AprsPacket {
     pub message: bytes::Bytes,
 }
 
-pub trait APRSDataSource: Send {
+pub(crate) trait APRSDataSource: Send {
     fn create_aprs_packet(&mut self) -> Result<AprsPacket, errors::PacketError>;
 }
 
@@ -218,13 +219,13 @@ fn authentication_handshake<W: std::io::Write>(
 mod test {
     use std::io::Write;
 
-    use flights_core::thread_manager::{SteppableTask, TaskState};
     use prost::Message;
     use rstest;
     use testdir;
 
-    use crate::ingestor::task::{APRSDataSource, Ingestor, LiveSource, ReplaySource};
-    use crate::ingestor::task::{AprsPacket, PbAprsPacket};
+    use flights_core::thread_manager::{SteppableTask, TaskState};
+
+    use super::*;
 
     struct MockStream {
         incoming_data: std::io::Cursor<Vec<u8>>,

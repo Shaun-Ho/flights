@@ -2,9 +2,9 @@ use std::convert::Infallible;
 use std::time::SystemTime;
 
 use flights_core::logging::IntoLogMessage;
+use flights_proto::airspace::PbAirspaceUpdate;
 
 use crate::airspace::detail::AirspaceUpdate;
-use flights_proto::airspace::PbAirspaceUpdate;
 
 impl IntoLogMessage<PbAirspaceUpdate> for AirspaceUpdate {
     type Error = Infallible;
