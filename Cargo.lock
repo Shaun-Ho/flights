@@ -1593,6 +1593,7 @@ dependencies = [
  "env_logger",
  "flights-core",
  "flights-ingestor",
+ "flights-parser",
  "flights-proto",
  "log",
  "mcap",
@@ -1643,6 +1644,24 @@ dependencies = [
  "testdir",
  "thiserror 2.0.21",
  "toml",
+]
+
+[[package]]
+name = "flights-parser"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "crossbeam-channel",
+ "flights-core",
+ "flights-ingestor",
+ "flights-proto",
+ "log",
+ "ogn-aprs-parser",
+ "prost",
+ "prost-types",
+ "schemars",
+ "serde",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

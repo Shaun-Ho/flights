@@ -4,8 +4,8 @@ use flights_core::logging::{JsonlLoggerHandle, LogSender};
 use flights_core::thread_manager::{SteppableTask, TaskState};
 use flights_ingestor::AprsPacket;
 
-use crate::parser::Aircraft;
-use crate::parser::conversion::{AircraftJson, convert_ogn_aprs_beacon_to_aircraft};
+use crate::Aircraft;
+use crate::conversion::{AircraftJson, convert_ogn_aprs_beacon_to_aircraft};
 
 pub struct AircraftParser {
     receiver: crossbeam_channel::Receiver<AprsPacket>,

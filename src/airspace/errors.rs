@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use ogn_aprs_parser::errors::ICAOAddressError;
 
-use crate::parser::{Aircraft, errors::AircraftConversionError};
+use flights_parser::{Aircraft, errors::AircraftConversionError};
 
 #[derive(Debug)]
 pub struct ProblematicAircraftUpdate {

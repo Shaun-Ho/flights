@@ -10,12 +10,14 @@ rust-version = "1.98"
 flights-core = { path = "crates/core" }
 flights-proto = { path = "crates/proto" }
 flights-ingestor = { path = "crates/ingestor" }
+flights-parser = { path = "crates/parser" }
 
 bytes = "1.11.1"
 chrono = "0.4.42"
 crossbeam-channel = "0.5.16"
 log = "0.4.29"
 mcap = "0.25.0"
+ogn-aprs-parser = "0.2.0"
 prost = "0.14.4"
 prost-types = "0.14.4"
 schemars = "1.2.2"
@@ -46,6 +48,7 @@ rust-version.workspace = true
 [dependencies]
 flights-core.workspace = true
 flights-ingestor.workspace = true
+flights-parser.workspace = true
 flights-proto.workspace = true
 
 bytes.workspace = true
@@ -60,7 +63,7 @@ prost-types.workspace = true
 serde.workspace = true
 toml.workspace = true
 walkers = "0.58.0"
-ogn-aprs-parser = "0.2.0"
+ogn-aprs-parser.workspace = true
 mcap.workspace = true
 schemars = { workspace = true, features = ["chrono04"] }
 thiserror.workspace = true

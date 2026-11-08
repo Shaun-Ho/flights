@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use flights_core::logging::IntoLogMessage;
 use flights_proto::parser::PbAircraft;
 
-use crate::parser::errors::AircraftConversionError;
+use crate::errors::AircraftConversionError;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Aircraft {
