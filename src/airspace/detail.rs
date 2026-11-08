@@ -6,7 +6,7 @@ use chrono::{DateTime, Duration, Utc};
 use ogn_aprs_parser::ICAOAddress;
 
 use crate::airspace::errors::{AirspaceError, ProblematicAircraftUpdate};
-use crate::parser::Aircraft;
+use flights_parser::Aircraft;
 
 #[derive(Debug, Clone)]
 pub struct Airspace {

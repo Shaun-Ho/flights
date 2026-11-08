@@ -2,7 +2,6 @@ pub mod airspace;
 pub mod cli;
 pub mod gui;
 pub mod logging;
-pub mod parser;
 pub mod pipeline;
 
 #[cfg(test)]
