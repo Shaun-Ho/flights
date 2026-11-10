@@ -5,7 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use chrono::{DateTime, Duration, Utc};
 use ogn_aprs_parser::ICAOAddress;
 
-use crate::airspace::errors::{AirspaceError, ProblematicAircraftUpdate};
+use crate::errors::{AirspaceError, ProblematicAircraftUpdate};
 use flights_parser::Aircraft;
 
 #[derive(Debug, Clone)]
@@ -225,8 +225,8 @@ mod tests {
 
     use ogn_aprs_parser::ICAOAddress;
 
-    use crate::airspace::detail::{Airspace, AirspaceUpdate};
-    use crate::test_utilities::create_dummy_aircraft_at_time;
+    use super::*;
+    use crate::test_utilities::*;
 
     fn to_datetime(time_string: &str) -> chrono::DateTime<chrono::Utc> {
         let today = chrono::Utc::now().date_naive();
@@ -314,8 +314,6 @@ mod tests {
 
     #[cfg(test)]
     mod when_adding_aircraft_to_existing_entries {
-
-        use crate::airspace::detail::AircraftTrack;
 
         use super::*;
         #[test]

@@ -4,7 +4,7 @@ use flights_core::logging::{LogSender, ProtoLoggerHandle};
 use flights_core::thread_manager::{SteppableTask, TaskState};
 use flights_proto::airspace::PbAirspaceUpdate;
 
-use crate::airspace::detail::{Airspace, AirspaceUpdate};
+use crate::detail::{Airspace, AirspaceUpdate};
 use flights_parser::Aircraft;
 
 pub struct AirspaceStore {
@@ -98,7 +98,7 @@ mod tests {
     use ogn_aprs_parser::ICAOAddress;
 
     use super::*;
-    use crate::{airspace::detail::AircraftTrack, test_utilities::create_dummy_aircraft_at_time};
+    use crate::{detail::AircraftTrack, test_utilities::create_dummy_aircraft_at_time};
 
     fn setup_store() -> (crossbeam_channel::Sender<Aircraft>, AirspaceStore) {
         let (sender, receiver) = crossbeam_channel::unbounded();

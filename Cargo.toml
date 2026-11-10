@@ -11,6 +11,7 @@ flights-core = { path = "crates/core" }
 flights-proto = { path = "crates/proto" }
 flights-ingestor = { path = "crates/ingestor" }
 flights-parser = { path = "crates/parser" }
+flights-airspace = { path = "crates/airspace" }
 
 bytes = "1.11.1"
 chrono = "0.4.42"
@@ -46,6 +47,7 @@ rust-version.workspace = true
 
 
 [dependencies]
+flights-airspace.workspace = true
 flights-core.workspace = true
 flights-ingestor.workspace = true
 flights-parser.workspace = true

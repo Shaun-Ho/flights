@@ -1,3 +1,4 @@
+use flights_airspace::{AirspaceStore, AirspaceViewer};
 use flights_core::logging::LoggerRegistry;
 use flights_core::logging::errors::DiskloggerRegistryError;
 use flights_core::thread_manager::{
@@ -7,7 +8,6 @@ use flights_core::thread_manager::{
 use flights_ingestor::{AprsPacket, Ingestor, PbAprsPacket};
 use flights_proto::airspace::PbAirspaceUpdate;
 
-use crate::airspace::{AirspaceStore, AirspaceViewer};
 use crate::pipeline::config::{FilePathConfig, IngestorSource, PipelineConfig};
 use flights_parser::{Aircraft, AircraftJson, AircraftParser};
 

@@ -1,7 +1,8 @@
 use eframe::{egui, epaint};
 use walkers;
 
-use crate::airspace::AirspaceViewer;
+use flights_airspace::AirspaceViewer;
+
 use crate::gui::constants::AIRCRAFT_REFERENCE_SHAPE;
 
 pub struct RadarApp {

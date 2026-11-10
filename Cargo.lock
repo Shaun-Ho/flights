@@ -1591,6 +1591,7 @@ dependencies = [
  "crossbeam-channel",
  "eframe",
  "env_logger",
+ "flights-airspace",
  "flights-core",
  "flights-ingestor",
  "flights-parser",
@@ -1608,6 +1609,22 @@ dependencies = [
  "thiserror 2.0.21",
  "toml",
  "walkers",
+]
+
+[[package]]
+name = "flights-airspace"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "crossbeam-channel",
+ "flights-core",
+ "flights-parser",
+ "flights-proto",
+ "log",
+ "ogn-aprs-parser",
+ "prost",
+ "prost-types",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

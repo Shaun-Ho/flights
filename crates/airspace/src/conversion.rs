@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use flights_core::logging::IntoLogMessage;
 use flights_proto::airspace::PbAirspaceUpdate;
 
-use crate::airspace::detail::AirspaceUpdate;
+use crate::detail::AirspaceUpdate;
 
 impl IntoLogMessage<PbAirspaceUpdate> for AirspaceUpdate {
     type Error = Infallible;
