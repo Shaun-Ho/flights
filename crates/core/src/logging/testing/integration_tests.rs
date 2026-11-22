@@ -204,3 +204,72 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
 
     assert_eq!(jsonl_mcap_message.data, expected_jsonl);
 }
+
+/// Reads back the channel of the first message written to `path`.
+fn first_channel(path: &std::path::Path) -> std::sync::Arc<mcap::Channel<'static>> {
+    let contents = std::fs::read(path).unwrap();
+    mcap::MessageStream::new(&contents)
+        .unwrap()
+        .next()
+        .expect("Expected at least one MCAP message in the file")
+        .unwrap()
+        .channel
+}
+
+#[test]
+fn given_proto_logger_when_message_written_then_channel_carries_protobuf_contract() {
+    let test_dir = testdir::testdir!();
+    let file_path = test_dir.join("proto_contract.mcap");
+
+    let mut registry = LoggerRegistry::new();
+    let handle = registry
+        .register_proto::<MockTaskProto>(file_path.clone(), "test".to_string())
+        .unwrap();
+    let mut central_logger = registry.build();
+
+    handle
+        .send(MockTaskStruct {
+            larger_than_zero: 1,
+        })
+        .unwrap();
+    central_logger.step();
+    drop(central_logger);
+
+    let channel = first_channel(&file_path);
+    let schema = channel
+        .schema
+        .as_ref()
+        .expect("Expected a schema on the channel");
+    assert_eq!(channel.message_encoding, "protobuf");
+    assert_eq!(schema.name, "test.MockTaskProto");
+    assert_eq!(schema.encoding, "protobuf");
+}
+
+#[test]
+fn given_jsonl_logger_when_message_written_then_channel_carries_jsonschema_contract() {
+    let test_dir = testdir::testdir!();
+    let file_path = test_dir.join("json_contract.mcap");
+
+    let mut registry = LoggerRegistry::new();
+    let handle = registry
+        .register_jsonl::<MockJsonMessage>(file_path.clone(), "test".to_string())
+        .unwrap();
+    let mut central_logger = registry.build();
+
+    handle
+        .send(MockJsonMessage {
+            contents: vec!["contract".to_string()],
+        })
+        .unwrap();
+    central_logger.step();
+    drop(central_logger);
+
+    let channel = first_channel(&file_path);
+    let schema = channel
+        .schema
+        .as_ref()
+        .expect("Expected a schema on the channel");
+    assert_eq!(channel.message_encoding, "json");
+    assert_eq!(schema.name, "MockJsonMessage");
+    assert_eq!(schema.encoding, "jsonschema");
+}
