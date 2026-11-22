@@ -10,4 +10,4 @@ pub use centralized_logger::CentralizedLogger;
 pub use logger_registry::{
     JsonlLoggerHandle, LoggerID, LoggerMessage, LoggerRegistry, ProtoLoggerHandle,
 };
-pub use traits::{IntoLogMessage, LogSender, ProtoFileDescriptor};
+pub use traits::{EncodableMessage, IntoLogMessage, LogSender, ProtoFileDescriptor};
