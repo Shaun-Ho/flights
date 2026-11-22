@@ -1,6 +1,7 @@
 use std::time::SystemTime;
 
-use flights_core::logging::IntoLogMessage;
+use flights_core::logging::{IntoLogMessage, ProtoFormat};
+use flights_core::reader::traits::ReplayableMessage;
 use flights_proto::ingestor::PbAprsPacket;
 
 use crate::errors::APRSPacketConversionError;
@@ -35,5 +36,15 @@ impl TryFrom<PbAprsPacket> for AprsPacket {
             timestamp,
             message: pb_packet.message,
         })
+    }
+}
+
+impl ReplayableMessage for AprsPacket {
+    type Format = ProtoFormat;
+    type Message = PbAprsPacket;
+    type Error = APRSPacketConversionError;
+
+    fn from_stored(stored: PbAprsPacket) -> Result<Self, Self::Error> {
+        stored.try_into()
     }
 }
