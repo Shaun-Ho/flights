@@ -6,7 +6,7 @@ use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use flights_core::logging::{IntoLogMessage, ProtoFormat};
+use flights_core::logging::{IntoLogMessage, JsonFormat, ProtoFormat};
 use flights_core::reader::traits::ReplayableMessage;
 use flights_proto::parser::PbAircraft;
 
@@ -154,12 +154,35 @@ impl From<Aircraft> for PbAircraft {
     }
 }
 
-impl ReplayableMessage for Aircraft {
-    type Format = ProtoFormat;
+impl ReplayableMessage<ProtoFormat> for Aircraft {
     type Message = PbAircraft;
     type Error = AircraftConversionError;
 
     fn from_stored(stored: PbAircraft) -> Result<Self, Self::Error> {
         stored.try_into()
+    }
+}
+
+impl From<AircraftJson> for Aircraft {
+    fn from(stored: AircraftJson) -> Self {
+        Self {
+            callsign: stored.callsign,
+            icao_address: stored.icao_address,
+            broadcasted_timestamp: stored.broadcasted_timestamp,
+            latitude: stored.latitude,
+            longitude: stored.longitude,
+            ground_track: stored.ground_track,
+            ground_speed: stored.ground_speed,
+            gps_altitude: stored.gps_altitude,
+        }
+    }
+}
+
+impl ReplayableMessage<JsonFormat> for Aircraft {
+    type Message = AircraftJson;
+    type Error = Infallible;
+
+    fn from_stored(stored: AircraftJson) -> Result<Self, Self::Error> {
+        Ok(stored.into())
     }
 }

@@ -39,8 +39,7 @@ impl TryFrom<PbAprsPacket> for AprsPacket {
     }
 }
 
-impl ReplayableMessage for AprsPacket {
-    type Format = ProtoFormat;
+impl ReplayableMessage<ProtoFormat> for AprsPacket {
     type Message = PbAprsPacket;
     type Error = APRSPacketConversionError;
 

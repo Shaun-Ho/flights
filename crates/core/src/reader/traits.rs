@@ -20,9 +20,8 @@ impl<M: serde::de::DeserializeOwned> DecodeMessage<M> for JsonFormat {
     }
 }
 
-pub trait ReplayableMessage: Sized + Send + 'static {
-    type Format: DecodeMessage<Self::Message>;
-    type Message: EncodableMessage<Self::Format>;
+pub trait ReplayableMessage<F: DecodeMessage<Self::Message>>: Sized + Send + 'static {
+    type Message: EncodableMessage<F>;
     type Error: std::error::Error + Send + Sync + 'static;
 
     fn from_stored(stored: Self::Message) -> Result<Self, Self::Error>;
