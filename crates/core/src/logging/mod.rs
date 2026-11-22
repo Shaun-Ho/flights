@@ -6,8 +6,11 @@ mod traits;
 #[cfg(test)]
 mod testing;
 
-pub use centralized_logger::CentralizedLogger;
-pub use logger_registry::{
+pub use crate::common::{JsonFormat, ProtoFormat};
+pub use crate::logging::centralized_logger::CentralizedLogger;
+pub use crate::logging::logger_registry::{
     JsonlLoggerHandle, LoggerID, LoggerMessage, LoggerRegistry, ProtoLoggerHandle,
 };
-pub use traits::{IntoLogMessage, LogSender, ProtoFileDescriptor};
+pub use crate::logging::traits::{
+    EncodableMessage, IntoLogMessage, LogSender, ProtoFileDescriptor,
+};

@@ -1,4 +1,8 @@
+use std::convert::Infallible;
+
 use chrono::Utc;
+use schemars::JsonSchema;
+use serde::Serialize;
 
 use crate::logging::errors::LoggingError;
 use crate::logging::{IntoLogMessage, ProtoFileDescriptor};
@@ -35,4 +39,18 @@ impl prost::Name for MockTaskProto {
 }
 impl ProtoFileDescriptor for MockTaskProto {
     const FILE_DESCRIPTOR_SET: &'static [u8] = &[1, 2];
+}
+
+#[derive(Debug, Serialize, JsonSchema, Clone)]
+pub struct MockJsonMessage {
+    pub contents: Vec<String>,
+}
+impl IntoLogMessage<MockJsonMessage> for MockJsonMessage {
+    type Error = Infallible;
+    fn into_message(self) -> Result<MockJsonMessage, Self::Error> {
+        Ok(self)
+    }
+    fn message_timestamp(&self) -> chrono::prelude::DateTime<chrono::prelude::Utc> {
+        Utc::now()
+    }
 }

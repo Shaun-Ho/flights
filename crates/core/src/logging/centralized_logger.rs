@@ -82,10 +82,9 @@ mod tests {
     use chrono::Utc;
     use prost::Message;
 
-    use crate::{
-        common::{LogFormat, ProtoFormat},
-        logging::{testing::test_helpers::MockTaskProto, traits::mcap_schema},
-    };
+    use crate::common::*;
+    use crate::logging::testing::test_messages::*;
+    use crate::logging::traits::*;
 
     use super::*;
 

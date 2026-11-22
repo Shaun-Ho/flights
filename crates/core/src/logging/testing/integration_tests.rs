@@ -1,11 +1,6 @@
-use std::convert::Infallible;
-
-use chrono::Utc;
 use prost::Message;
-use schemars::JsonSchema;
-use serde::Serialize;
 
-use super::test_helpers::*;
+use super::test_messages::*;
 use crate::logging::*;
 use crate::thread_manager::*;
 
@@ -115,20 +110,6 @@ fn given_multiple_handles_when_messages_sent_concurrently_then_system_routes_cor
     assert_eq!(decoded_message_2, expected_2);
 }
 
-#[derive(Debug, Serialize, JsonSchema, Clone)]
-struct JsonMessage {
-    pub contents: Vec<String>,
-}
-impl IntoLogMessage<JsonMessage> for JsonMessage {
-    type Error = Infallible;
-    fn into_message(self) -> Result<JsonMessage, Self::Error> {
-        Ok(self)
-    }
-    fn message_timestamp(&self) -> chrono::prelude::DateTime<chrono::prelude::Utc> {
-        Utc::now()
-    }
-}
-
 #[test]
 fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_disk() {
     let test_dir = testdir::testdir!();
@@ -136,11 +117,11 @@ fn given_jsonl_logger_when_message_sent_and_stepped_then_correct_json_lines_on_d
 
     let mut registry = LoggerRegistry::new();
     let handle = registry
-        .register_jsonl::<JsonMessage>(file_path.clone(), "test".to_string())
+        .register_jsonl::<MockJsonMessage>(file_path.clone(), "test".to_string())
         .expect("Failed to register jsonl logger");
     let mut central_logger = registry.build();
 
-    let domain_message = JsonMessage {
+    let domain_message = MockJsonMessage {
         contents: vec!["app_started".to_string(), "disk_ok".to_string()],
     };
     let expected_bytes = serde_json::to_vec(&domain_message).unwrap();
@@ -177,7 +158,7 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
         .register_proto::<MockTaskProto>(proto_path.clone(), "test".to_string())
         .unwrap();
     let jsonl_handle = registry
-        .register_jsonl::<JsonMessage>(jsonl_path.clone(), "test".to_string())
+        .register_jsonl::<MockJsonMessage>(jsonl_path.clone(), "test".to_string())
         .unwrap();
 
     let mut central_logger = registry.build();
@@ -188,7 +169,7 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
         })
         .unwrap();
 
-    let json_msg = JsonMessage {
+    let json_msg = MockJsonMessage {
         contents: vec!["concurrent_test".to_string()],
     };
 
@@ -222,4 +203,73 @@ fn given_mixed_loggers_when_messages_sent_then_system_routes_both_formats_correc
         .unwrap();
 
     assert_eq!(jsonl_mcap_message.data, expected_jsonl);
+}
+
+/// Reads back the channel of the first message written to `path`.
+fn first_channel(path: &std::path::Path) -> std::sync::Arc<mcap::Channel<'static>> {
+    let contents = std::fs::read(path).unwrap();
+    mcap::MessageStream::new(&contents)
+        .unwrap()
+        .next()
+        .expect("Expected at least one MCAP message in the file")
+        .unwrap()
+        .channel
+}
+
+#[test]
+fn given_proto_logger_when_message_written_then_channel_carries_protobuf_contract() {
+    let test_dir = testdir::testdir!();
+    let file_path = test_dir.join("proto_contract.mcap");
+
+    let mut registry = LoggerRegistry::new();
+    let handle = registry
+        .register_proto::<MockTaskProto>(file_path.clone(), "test".to_string())
+        .unwrap();
+    let mut central_logger = registry.build();
+
+    handle
+        .send(MockTaskStruct {
+            larger_than_zero: 1,
+        })
+        .unwrap();
+    central_logger.step();
+    drop(central_logger);
+
+    let channel = first_channel(&file_path);
+    let schema = channel
+        .schema
+        .as_ref()
+        .expect("Expected a schema on the channel");
+    assert_eq!(channel.message_encoding, "protobuf");
+    assert_eq!(schema.name, "test.MockTaskProto");
+    assert_eq!(schema.encoding, "protobuf");
+}
+
+#[test]
+fn given_jsonl_logger_when_message_written_then_channel_carries_jsonschema_contract() {
+    let test_dir = testdir::testdir!();
+    let file_path = test_dir.join("json_contract.mcap");
+
+    let mut registry = LoggerRegistry::new();
+    let handle = registry
+        .register_jsonl::<MockJsonMessage>(file_path.clone(), "test".to_string())
+        .unwrap();
+    let mut central_logger = registry.build();
+
+    handle
+        .send(MockJsonMessage {
+            contents: vec!["contract".to_string()],
+        })
+        .unwrap();
+    central_logger.step();
+    drop(central_logger);
+
+    let channel = first_channel(&file_path);
+    let schema = channel
+        .schema
+        .as_ref()
+        .expect("Expected a schema on the channel");
+    assert_eq!(channel.message_encoding, "json");
+    assert_eq!(schema.name, "MockJsonMessage");
+    assert_eq!(schema.encoding, "jsonschema");
 }
