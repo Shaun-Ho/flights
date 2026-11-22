@@ -1,7 +1,7 @@
 use crate::common::{JsonFormat, LogFormat, ProtoFormat};
 
 pub trait DecodeMessage<M>: LogFormat {
-    type Error;
+    type Error: std::error::Error + Send + Sync + 'static;
     fn decode(bytes: &[u8]) -> Result<M, Self::Error>;
 }
 
