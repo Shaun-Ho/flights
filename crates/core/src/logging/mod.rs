@@ -4,7 +4,7 @@ mod logger_registry;
 mod traits;
 
 #[cfg(test)]
-mod testing;
+mod integration_tests;
 
 pub use crate::common::{JsonFormat, ProtoFormat};
 pub use crate::logging::centralized_logger::CentralizedLogger;
