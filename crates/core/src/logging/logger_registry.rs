@@ -174,7 +174,7 @@ mod tests {
     use std::fs;
 
     use super::*;
-    use crate::logging::testing::test_messages::*;
+    use crate::test_messages::*;
 
     mod logger_handle {
         use super::*;
