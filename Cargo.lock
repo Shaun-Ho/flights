@@ -1653,6 +1653,7 @@ dependencies = [
  "flights-core",
  "flights-proto",
  "log",
+ "mcap",
  "prost",
  "prost-types",
  "rstest",
@@ -1673,11 +1674,13 @@ dependencies = [
  "flights-ingestor",
  "flights-proto",
  "log",
+ "mcap",
  "ogn-aprs-parser",
  "prost",
  "prost-types",
  "schemars",
  "serde",
+ "testdir",
  "thiserror 2.0.21",
 ]
 

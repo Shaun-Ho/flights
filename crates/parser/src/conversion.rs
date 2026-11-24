@@ -6,7 +6,8 @@ use ogn_aprs_parser::{AircraftBeacon, ICAOAddress};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use flights_core::logging::IntoLogMessage;
+use flights_core::logging::{IntoLogMessage, JsonFormat, ProtoFormat};
+use flights_core::reader::ReplayableMessage;
 use flights_proto::parser::PbAircraft;
 
 use crate::errors::AircraftConversionError;
@@ -150,5 +151,118 @@ impl From<Aircraft> for PbAircraft {
             ground_speed: aircraft.ground_speed,
             gps_altitude: aircraft.gps_altitude,
         }
+    }
+}
+
+impl ReplayableMessage<ProtoFormat> for Aircraft {
+    type Message = PbAircraft;
+    type Error = AircraftConversionError;
+
+    fn from_stored(stored: PbAircraft) -> Result<Self, Self::Error> {
+        stored.try_into()
+    }
+}
+
+impl From<AircraftJson> for Aircraft {
+    fn from(stored: AircraftJson) -> Self {
+        Self {
+            callsign: stored.callsign,
+            icao_address: stored.icao_address,
+            broadcasted_timestamp: stored.broadcasted_timestamp,
+            latitude: stored.latitude,
+            longitude: stored.longitude,
+            ground_track: stored.ground_track,
+            ground_speed: stored.ground_speed,
+            gps_altitude: stored.gps_altitude,
+        }
+    }
+}
+
+impl ReplayableMessage<JsonFormat> for Aircraft {
+    type Message = AircraftJson;
+    type Error = Infallible;
+
+    fn from_stored(stored: AircraftJson) -> Result<Self, Self::Error> {
+        Ok(stored.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::TimeDelta;
+    use flights_core::logging::{LogSender, LoggerRegistry};
+    use flights_core::reader::DecodeMessage;
+    use flights_core::thread_manager::{SteppableTask, TaskState};
+
+    use super::*;
+
+    fn aircraft_at(second: i64) -> Aircraft {
+        Aircraft {
+            callsign: "TEST".to_owned(),
+            icao_address: ICAOAddress::new(0x00AB_CDEF).unwrap(),
+            broadcasted_timestamp: DateTime::from_timestamp(1_760_000_000, 0).unwrap()
+                + TimeDelta::seconds(second),
+            latitude: 47.5,
+            longitude: 8.5,
+            ground_track: 90.0,
+            ground_speed: 30.0,
+            gps_altitude: 1200.0,
+        }
+    }
+
+    #[test]
+    fn given_aircraft_logged_by_registry_when_decoded_and_converted_then_identical_aircraft_in_order()
+     {
+        let path = testdir::testdir!().join("parser.mcap");
+        let aircraft: Vec<Aircraft> = (0..3).map(aircraft_at).collect();
+        let mut registry = LoggerRegistry::new();
+        let handle = registry
+            .register_jsonl::<AircraftJson>(path.clone(), "parser".to_owned())
+            .unwrap();
+        let mut logger = registry.build();
+        for one in &aircraft {
+            handle.send(one.clone()).unwrap();
+            assert!(matches!(logger.step(), TaskState::Running));
+        }
+        drop(logger);
+
+        let bytes = std::fs::read(&path).unwrap();
+        let replayed: Vec<Aircraft> = mcap::MessageStream::new(&bytes)
+            .unwrap()
+            .map(|message| {
+                let stored: AircraftJson = JsonFormat::decode(&message.unwrap().data).unwrap();
+                <Aircraft as ReplayableMessage<JsonFormat>>::from_stored(stored).unwrap()
+            })
+            .collect();
+
+        assert_eq!(replayed, aircraft);
+    }
+
+    #[test]
+    fn given_aircraft_as_protobuf_when_converted_back_then_equals_original() {
+        let original = aircraft_at(0);
+        let stored = PbAircraft::from(original.clone());
+
+        let replayed = <Aircraft as ReplayableMessage<ProtoFormat>>::from_stored(stored).unwrap();
+
+        assert_eq!(replayed, original);
+    }
+
+    #[test]
+    fn given_json_with_out_of_range_icao_address_when_decoded_then_decode_error() {
+        // ICAO addresses are 24-bit: 0x0100_0000 is one past the largest.
+        let json = br#"{"callsign":"TEST","icao_address":16777216,"broadcasted_timestamp":"2025-10-01T19:05:58Z","latitude":47.5,"longitude":8.5,"ground_track":90.0,"ground_speed":30.0,"gps_altitude":1200.0}"#;
+
+        let decoded: Result<AircraftJson, _> = JsonFormat::decode(json);
+
+        assert!(decoded.is_err());
+    }
+
+    #[test]
+    fn given_pb_aircraft_with_out_of_range_icao_address_when_converted_then_conversion_error() {
+        let mut stored = PbAircraft::from(aircraft_at(0));
+        stored.icao_address = 0x0100_0000;
+
+        assert!(<Aircraft as ReplayableMessage<ProtoFormat>>::from_stored(stored).is_err());
     }
 }

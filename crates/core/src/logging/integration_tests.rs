@@ -1,7 +1,7 @@
 use prost::Message;
 
-use super::test_messages::*;
 use crate::logging::*;
+use crate::test_messages::*;
 use crate::thread_manager::*;
 
 #[test]

@@ -83,8 +83,8 @@ mod tests {
     use prost::Message;
 
     use crate::common::*;
-    use crate::logging::testing::test_messages::*;
     use crate::logging::traits::*;
+    use crate::test_messages::*;
 
     use super::*;
 
